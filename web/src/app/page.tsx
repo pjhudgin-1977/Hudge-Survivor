@@ -2,37 +2,58 @@
 
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
+import { useRouter } from "next/navigation";
 
-export default function Home() {
-  const [status, setStatus] = useState("Checking Supabase...");
-  const [poolNames, setPoolNames] = useState<string[]>([]);
+export default function AppHome() {
+  const router = useRouter();
+  const [loading, setLoading] = useState(true);
+  const [email, setEmail] = useState<string | null>(null);
+  const [poolId, setPoolId] = useState("");
 
   useEffect(() => {
-    (async () => {
-      const { data, error } = await supabase
-        .from("pools")
-        .select("name");
+    supabase.auth.getUser().then(({ data }) => {
+      if (!data.user) router.push("/login");
+      else setEmail(data.user.email ?? null);
+      setLoading(false);
+    });
+  }, [router]);
 
-      if (error) {
-        setStatus("Error: " + error.message);
-        return;
-      }
+  async function logout() {
+    await supabase.auth.signOut();
+    router.push("/login");
+  }
 
-      setStatus("Connected to Supabase ✅");
-      setPoolNames((data ?? []).map((r) => r.name));
-    })();
-  }, []);
+  function goToPool() {
+    if (!poolId.trim()) return;
+    router.push("/app/pool/" + poolId.trim());
+  }
+
+  if (loading) return <div className="p-6">Loading…</div>;
 
   return (
-    <main style={{ padding: 24 }}>
-      <h1>Hudge Survivor</h1>
-      <p>{status}</p>
+    <div className="p-6 space-y-6">
+      <div className="space-y-1">
+        <h1 className="text-2xl font-semibold">Dashboard</h1>
+        <p>Logged in as: {email}</p>
+      </div>
 
-      <ul>
-        {poolNames.map((n) => (
-          <li key={n}>{n}</li>
-        ))}
-      </ul>
-    </main>
+      <div className="border rounded p-4 space-y-3">
+        <h2 className="text-xl font-semibold">Join a Pool</h2>
+        <input
+          className="border p-2 w-full"
+          placeholder="Paste Pool ID here"
+          value={poolId}
+          onChange={(e) => setPoolId(e.target.value)}
+        />
+        <button className="bg-black text-white px-4 py-2" onClick={goToPool}>
+          Go to Pool
+        </button>
+      </div>
+
+      <button className="rounded bg-black text-white px-4 py-2" onClick={logout}>
+        Log out
+      </button>
+    </div>
   );
 }
+

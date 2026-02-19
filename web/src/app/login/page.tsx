@@ -24,6 +24,22 @@ export default function LoginPage() {
 
     router.push("/app");
   }
+async function handleForgotPassword() {
+  if (!email) {
+    setError("Enter your email above first.");
+    return;
+  }
+
+  const { error } = await supabase.auth.resetPasswordForEmail(email, {
+    redirectTo: "http://localhost:3001/reset-password",
+  });
+
+  if (error) {
+    setError(error.message);
+  } else {
+    setError("Password reset email sent. Check your inbox.");
+  }
+}
 
   return (
     <div className="min-h-screen flex items-center justify-center p-6">
@@ -58,6 +74,15 @@ export default function LoginPage() {
         >
           Switch to {mode === "signup" ? "login" : "signup"}
         </button>
+        {mode === "login" && (
+  <button
+    type="button"
+    onClick={handleForgotPassword}
+    className="w-full text-sm underline"
+  >
+    Forgot password?
+  </button>
+)}
       </form>
     </div>
   );
