@@ -2,8 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { createClient } from "@/utils/supabase/client";
-
+import { supabase } from "@/lib/supabaseClient";
 /**
  * ✅ Assumptions (adjust names if yours differ):
  * - pool_members: { id, pool_id, user_id, screen_name }
