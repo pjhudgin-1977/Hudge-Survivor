@@ -22,8 +22,7 @@ export default function LoginPage() {
 
     if (error) return setError(error.message);
 
-    router.push("/app");
-  }
+router.push("/");  }
 async function handleForgotPassword() {
   if (!email) {
     setError("Enter your email above first.");
