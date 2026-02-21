@@ -141,7 +141,7 @@ export default function PoolPickPage() {
         .from("used_teams")
         .select("team_code")
         .eq("pool_id", poolId)
-        .eq("pool_member_id", member.id);
+.eq("user_id", poolMemberId)
 
       if (cancelled) return;
 
