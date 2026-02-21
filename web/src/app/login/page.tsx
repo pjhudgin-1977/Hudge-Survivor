@@ -30,9 +30,10 @@ async function handleForgotPassword() {
     return;
   }
 
-  const { error } = await supabase.auth.resetPasswordForEmail(email, {
-redirectTo: `${process.env.NEXT_PUBLIC_SITE_URL}/reset-password`
-  if (error) {
+ const { error } = await supabase.auth.resetPasswordForEmail(email, {
+  redirectTo: `${process.env.NEXT_PUBLIC_SITE_URL}/reset-password`,
+});
+if (error) {
     setError(error.message);
   } else {
     setError("Password reset email sent. Check your inbox.");
