@@ -31,9 +31,7 @@ async function handleForgotPassword() {
   }
 
   const { error } = await supabase.auth.resetPasswordForEmail(email, {
-    redirectTo: "http://localhost:3001/reset-password",
-  });
-
+redirectTo: `${process.env.NEXT_PUBLIC_SITE_URL}/reset-password`
   if (error) {
     setError(error.message);
   } else {
