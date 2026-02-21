@@ -25,7 +25,6 @@ type GameRow = {
 };
 
 export default function PoolPickPage() {
-  const supabase = createClient();
   const router = useRouter();
   const params = useParams<{ poolId: string }>();
   const poolId = params.poolId;
