@@ -223,19 +223,22 @@ if (pickErr) {
       return;
     }
 
-    const { error } = await supabase
-      .from("picks")
-      .upsert(
-        {
-          pool_id: poolId,
-user_id: poolMemberId,
-          season_year: seasonYear,
-          week_type: weekType,
-          week_number: weekNumber,
-          picked_team: selectedTeam,
-          submitted_at: new Date().toISOString(),
-        },
-"pool_id,user_id,season_year,week_type,week_number"      );
+ const { error } = await supabase
+  .from("picks")
+  .upsert(
+    [
+      {
+        pool_id: poolId,
+        user_id: poolMemberId,
+        season_year: seasonYear,
+        week_type: weekType,
+        week_number: weekNumber,
+        picked_team: selectedTeam,
+        submitted_at: new Date().toISOString(),
+      },
+    ],
+    { onConflict: "pool_id,user_id,season_year,week_type,week_number" }
+  );
 
     if (error) {
       setStatusMsg(`Submit failed: ${error.message}`);
