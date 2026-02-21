@@ -8,7 +8,7 @@ export default function LoginPage() {
   const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [mode, setMode] = useState<"signup" | "login">("signup");
+const [mode, setMode] = useState<"signup" | "login">("login");
   const [error, setError] = useState<string | null>(null);
 
   async function onSubmit(e: React.FormEvent) {
@@ -22,7 +22,7 @@ export default function LoginPage() {
 
     if (error) return setError(error.message);
 
-router.push("/");  }
+router.replace("/");
 async function handleForgotPassword() {
   if (!email) {
     setError("Enter your email above first.");
@@ -30,7 +30,7 @@ async function handleForgotPassword() {
   }
 
  const { error } = await supabase.auth.resetPasswordForEmail(email, {
-  redirectTo: `${process.env.NEXT_PUBLIC_SITE_URL}/reset-password`,
+redirectTo: `${process.env.NEXT_PUBLIC_SITE_URL}/reset-password`,
 });
 if (error) {
     setError(error.message);
