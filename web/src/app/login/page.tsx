@@ -23,7 +23,7 @@ const [mode, setMode] = useState<"signup" | "login">("login");
     if (error) return setError(error.message);
 
 router.replace("/");
-
+  }
 async function handleForgotPassword() {
   if (!email) {
     setError("Enter your email above first.");
