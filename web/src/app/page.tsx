@@ -25,7 +25,7 @@ export default function AppHome() {
 
   function goToPool() {
     if (!poolId.trim()) return;
-    router.push("/app/pool/" + poolId.trim());
+router.push("/pool/" + poolId.trim());
   }
 
   if (loading) return <div className="p-6">Loading…</div>;
