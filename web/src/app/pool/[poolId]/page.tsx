@@ -13,9 +13,14 @@ type Row = {
 export default function StandingsPage({
   params,
 }: {
-  params: { poolId: string };
+  params: Promise<{ poolId: string }>;
 }) {
-  const poolId = params.poolId;  const [rows, setRows] = useState<Row[]>([]);
+  const [poolId, setPoolId] = useState<string>("");
+
+  useEffect(() => {
+    params.then(({ poolId }) => setPoolId(poolId));
+  }, [params]);  
+  const [rows, setRows] = useState<Row[]>([]);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
 
