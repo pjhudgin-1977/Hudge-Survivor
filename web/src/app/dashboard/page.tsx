@@ -58,8 +58,7 @@ if (memberships && memberships.length === 1) {
           {memberships.map((m) => (
             <li key={m.pool_id} style={{ marginBottom: 8 }}>
               <Link href={`/app/pool/${m.pool_id}`}>
-                {m.pools?.name ?? m.pool_id}
-              </Link>
+{m.pools?.[0]?.name ?? m.pool_id}              </Link>
               {m.screen_name ? (
                 <span style={{ opacity: 0.75 }}> — as {m.screen_name}</span>
               ) : null}
