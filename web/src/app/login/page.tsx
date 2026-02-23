@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { supabase } from "@/lib/supabaseClient";
+import { createClient } from "@/lib/supabase/client";
 import { useRouter } from "next/navigation";
 
 export default function LoginPage() {
@@ -14,7 +14,7 @@ const [mode, setMode] = useState<"signup" | "login">("login");
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
-
+const supabase = createClient();
     const { error } =
       mode === "signup"
         ? await supabase.auth.signUp({ email, password })
@@ -22,14 +22,15 @@ const [mode, setMode] = useState<"signup" | "login">("login");
 
     if (error) return setError(error.message);
 
-router.replace("/");
+router.replace("/dashboard");
+router.refresh();
   }
 async function handleForgotPassword() {
   if (!email) {
     setError("Enter your email above first.");
     return;
   }
-
+const supabase = createClient();
   const { error } = await supabase.auth.resetPasswordForEmail(email, {
     redirectTo: `${process.env.NEXT_PUBLIC_SITE_URL}/reset-password`,
   });

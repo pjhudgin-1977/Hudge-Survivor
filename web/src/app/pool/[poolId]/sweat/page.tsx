@@ -1,8 +1,6 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import React from "react";
-import PollingRefresh from "@/components/PollingRefresh";
-
+import PollingRefresh from "@/app/_components/PollingRefresh";
 export default async function SweatPage({
   params,
 }: {

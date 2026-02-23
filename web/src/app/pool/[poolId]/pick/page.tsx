@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
+import { createClient } from "@/lib/supabase/client";
 import { supabase } from "../../../../lib/supabaseClient";
 type GameRow = {
   season_year: number;
@@ -60,8 +61,9 @@ const resolvedWeekRef = useRef(false);
     try {
       setLoading(true);
       setStatusMsg("");
-
+const supabase = createClient();
       // 1) Must be authed
+      
       const { data: userRes, error: userErr } = await supabase.auth.getUser();
       const user = userRes?.user;
 
@@ -155,9 +157,9 @@ setIsLocked(locked);
 // 5) Used teams (per pool+member)
 const { data: usedRows, error: usedErr } = await supabase
   .from("used_teams")
-  .select("team_code")
+  .select("team_abbr")
   .eq("pool_id", poolId)
-  .eq("pool_member_id", member.user_id);
+  .eq("user_id", member.user_id);
 
 if (cancelled) return;
 
@@ -166,7 +168,7 @@ if (usedErr) {
   setStatusMsg(`Warning: could not load used teams: ${usedErr.message}`);
   setUsedTeams([]);
 } else {
-  setUsedTeams((usedRows ?? []).map((r: any) => r.team_code));
+  setUsedTeams((usedRows ?? []).map((r: any) => r.team_abbr));
 }
 
 // 6) Existing pick for THIS pool+member+week
@@ -174,8 +176,7 @@ const { data: pickRow, error: pickErr } = await supabase
   .from("picks")
   .select("picked_team")
   .eq("pool_id", poolId)
-  .eq("pool_member_id", member.user_id)
-  .eq("season_year", seasonYear)
+  .eq("user_id", member.user_id)
   .eq("week_type", weekType)
   .eq("week_number", weekNumber)
   .maybeSingle();
@@ -189,18 +190,20 @@ if (pickErr) {
   setExistingPick(pickRow?.picked_team ?? null);
   setSelectedTeam(pickRow?.picked_team ?? "");
 }
-    } catch (e: any) {
-      setStatusMsg(e?.message ?? "Unexpected error.");
-    } finally {
-      if (!cancelled) setLoading(false);
-    }
-  }
 
-  load();
-  return () => {
-    cancelled = true;
-  };
-}, [supabase, router, poolId, seasonYear, weekType, weekNumber]);
+} catch (e: any) {
+  setStatusMsg(e?.message ?? "Unexpected error.");
+} finally {
+  if (!cancelled) setLoading(false);
+}
+} // <-- add this to close async function load()
+
+load();
+
+return () => {
+  cancelled = true;
+};
+}, [router, poolId, seasonYear, weekType, weekNumber]);
   async function handleSubmit() {
     setStatusMsg("");
 

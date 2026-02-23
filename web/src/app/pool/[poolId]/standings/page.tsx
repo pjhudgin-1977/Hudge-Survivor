@@ -1,8 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { createClient } from "@supabase/supabase-js";
-
+import { createClient } from "@/lib/supabase/client";
 type Row = {
   user_id: string;
   screen_name: string;
@@ -16,10 +15,7 @@ export default function StandingsPage() {
   const [err, setErr] = useState<string | null>(null);
 
   useEffect(() => {
-    const supabase = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-    );
+   const supabase = createClient();
 
     (async () => {
       setLoading(true);

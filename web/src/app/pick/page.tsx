@@ -7,8 +7,8 @@ import { supabase } from "@/lib/supabaseClient";
  * ✅ Assumptions (adjust names if yours differ):
  * - pool_members: { id, pool_id, user_id, screen_name }
  * - games: { season_year, week_type, week_number, home_team, away_team, kickoff_ts }
- * - picks: { id, pool_id, pool_member_id, season_year, week_type, week_number, picked_team, submitted_at }
- * - used_teams: { pool_id, pool_member_id, team_code }  // or derive from prior picks
+ * - picks: { id, pool_id, user_id, season_year, week_type, week_number, picked_team, submitted_at }
+ * - used_teams: { pool_id, user_id, team_code }  // or derive from prior picks
  *
  * If your column/table names differ, change ONLY the query strings/field names.
  */
@@ -158,7 +158,7 @@ export default function PoolPickPage() {
         .from("picks")
         .select("picked_team")
         .eq("pool_id", poolId)
-        .eq("pool_member_id", member.id)
+        .eq("user_id", member.id)
         .eq("season_year", seasonYear)
         .eq("week_type", weekType)
         .eq("week_number", weekNumber)
@@ -212,7 +212,7 @@ export default function PoolPickPage() {
       .upsert(
         {
           pool_id: poolId,
-          pool_member_id: poolMemberId,
+          user_id: poolMemberId,
           season_year: seasonYear,
           week_type: weekType,
           week_number: weekNumber,
@@ -220,7 +220,7 @@ export default function PoolPickPage() {
           submitted_at: new Date().toISOString(),
         },
         {
-          onConflict: "pool_id,pool_member_id,season_year,week_type,week_number",
+          onConflict: "pool_id,user_id,season_year,week_type,week_number",
         }
       );
 
