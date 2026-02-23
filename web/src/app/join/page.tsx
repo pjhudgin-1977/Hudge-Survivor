@@ -1,5 +1,5 @@
 "use client";
-export const dynamic = "force-dynamic";
+
 import { useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 
@@ -14,7 +14,8 @@ export default function JoinPoolPage() {
   const [error, setError] = useState<string | null>(null);
   const [joining, setJoining] = useState(false);
   const didAutoJoin = useRef(false);
-async function joinPool(id: string) {
+
+  async function joinPool(id: string) {
     setJoining(true);
     setError(null);
 
@@ -44,49 +45,38 @@ async function joinPool(id: string) {
       setError(err?.message || "Join failed (network / server error).");
     } finally {
       setJoining(false);
-    }useEffect(() => {
-  if (didAutoJoin.current) return;
-
-  if (!poolIdFromUrl) {
-    // No poolId in URL -> don't crash the build, just show UI
-    return;
-  }
-
-  didAutoJoin.current = true;
-  setPoolId(poolIdFromUrl);
-  joinPool(poolIdFromUrl);
-}, [poolIdFromUrl]);
-  
+    }
   }
 
   async function onJoin(e: React.FormEvent) {
     e.preventDefault();
 
     const id = (poolId || poolIdFromUrl).trim();
-    if (!id) return setError("Enter a Pool ID.");
+    if (!id) {
+      setError("Enter a Pool ID.");
+      return;
+    }
 
     await joinPool(id);
   }
 
-  // Auto-join if poolId is present in URL
+  // Auto-join if poolId exists in URL
   useEffect(() => {
     const id = poolIdFromUrl.trim();
     if (!id) return;
 
-    // Pre-fill input too
     setPoolId(id);
 
-    // Prevent loops
     if (didAutoJoin.current) return;
     didAutoJoin.current = true;
 
     joinPool(id);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [poolIdFromUrl]);
 
   return (
     <main style={{ padding: 24, maxWidth: 520 }}>
       <h1 style={{ fontSize: 26, fontWeight: 800 }}>Join a Pool</h1>
+
       <p style={{ marginTop: 8, opacity: 0.8 }}>
         Paste the Pool ID you were given.
       </p>
@@ -118,11 +108,11 @@ async function joinPool(id: string) {
           {joining ? "Joining..." : "Join"}
         </button>
 
-        {error ? (
+        {error && (
           <p style={{ marginTop: 10, color: "#b00", fontWeight: 600 }}>
             {error}
           </p>
-        ) : null}
+        )}
       </form>
     </main>
   );
