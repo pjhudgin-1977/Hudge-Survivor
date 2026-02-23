@@ -45,7 +45,7 @@ const games = Object.values(
       Pool: <code>{poolId}</code>
     </div>
 
-    {/* rest of your content */}
+   <div
   style={{
     marginTop: 8,
     fontSize: 14,
