@@ -2,8 +2,9 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { createClient } from "@/lib/supabase/client";
-import { supabase } from "../../../../lib/supabaseClient";
+import { createClient } from "../../../../lib/supabaseClient";
+
+const supabase = createClient();import { supabase } from "../../../../lib/supabaseClient";
 type GameRow = {
   season_year: number;
   phase: string;
