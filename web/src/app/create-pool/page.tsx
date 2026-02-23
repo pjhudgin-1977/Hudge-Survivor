@@ -1,8 +1,10 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { supabase } from "@/lib/supabaseClient";
+import { createClient } from "@/lib/supabaseClient";
 import { useRouter } from "next/navigation";
+
+const supabase = createClient();
 
 export default function CreatePoolPage() {
   const router = useRouter();

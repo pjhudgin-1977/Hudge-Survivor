@@ -2,7 +2,8 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { supabase } from "@/lib/supabaseClient";
+import { createClient } from "@/lib/supabaseClient";
+const supabase = createClient();
 /**
  * ✅ Assumptions (adjust names if yours differ):
  * - pool_members: { id, pool_id, user_id, screen_name }
