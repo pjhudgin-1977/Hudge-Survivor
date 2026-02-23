@@ -1,8 +1,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { supabase } from "@/lib/supabaseClient";
+import { createClient } from "@/lib/supabaseClient";
 
+const supabase = createClient();
 export default function SweatBoard() {
   const [status, setStatus] = useState("Loading...");
   const [rows, setRows] = useState<any[]>([]);
