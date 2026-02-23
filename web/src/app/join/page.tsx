@@ -14,7 +14,18 @@ export default function JoinPoolPage() {
   const [error, setError] = useState<string | null>(null);
   const [joining, setJoining] = useState(false);
   const didAutoJoin = useRef(false);
+useEffect(() => {
+  if (didAutoJoin.current) return;
 
+  if (!poolIdFromUrl) {
+    // No poolId in URL -> don't crash the build, just show UI
+    return;
+  }
+
+  didAutoJoin.current = true;
+  setPoolId(poolIdFromUrl);
+  joinPool(poolIdFromUrl);
+}, [poolIdFromUrl]);
   async function joinPool(id: string) {
     setJoining(true);
     setError(null);
