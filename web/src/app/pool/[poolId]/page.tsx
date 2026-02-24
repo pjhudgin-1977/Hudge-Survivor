@@ -25,6 +25,8 @@ export default function StandingsPage({
   const [err, setErr] = useState<string | null>(null);
 
   useEffect(() => {
+    if (!poolId) return;
+
     const supabase = createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
@@ -58,7 +60,7 @@ export default function StandingsPage({
       setRows((data ?? []) as Row[]);
       setLoading(false);
     })();
-  }, []);
+}, [poolId]);
 
   const sorted = useMemo(() => {
     return [...rows].sort((a, b) => {
