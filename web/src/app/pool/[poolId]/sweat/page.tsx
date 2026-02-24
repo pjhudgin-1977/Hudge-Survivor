@@ -10,22 +10,9 @@ export default async function SweatPage({
   const supabase = createClient();
   const { poolId } = await params;
 
-  // Auth (server-side). We don't redirect here to avoid login loops while auth is being stabilized.
+  // Auth (server-side). We don't redirect here to avoid login loops.
   const { data: userRes } = await supabase.auth.getUser();
   const user = userRes?.user;
-
-  // Who's Left counts derived from the sweat rows (avoids RLS on pool_members)
-const uniqueUsers = new Map<string, boolean>(); // user_id -> still_alive
-
-(rows ?? []).forEach((r: any) => {
-  // if a user appears multiple times, keep "alive" if any row says alive
-  const prev = uniqueUsers.get(r.user_id) ?? false;
-  uniqueUsers.set(r.user_id, prev || !!r.still_alive);
-});
-
-const total = uniqueUsers.size;
-const alive = Array.from(uniqueUsers.values()).filter(Boolean).length;
-const eliminated = total - alive;
 
   // Sweat board rows
   const { data: rows, error } = await supabase
@@ -33,6 +20,19 @@ const eliminated = total - alive;
     .select("*")
     .eq("pool_id", poolId)
     .order("kickoff_at", { ascending: true });
+
+  // Who's Left counts derived from the sweat rows (avoids RLS on pool_members)
+  const uniqueUsers = new Map<string, boolean>(); // user_id -> still_alive
+
+  (rows ?? []).forEach((r: any) => {
+    // if a user appears multiple times, keep "alive" if any row says alive
+    const prev = uniqueUsers.get(r.user_id) ?? false;
+    uniqueUsers.set(r.user_id, prev || !!r.still_alive);
+  });
+
+  const total = uniqueUsers.size;
+  const alive = Array.from(uniqueUsers.values()).filter(Boolean).length;
+  const eliminated = total - alive;
 
   const games = Object.values(
     (rows ?? []).reduce((acc: any, r: any) => {
