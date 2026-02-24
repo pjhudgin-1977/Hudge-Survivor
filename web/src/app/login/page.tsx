@@ -23,7 +23,6 @@ const supabase = createClient();
     if (error) return setError(error.message);
 
 router.replace("/dashboard");
-router.refresh();
   }
 async function handleForgotPassword() {
   if (!email) {
