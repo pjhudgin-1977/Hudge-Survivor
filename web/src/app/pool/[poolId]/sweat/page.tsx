@@ -115,15 +115,17 @@ const games = Object.values(
     borderCollapse: "collapse",
     color: "#e5e7eb",
   }}
->  <thead>
-<tr style={{ background: "#111827", color: "#e5e7eb", fontWeight: 700 }}>    <th align="left">Player</th>
-    <th align="left">Pick</th>
-    <th align="left">Opponent</th>
-    <th align="left">Status</th>
-    <th align="left">Result</th>
-    <th align="left">Alive</th>
-  </tr>
-</thead>
+>
+  <thead>
+    <tr style={{ background: "#111827", color: "#e5e7eb", fontWeight: 700 }}>
+      <th align="left">Player</th>
+      <th align="left">Pick</th>
+      <th align="left">Opponent</th>
+      <th align="left">Status</th>
+      <th align="left">Result</th>
+      <th align="left">Alive</th>
+    </tr>
+  </thead>
   <tbody>
   {games.map((g: any) => (
     <React.Fragment key={g.game_id as string}>
