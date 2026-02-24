@@ -1,16 +1,30 @@
+import React from "react";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabaseClient";
-import React from "react";
+import PollingRefresh from "@/app/_components/PollingRefresh";
 
-const supabase = createClient();import PollingRefresh from "@/app/_components/PollingRefresh";
 export default async function SweatPage({
   params,
 }: {
   params: Promise<{ poolId: string }>;
 }) {
-  const supabase = await createClient();
+  const supabase = createClient();
   const { poolId } = await params;
 
+  const { data: userRes } = await supabase.auth.getUser();
+const user = userRes?.user;
+
+  // Who's Left counts
+  const { data: members } = await supabase
+    .from("pool_members")
+    .select("id, eliminated_at")
+    .eq("pool_id", poolId);
+
+  const total = members?.length ?? 0;
+  const eliminated = (members ?? []).filter((m) => m.eliminated_at).length;
+  const alive = total - eliminated;
+
+  // ...keep the rest of your code below...
 const { data: userRes } = await supabase.auth.getUser();
 if (!userRes?.user) redirect("/login");
 
@@ -37,10 +51,40 @@ const games = Object.values(
   }, {})
 );
  return (
+
   <main className="p-6 space-y-4">
+    <main className="p-6 space-y-4">
+
+  {!user ? (
+    <div className="rounded-xl border p-3">
+      You’re not logged in. Please{" "}
+      <a className="underline" href="/login">log in</a>.
+    </div>
+  ) : null}
+
+  <div className="mt-3 mb-4 grid grid-cols-3 gap-3"></div>
+    <div className="mt-3 mb-4 grid grid-cols-3 gap-3">
+  <div className="rounded-xl border p-3">
+    <div className="text-xs opacity-70">Alive</div>
+    <div className="text-2xl font-semibold">{alive}</div>
+  </div>
+
+  <div className="rounded-xl border p-3">
+    <div className="text-xs opacity-70">Eliminated</div>
+    <div className="text-2xl font-semibold">{eliminated}</div>
+  </div>
+
+  <div className="rounded-xl border p-3">
+    <div className="text-xs opacity-70">Total</div>
+    <div className="text-2xl font-semibold">{total}</div>
+  </div>
+</div>
     <PollingRefresh intervalMs={15000} />
 
     <h1 className="text-2xl font-semibold">Sweat</h1>
+    <div style={{ opacity: 0.7 }}>
+  {rows.length} players remaining
+</div>
     <div className="opacity-70">
       Pool: <code>{poolId}</code>
     </div>
