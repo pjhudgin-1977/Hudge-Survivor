@@ -50,11 +50,7 @@ export default function DashboardPage() {
       const list = (data ?? []) as Membership[];
       setMemberships(list);
 
-      // Smart redirect if only one pool
-      if (list.length === 1) {
-        router.replace(`/pool/${list[0].pool_id}`);
-        return;
-      }
+     
 
       setLoading(false);
     })();
