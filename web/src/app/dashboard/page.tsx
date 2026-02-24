@@ -1,74 +1,80 @@
 // /src/app/dashboard/page.tsx
 import Link from "next/link";
 import { redirect } from "next/navigation";
-
-// 👇 Use the SAME supabase client helper you already use elsewhere.
-// Examples you might already have:
-// import { createClient } from "@/lib/supabase/server";
-// import { createClient } from "@/lib/supabase/client";
-// import { createServerClient } from "@/lib/supabase/server";
-import { createClient } from "@/lib/supabase/server"; // <-- adjust to match your project
+import { createClient } from "@/lib/supabaseClient";
 
 export default async function DashboardPage() {
-  const supabase = await createClient();
+  const supabase = createClient();
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const { data: userRes } = await supabase.auth.getUser();
+  const user = userRes?.user;
 
   // Not logged in -> go to login
   if (!user) redirect("/login");
 
-  // Fetch pools the user is a member of
-  // Assumes a table like: pool_members (pool_id, user_id, screen_name, ...)
-  // and pools (id, name, created_at, ...)
+  // Fetch pool memberships for this user (simple + reliable)
   const { data: memberships, error } = await supabase
     .from("pool_members")
-    .select("pool_id, screen_name, pools:pool_id ( id, name )")
+    .select("pool_id, screen_name")
     .eq("user_id", user.id)
     .order("pool_id", { ascending: false });
-  // Smart redirect
-if (memberships && memberships.length === 1) {
-  const only = memberships[0];
-  redirect(`/pool/${(only as any).pools?.id ?? only.pool_id}`);
-}
+
+  // Smart redirect if only one pool
+  if (memberships && memberships.length === 1) {
+    redirect(`/pool/${memberships[0].pool_id}`);
+  }
+
+  const poolIds = (memberships ?? []).map((m: any) => m.pool_id);
 
   return (
-    <main style={{ padding: 24, maxWidth: 760 }}>
-      <h1 style={{ fontSize: 28, fontWeight: 800 }}>Dashboard</h1>
-      <p style={{ marginTop: 6, opacity: 0.8 }}>
+    <main className="p-6 space-y-4 max-w-3xl">
+      <h1 className="text-2xl font-semibold">Dashboard</h1>
+      <p className="opacity-80">
         Signed in as <strong>{user.email}</strong>
       </p>
 
-      <div style={{ marginTop: 18, display: "flex", gap: 10, flexWrap: "wrap" }}>
-        <Link href="/create-pool">Create Pool</Link>
-        <Link href="/join">Join Pool</Link>
+      <div className="flex gap-4 flex-wrap">
+        <Link className="underline" href="/create-pool">
+          Create Pool
+        </Link>
+        <Link className="underline" href="/join">
+          Join Pool
+        </Link>
       </div>
 
-      <h2 style={{ marginTop: 28, fontSize: 18, fontWeight: 700 }}>
-        Your Pools
-      </h2>
+      <h2 className="text-lg font-semibold pt-2">Your Pools</h2>
 
       {error ? (
-        <p style={{ marginTop: 10, color: "#b00" }}>
-          Error loading pools: {error.message}
-        </p>
-      ) : memberships && memberships.length ? (
-        <ul style={{ marginTop: 10, paddingLeft: 18 }}>
-          {memberships.map((m) => (
-            <li key={m.pool_id} style={{ marginBottom: 8 }}>
-              <Link href={`/app/pool/${m.pool_id}`}>
-{m.pools?.[0]?.name ?? m.pool_id}              </Link>
+        <div className="rounded-xl border p-3">
+          Error loading pools: <span className="opacity-70">{error.message}</span>
+        </div>
+      ) : poolIds.length ? (
+        <ul className="list-disc pl-5 space-y-2">
+          {memberships!.map((m: any) => (
+            <li key={m.pool_id}>
+              <Link className="underline" href={`/pool/${m.pool_id}`}>
+                {m.pool_id}
+              </Link>
               {m.screen_name ? (
-                <span style={{ opacity: 0.75 }}> — as {m.screen_name}</span>
+                <span className="opacity-70"> — as {m.screen_name}</span>
               ) : null}
+
+              <div className="mt-1 flex gap-3 flex-wrap text-sm">
+                <Link className="underline" href={`/pool/${m.pool_id}/pick`}>
+                  Pick
+                </Link>
+                <Link className="underline" href={`/pool/${m.pool_id}/standings`}>
+                  Standings
+                </Link>
+                <Link className="underline" href={`/pool/${m.pool_id}/sweat`}>
+                  Sweat
+                </Link>
+              </div>
             </li>
           ))}
         </ul>
       ) : (
-        <p style={{ marginTop: 10, opacity: 0.8 }}>
-          You’re not in any pools yet.
-        </p>
+        <p className="opacity-80">You’re not in any pools yet.</p>
       )}
     </main>
   );
