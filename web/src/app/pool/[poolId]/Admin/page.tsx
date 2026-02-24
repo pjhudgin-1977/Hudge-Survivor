@@ -104,7 +104,29 @@ export default function PoolAdminPage({
   if (loading) {
     return <main className="p-6">Loading…</main>;
   }
+async function advanceWeek() {
+  if (!poolId) return;
 
+  const supabase = createClient();
+
+  const { data, error } = await supabase
+    .from("pool_state")
+    .update({
+      week_number: weekNumber + 1,
+      picks_locked: false,
+    })
+    .eq("pool_id", poolId)
+    .select()
+    .single();
+
+  if (error) {
+    setErr(error.message);
+    return;
+  }
+
+  setWeekNumber(data.week_number);
+  setPicksLocked(data.picks_locked);
+}
   return (
     <main className="p-6 space-y-4 max-w-2xl">
       <h1 className="text-2xl font-semibold">Pool Admin</h1>
@@ -167,12 +189,19 @@ export default function PoolAdminPage({
         </label>
 
         <button
-          className="rounded-xl border px-4 py-2 hover:bg-white/5 disabled:opacity-50"
-          onClick={save}
-          disabled={saving}
-        >
-          {saving ? "Saving…" : "Save"}
-        </button>
+  className="rounded-xl border px-4 py-2 hover:bg-white/5"
+  onClick={save}
+  disabled={saving}
+>
+  {saving ? "Saving…" : "Save"}
+</button>
+
+<button
+  className="rounded-xl border px-4 py-2 hover:bg-white/5"
+  onClick={advanceWeek}
+>
+  Advance to Next Week →
+</button>
       </div>
     </main>
   );
