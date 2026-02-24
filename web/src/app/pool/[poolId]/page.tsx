@@ -1,114 +1,45 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import { createClient } from "@/lib/supabaseClient";
-type Row = {
-  user_id: string;
-  screen_name: string;
-  losses: number;
-  is_eliminated: boolean;
-};
+import Link from "next/link";
+import { useEffect, useState } from "react";
 
-export default function StandingsPage({
+export default function PoolHomePage({
   params,
 }: {
   params: Promise<{ poolId: string }>;
 }) {
-  const [poolId, setPoolId] = useState<string>("");
+  const [poolId, setPoolId] = useState("");
 
   useEffect(() => {
     params.then(({ poolId }) => setPoolId(poolId));
-  }, [params]);  
-  const [rows, setRows] = useState<Row[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [err, setErr] = useState<string | null>(null);
+  }, [params]);
 
-  useEffect(() => {
-    if (!poolId) return;
-
-    const supabase = createClient();
-
-    (async () => {
-      setLoading(true);
-      setErr(null);
-
-      const { data: auth } = await supabase.auth.getUser();
-      if (!auth?.user) {
-        setErr("Not logged in. Go to /login first.");
-        setLoading(false);
-        return;
-      }
-
-     
-
-      // Standings from pool_members
-      const { data, error } = await supabase
-        .from("pool_members")
-        .select("user_id, screen_name, losses, is_eliminated")
-        .eq("pool_id", poolId);
-
-      if (error) {
-        setErr(error.message);
-        setLoading(false);
-        return;
-      }
-
-      setRows((data ?? []) as Row[]);
-      setLoading(false);
-    })();
-}, [poolId]);
-
-  const sorted = useMemo(() => {
-    return [...rows].sort((a, b) => {
-      // alive first, then fewer losses, then name
-      const aDead = a.is_eliminated ? 1 : 0;
-      const bDead = b.is_eliminated ? 1 : 0;
-      if (aDead !== bDead) return aDead - bDead;
-      if (a.losses !== b.losses) return a.losses - b.losses;
-      return a.screen_name.localeCompare(b.screen_name);
-    });
-  }, [rows]);
-
-  const alive = sorted.filter((r) => !r.is_eliminated).length;
-  const eliminated = sorted.length - alive;
+  if (!poolId) return <main className="p-6">Loading…</main>;
 
   return (
-    <main style={{ padding: 24 }}>
-      <h1 style={{ fontSize: 24, fontWeight: 700 }}>Standings</h1>
+    <main className="p-6 space-y-4">
+      <h1 className="text-2xl font-semibold">Pool Home</h1>
 
-      {loading && <p>Loading…</p>}
-      {err && <pre style={{ color: "crimson", marginTop: 12 }}>{err}</pre>}
+      <div className="opacity-70">
+        Pool: <code>{poolId}</code>
+      </div>
 
-      {!loading && !err && (
-        <>
-          <p style={{ marginTop: 8 }}>
-            Alive: <strong>{alive}</strong> &nbsp;|&nbsp; Eliminated:{" "}
-            <strong>{eliminated}</strong> &nbsp;|&nbsp; Total:{" "}
-            <strong>{sorted.length}</strong>
-          </p>
+      <div className="grid gap-3">
+        <Link className="rounded-xl border p-4 hover:bg-white/5" href={`/pool/${poolId}/pick`}>
+          <div className="font-semibold">Make Pick</div>
+          <div className="text-sm opacity-70">Choose your team for this week</div>
+        </Link>
 
-          <table border={1} cellPadding={6} style={{ marginTop: 12, width: "100%" }}>
-            <thead>
-              <tr>
-                <th align="left">#</th>
-                <th align="left">Player</th>
-                <th align="left">Status</th>
-                <th align="right">Losses</th>
-              </tr>
-            </thead>
-            <tbody>
-              {sorted.map((r, idx) => (
-                <tr key={r.user_id}>
-                  <td>{idx + 1}</td>
-                  <td>{r.screen_name}</td>
-                  <td>{r.is_eliminated ? "❌ Eliminated" : "✅ Alive"}</td>
-                  <td align="right">{r.losses}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </>
-      )}
+        <Link className="rounded-xl border p-4 hover:bg-white/5" href={`/pool/${poolId}/sweat`}>
+          <div className="font-semibold">Sweat</div>
+          <div className="text-sm opacity-70">Live view of picks and game status</div>
+        </Link>
+
+        <Link className="rounded-xl border p-4 hover:bg-white/5" href={`/pool/${poolId}/standings`}>
+          <div className="font-semibold">Standings</div>
+          <div className="text-sm opacity-70">Who’s alive / eliminated</div>
+        </Link>
+      </div>
     </main>
   );
 }
