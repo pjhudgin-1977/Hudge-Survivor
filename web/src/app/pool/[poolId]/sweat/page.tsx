@@ -14,15 +14,18 @@ export default async function SweatPage({
   const { data: userRes } = await supabase.auth.getUser();
   const user = userRes?.user;
 
-  // Who's Left counts (Alive / Eliminated / Total)
-  const { data: members } = await supabase
-    .from("pool_members")
-    .select("id, eliminated_at")
-    .eq("pool_id", poolId);
+  // Who's Left counts derived from the sweat rows (avoids RLS on pool_members)
+const uniqueUsers = new Map<string, boolean>(); // user_id -> still_alive
 
-  const total = members?.length ?? 0;
-  const eliminated = (members ?? []).filter((m) => m.eliminated_at).length;
-  const alive = total - eliminated;
+(rows ?? []).forEach((r: any) => {
+  // if a user appears multiple times, keep "alive" if any row says alive
+  const prev = uniqueUsers.get(r.user_id) ?? false;
+  uniqueUsers.set(r.user_id, prev || !!r.still_alive);
+});
+
+const total = uniqueUsers.size;
+const alive = Array.from(uniqueUsers.values()).filter(Boolean).length;
+const eliminated = total - alive;
 
   // Sweat board rows
   const { data: rows, error } = await supabase
