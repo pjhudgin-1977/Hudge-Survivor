@@ -53,7 +53,7 @@ const games = Object.values(
  return (
 
   <main className="p-6 space-y-4">
-    <main className="p-6 space-y-4">
+
 
   {!user ? (
     <div className="rounded-xl border p-3">
@@ -62,7 +62,6 @@ const games = Object.values(
     </div>
   ) : null}
 
-  <div className="mt-3 mb-4 grid grid-cols-3 gap-3"></div>
     <div className="mt-3 mb-4 grid grid-cols-3 gap-3">
   <div className="rounded-xl border p-3">
     <div className="text-xs opacity-70">Alive</div>
