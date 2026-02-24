@@ -26,7 +26,7 @@ const user = userRes?.user;
 
   // ...keep the rest of your code below...
 const { data: userRes } = await supabase.auth.getUser();
-if (!userRes?.user) redirect("/login");
+const user = userRes?.user;
 
 const { data: rows, error } = await supabase
   .from("v_sweat_game_board")
