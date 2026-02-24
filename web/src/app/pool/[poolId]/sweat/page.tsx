@@ -1,7 +1,7 @@
 import React from "react";
 import { redirect } from "next/navigation";
-import { createClient } from "@/lib/supabaseClient";
 import PollingRefresh from "@/app/_components/PollingRefresh";
+import { createClient } from "@/lib/supabaseClient";
 
 export default async function SweatPage({
   params,
@@ -156,6 +156,7 @@ if (pr === "push" || pr === "tie") return "❌ LOSS";
     if (pr === "live" || pr === "in_progress") return "⏱ LIVE";
     return "⏳ PENDING";
   })()}
+
 </td>
 
 <td style={{ borderTop: "1px solid #334155", padding: 8 }}>
