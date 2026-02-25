@@ -1,0 +1,8 @@
+{
+  "crons": [
+    {
+      "path": "/api/cron/autolock?secret=hudge-nfl-autolock",
+      "schedule": "*/5 * * * *"
+    }
+  ]
+}
