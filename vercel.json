@@ -1,0 +1,7 @@
+{
+  "crons": [
+    {
+"path": "/api/cron/autolock",      "schedule": "*/5 * * * *"
+    }
+  ]
+}
