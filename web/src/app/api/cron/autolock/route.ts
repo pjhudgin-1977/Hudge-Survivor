@@ -39,14 +39,36 @@ export async function GET(req: Request) {
     auth: { persistSession: false },
   });
 
-  const { error } = await admin.rpc("autolock_picks_for_all_pools");
+  const started = Date.now();
+
+  // ✅ Call the stats RPC so we get JSON back
+  const { data, error } = await admin.rpc(
+    "autolock_picks_for_all_pools_with_stats"
+  );
+
+  const durationMs = Date.now() - started;
 
   if (error) {
+    // ✅ log ERROR run
+    await admin.from("autolock_runs").insert({
+      status: "error",
+      message: error.message,
+      duration_ms: durationMs,
+    });
+
     return NextResponse.json(
       { ok: false, error: error.message },
       { status: 500 }
     );
   }
+
+  // ✅ log SUCCESS run (with details)
+  await admin.from("autolock_runs").insert({
+    status: "ok",
+    message: "autolock completed",
+    duration_ms: durationMs,
+    details: data ?? null,
+  });
 
   return NextResponse.json({ ok: true });
 }

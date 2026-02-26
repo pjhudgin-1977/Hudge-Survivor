@@ -1,0 +1,40 @@
+import { redirect } from "next/navigation";
+import { createClient } from "@/lib/supabase/server";
+import NavBar from "@/app/_components/NavBar";
+
+export default async function PoolLayout({
+  children,
+  params,
+}: {
+  children: React.ReactNode;
+  params: { poolId: string };
+}) {
+  const supabase = await createClient();
+  const { poolId } = params;
+
+  const { data: auth } = await supabase.auth.getUser();
+  if (!auth?.user) redirect("/login");
+
+  const { data: row, error: rowErr } = await supabase
+    .from("v_sweat_game_board")
+    .select("pool_id, week_type, week_number, kickoff_at")
+    .eq("pool_id", poolId)
+    .order("kickoff_at", { ascending: true })
+    .limit(1)
+    .maybeSingle();
+
+  const label = row
+    ? `DBG pool=${poolId.slice(0, 8)} ${String(row.week_type)} ${String(
+        row.week_number
+      )}`
+    : `DBG pool=${poolId.slice(0, 8)} no-row${
+        rowErr ? ` (${rowErr.message})` : ""
+      }`;
+
+  return (
+    <div>
+      <NavBar status={"OPEN"} label={label} />
+      <div>{children}</div>
+    </div>
+  );
+}

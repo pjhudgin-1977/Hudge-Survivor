@@ -1,18 +1,18 @@
 import React from "react";
 import PollingRefresh from "@/app/_components/PollingRefresh";
-import { createClient } from "@/lib/supabaseClient";
+import { createClient } from "@/lib/supabase/server";
+import { redirect } from "next/navigation";
 
 export default async function SweatPage({
   params,
 }: {
   params: Promise<{ poolId: string }>;
 }) {
-  const supabase = createClient();
+  const supabase = await createClient();
   const { poolId } = await params;
 
-  // Auth (server-side). We don't redirect here to avoid login loops.
-  const { data: userRes } = await supabase.auth.getUser();
-  const user = userRes?.user;
+  const { data: auth } = await supabase.auth.getUser();
+  if (!auth?.user) redirect("/login");
 
   // Sweat board rows
   const { data: rows, error } = await supabase
@@ -52,15 +52,7 @@ export default async function SweatPage({
 
   return (
     <main className="p-6 space-y-4">
-      {!user ? (
-        <div className="rounded-xl border p-3">
-          You’re not logged in. Please{" "}
-          <a className="underline" href="/login">
-            log in
-          </a>
-          .
-        </div>
-      ) : null}
+      
 
       {/* Who's Left bar */}
       <div className="mt-3 mb-4 grid grid-cols-3 gap-3">

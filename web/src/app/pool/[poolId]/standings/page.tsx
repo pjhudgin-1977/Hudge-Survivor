@@ -1,7 +1,9 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabaseClient";
+
 type Row = {
   user_id: string;
   screen_name: string;
@@ -10,12 +12,14 @@ type Row = {
 };
 
 export default function StandingsPage() {
+  const router = useRouter();
+
   const [rows, setRows] = useState<Row[]>([]);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
 
   useEffect(() => {
-   const supabase = createClient();
+    const supabase = createClient();
 
     (async () => {
       setLoading(true);
@@ -23,8 +27,7 @@ export default function StandingsPage() {
 
       const { data: auth } = await supabase.auth.getUser();
       if (!auth?.user) {
-        setErr("Not logged in. Go to /login first.");
-        setLoading(false);
+        router.push("/login");
         return;
       }
 
@@ -58,7 +61,7 @@ export default function StandingsPage() {
       setRows((data ?? []) as Row[]);
       setLoading(false);
     })();
-  }, []);
+  }, [router]);
 
   const sorted = useMemo(() => {
     return [...rows].sort((a, b) => {
