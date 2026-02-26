@@ -20,13 +20,9 @@ function getAdminSupabase() {
 }
 
 function isAuthorized(req: Request) {
-  // Use the same secret pattern you used for autolock (recommended).
-  // Supports either:
-  //   Authorization: Bearer <secret>
-  //   or ?secret=<secret>
   const secret = process.env.CRON_SECRET;
 
-  // Dev convenience: allow calling without a secret locally
+  // Dev convenience
   if (process.env.NODE_ENV !== "production") return true;
 
   if (!secret) return false;
@@ -44,34 +40,82 @@ export async function GET(req: Request) {
   const start = Date.now();
 
   if (!isAuthorized(req)) {
-    return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
+    return NextResponse.json(
+      { ok: false, error: "Unauthorized" },
+      { status: 401 }
+    );
   }
 
   const supabase = getAdminSupabase();
 
   try {
-    // ✅ For now: just write a run-log row proving the cron route works
+    // 1) Determine "current" week context from earliest kickoff (simple + stable)
+    const { data: g, error: gErr } = await supabase
+      .from("games")
+      .select("season_year, week_number, phase, kickoff_at")
+      .order("kickoff_at", { ascending: true })
+      .limit(1)
+      .maybeSingle();
+
+    if (gErr) throw gErr;
+    if (!g) throw new Error("No games found (cannot determine week context)");
+
+    const season_year = Number(g.season_year);
+    const week_number = Number(g.week_number);
+    const phase = String(g.phase) as "regular" | "playoffs";
+
+    // 2) Grade picks for that week
+    const { data: gradeRes, error: gradeErr } = await supabase.rpc(
+      "grade_picks_for_week",
+      {
+        p_season_year: season_year,
+        p_phase: phase,
+        p_week_number: week_number,
+      }
+    );
+
+    if (gradeErr) throw gradeErr;
+
+    const updated_count =
+      Array.isArray(gradeRes) && gradeRes[0]?.updated_count != null
+        ? Number(gradeRes[0].updated_count)
+        : 0;
+
+    const duration_ms = Date.now() - start;
+
+    // 3) Log run
     const { error: insErr } = await supabase.from("grade_runs").insert({
       status: "ok",
-      message: "grade cron route reached (stub)",
-      duration_ms: Date.now() - start,
-      details: { phase: "stub" },
+      message: "graded picks for current week context",
+      duration_ms,
+      details: {
+        season_year,
+        phase,
+        week_number,
+        updated_count,
+        kickoff_at: g.kickoff_at,
+      },
     });
 
     if (insErr) throw insErr;
 
     return NextResponse.json({
       ok: true,
-      message: "Grade cron stub ran and logged successfully.",
-      duration_ms: Date.now() - start,
+      season_year,
+      phase,
+      week_number,
+      updated_count,
+      duration_ms,
     });
   } catch (e: any) {
-    // Log the error too (best-effort)
+    const duration_ms = Date.now() - start;
+
+    // best-effort error log
     try {
       await supabase.from("grade_runs").insert({
         status: "error",
         message: e?.message ?? "Unknown error",
-        duration_ms: Date.now() - start,
+        duration_ms,
         details: { error: String(e) },
       });
     } catch {}
