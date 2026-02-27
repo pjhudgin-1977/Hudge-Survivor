@@ -41,7 +41,27 @@ import NavBar from "@/app/_components/NavBar";export default async function Pool
     member?.entry_fee_amount === null || member?.entry_fee_amount === undefined
       ? null
       : Number(member.entry_fee_amount);
+  // Week label + OPEN/LOCKED badge (simple + stable)
+  const { data: g } = await supabase
+    .from("games")
+    .select("week_number, phase, kickoff_at")
+    .order("kickoff_at", { ascending: true })
+    .limit(1)
+    .maybeSingle();
 
+  let status: "OPEN" | "LOCKED" = "OPEN";
+  let label: string | undefined = undefined;
+
+  if (g?.week_number != null && g?.phase) {
+    const weekNumber = Number(g.week_number);
+    const phase = String(g.phase); // "regular" | "playoffs"
+    label = phase === "regular" ? `Week ${weekNumber}` : `Playoffs W${weekNumber}`;
+
+    // Minimal lock rule (we can refine later): once first kickoff has passed => LOCKED
+    if (g.kickoff_at && new Date(g.kickoff_at).getTime() <= Date.now()) {
+      status = "LOCKED";
+    }
+  }
   return (
     <div style={{ minHeight: "100vh", background: "#0b1f3a", color: "white" }}>
       {/* Header / Nav Area */}
@@ -64,8 +84,8 @@ import NavBar from "@/app/_components/NavBar";export default async function Pool
           }}
         >
           {/* Left: your existing NavBar */}
-<NavBar status={status} label={label} />          {/* Right: username + entry fee status */}
-          <div
+          <NavBar status={status} label={label} />
+          {/* Right: username + entry fee status */}          <div
             style={{
               display: "flex",
               alignItems: "center",
