@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import PlayersTable from "./PlayersTable.tsx";
+import PlayersTable from "./PlayersTable";
 export default async function AdminPlayersPage({
   params,
 }: {
