@@ -22,7 +22,6 @@ function getAdminSupabase() {
 function isAuthorized(req: Request) {
   const secret = process.env.CRON_SECRET;
 
-  // Dev convenience
   if (process.env.NODE_ENV !== "production") return true;
 
   if (!secret) return false;
@@ -49,7 +48,7 @@ export async function GET(req: Request) {
   const supabase = getAdminSupabase();
 
   try {
-    // 1) Determine "current" week context from earliest kickoff (simple + stable)
+    // 1) Determine "current" week context from earliest kickoff
     const { data: g, error: gErr } = await supabase
       .from("games")
       .select("season_year, week_number, phase, kickoff_at")
@@ -73,44 +72,82 @@ export async function GET(req: Request) {
         p_week_number: week_number,
       }
     );
-
     if (gradeErr) throw gradeErr;
 
-    const updated_count =
+    const graded_updated_count =
       Array.isArray(gradeRes) && gradeRes[0]?.updated_count != null
         ? Number(gradeRes[0].updated_count)
         : 0;
 
+    // 3) Apply losses across ALL pools (double elimination handled in SQL function)
+    const { data: pools, error: poolsErr } = await supabase
+      .from("pools")
+      .select("id");
+
+    if (poolsErr) throw poolsErr;
+
+    let pools_processed = 0;
+    let total_marked_picks = 0;
+    let total_updated_members = 0;
+
+    for (const p of pools ?? []) {
+      const poolId = String(p.id);
+
+      const { data: lossRes, error: lossErr } = await supabase.rpc(
+        "apply_losses_for_week",
+        {
+          p_pool_id: poolId,
+          p_season_year: season_year,
+          p_phase: phase,
+          p_week_number: week_number,
+        }
+      );
+
+      if (lossErr) throw lossErr;
+
+      const updated_members =
+        Array.isArray(lossRes) && lossRes[0]?.updated_members != null
+          ? Number(lossRes[0].updated_members)
+          : 0;
+
+      const marked_picks =
+        Array.isArray(lossRes) && lossRes[0]?.marked_picks != null
+          ? Number(lossRes[0].marked_picks)
+          : 0;
+
+      pools_processed += 1;
+      total_updated_members += updated_members;
+      total_marked_picks += marked_picks;
+    }
+
     const duration_ms = Date.now() - start;
 
-    // 3) Log run
-    const { error: insErr } = await supabase.from("grade_runs").insert({
-      status: "ok",
-      message: "graded picks for current week context",
-      duration_ms,
-      details: {
-        season_year,
-        phase,
-        week_number,
-        updated_count,
-        kickoff_at: g.kickoff_at,
-      },
-    });
-
-    if (insErr) throw insErr;
-
-    return NextResponse.json({
-      ok: true,
+    // 4) Log run
+    const details = {
       season_year,
       phase,
       week_number,
-      updated_count,
+      kickoff_at: g.kickoff_at,
+
+      graded_updated_count,
+
+      pools_processed,
+      total_marked_picks,
+      total_updated_members,
+    };
+
+    const { error: insErr } = await supabase.from("grade_runs").insert({
+      status: "ok",
+      message: "graded picks + applied losses",
       duration_ms,
+      details,
     });
+    if (insErr) throw insErr;
+
+    return NextResponse.json({ ok: true, ...details, duration_ms });
   } catch (e: any) {
     const duration_ms = Date.now() - start;
 
-    // best-effort error log
     try {
       await supabase.from("grade_runs").insert({
         status: "error",
