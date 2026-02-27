@@ -64,8 +64,7 @@ import NavBar from "@/app/_components/NavBar";export default async function Pool
           }}
         >
           {/* Left: your existing NavBar */}
-<NavBar poolId={poolId} />
-          {/* Right: username + entry fee status */}
+<NavBar status={status} label={label} />          {/* Right: username + entry fee status */}
           <div
             style={{
               display: "flex",
