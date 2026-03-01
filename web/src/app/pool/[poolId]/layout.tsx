@@ -1,10 +1,9 @@
-import React from "react";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import NavBar from "@/app/_components/NavBar";
+import { getCurrentWeek } from "@/lib/getCurrentWeek";
 
-// If your navbar component path/name differs, adjust this import.
-// Common examples: "@/components/GlobalNavBar" or "@/components/NavBar"
-import NavBar from "@/app/_components/NavBar";export default async function PoolLayout({
+export default async function PoolLayout({
   children,
   params,
 }: {
@@ -14,130 +13,55 @@ import NavBar from "@/app/_components/NavBar";export default async function Pool
   const supabase = await createClient();
   const { poolId } = await params;
 
-  // Require login for all /pool/* pages
-  const { data: userRes } = await supabase.auth.getUser();
-  const user = userRes?.user;
-  if (!user) redirect("/login");
+  const { data: auth } = await supabase.auth.getUser();
+  if (!auth?.user) redirect("/login");
 
-  // Fetch THIS user's pool_members row for payment status
-  const { data: member, error: memberErr } = await supabase
+  // Screen name (optional)
+  const { data: me } = await supabase
     .from("pool_members")
-    .select("screen_name, entry_fee_paid, entry_fee_amount")
+    .select("screen_name")
     .eq("pool_id", poolId)
-    .eq("user_id", user.id)
+    .eq("user_id", auth.user.id)
     .maybeSingle();
 
-  // If not in the pool, send them to join (or wherever you want)
-  // (If your app auto-joins, this usually shouldn't happen.)
-  if (memberErr) {
-    // Keep it simple: still render, but without payment status
-    // You can choose to redirect instead:
-    // redirect(`/join/${poolId}`);
-    console.warn("pool_members lookup error:", memberErr.message);
-  }
+  // ✅ Current week (global brain)
+  const week = await getCurrentWeek();
+  const status: "OPEN" | "LOCKED" = week?.locked ? "LOCKED" : "OPEN";
+  const label = week?.label;
 
-  const paid = !!member?.entry_fee_paid;
-  const amount =
-    member?.entry_fee_amount === null || member?.entry_fee_amount === undefined
-      ? null
-      : Number(member.entry_fee_amount);
-  // Week label + OPEN/LOCKED badge (simple + stable)
-  const { data: g } = await supabase
-    .from("games")
-    .select("week_number, phase, kickoff_at")
-    .order("kickoff_at", { ascending: true })
-    .limit(1)
-    .maybeSingle();
+  // ✅ Live counters
+  const { count: aliveCount } = await supabase
+    .from("pool_members")
+    .select("id", { count: "exact", head: true })
+    .eq("pool_id", poolId)
+    .eq("is_eliminated", false);
 
-  let status: "OPEN" | "LOCKED" = "OPEN";
-  let label: string | undefined = undefined;
+  const { count: dangerCount } = await supabase
+    .from("v_danger_zone")
+    .select("user_id", { count: "exact", head: true })
+    .eq("pool_id", poolId);
 
-  if (g?.week_number != null && g?.phase) {
-    const weekNumber = Number(g.week_number);
-    const phase = String(g.phase); // "regular" | "playoffs"
-    label = phase === "regular" ? `Week ${weekNumber}` : `Playoffs W${weekNumber}`;
+  const { count: eliminatedCount } = await supabase
+    .from("pool_members")
+    .select("id", { count: "exact", head: true })
+    .eq("pool_id", poolId)
+    .eq("is_eliminated", true);
 
-    // Minimal lock rule (we can refine later): once first kickoff has passed => LOCKED
-    if (g.kickoff_at && new Date(g.kickoff_at).getTime() <= Date.now()) {
-      status = "LOCKED";
-    }
-  }
+  const countersText = `${aliveCount ?? 0} Alive • ${dangerCount ?? 0} Danger • ${
+    eliminatedCount ?? 0
+  } Eliminated`;
+
   return (
-    <div style={{ minHeight: "100vh", background: "#0b1f3a", color: "white" }}>
-      {/* Header / Nav Area */}
-      <header
-        style={{
-          borderBottom: "1px solid rgba(255,255,255,0.12)",
-          background: "#081a33",
-        }}
-      >
-        <div
-          style={{
-            maxWidth: 1100,
-            margin: "0 auto",
-            padding: "12px 16px",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
-            gap: 12,
-            flexWrap: "wrap",
-          }}
-        >
-          {/* Left: your existing NavBar */}
-          <NavBar status={status} label={label} />
-          {/* Right: username + entry fee status */}          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: 10,
-              fontSize: 14,
-              opacity: 0.95,
-            }}
-          >
-            <div style={{ opacity: 0.9 }}>
-              {member?.screen_name ? (
-                <>
-                  Signed in as <strong>{member.screen_name}</strong>
-                </>
-              ) : (
-                <>Signed in</>
-              )}
-            </div>
-
-            <div
-              style={{
-                padding: "6px 10px",
-                borderRadius: 999,
-                border: "1px solid rgba(255,255,255,0.18)",
-                background: paid ? "rgba(0,200,120,0.16)" : "rgba(255,140,0,0.18)",
-                color: "white",
-                fontWeight: 700,
-                whiteSpace: "nowrap",
-              }}
-              title={
-                paid
-                  ? amount !== null
-                    ? `Entry fee received: $${amount.toFixed(2)}`
-                    : "Entry fee marked as paid"
-                  : "Entry fee not paid"
-              }
-            >
-              {paid ? (
-                <>
-                  ✅ Paid{amount !== null ? ` ($${amount.toFixed(2)})` : ""}
-                </>
-              ) : (
-                <>⚠️ Entry fee not paid</>
-              )}
-            </div>
-          </div>
-        </div>
-      </header>
-
-      {/* Page content */}
-      <main style={{ maxWidth: 1100, margin: "0 auto", padding: "16px" }}>
-        {children}
-      </main>
+    <div>
+      <NavBar
+        poolId={poolId}
+        status={status}
+        label={label}
+        screenName={me?.screen_name ?? undefined}
+        // NEW: show counters under the nav (we’ll add support next)
+        countersText={countersText}
+      />
+      {children}
     </div>
   );
 }

@@ -1,355 +1,381 @@
-"use client";
+import { redirect } from "next/navigation";
+import Link from "next/link";
+import { createClient } from "@/lib/supabase/server";
 
-import { useEffect, useMemo, useState } from "react";
-import { useParams, useRouter } from "next/navigation";
-import { createClient } from "@/lib/supabaseClient";
+type SeasonPhase = "regular" | "playoffs";
 
-type GameRow = {
-  season_year: number;
-  phase: string;
-  week_number: number;
-  home_team: string;
-  away_team: string;
-  kickoff_at: string;
-};
+function formatFavorite(fav: any, spread: any) {
+  const favorite = fav ? String(fav) : "";
+  const pts = spread == null ? null : Number(spread);
 
-type PoolStateRow = {
-  pool_id: string;
-  season_year: number;
-  week_type: string;
-  week_number: number;
-  picks_locked: boolean;
-};
+  if (!favorite || pts == null || !Number.isFinite(pts) || pts <= 0) return "—";
+  // Display like: CHI -6
+  return `${favorite} -${pts}`;
+}
 
-export default function PoolPickPage() {
-  const router = useRouter();
-  const params = useParams<{ poolId: string }>();
-  const poolId = params.poolId;
+function AutoPill() {
+  return (
+    <span
+      style={{
+        display: "inline-flex",
+        alignItems: "center",
+        gap: 6,
+        marginLeft: 10,
+        padding: "2px 8px",
+        borderRadius: 999,
+        border: "1px solid rgba(255,255,255,0.28)",
+        background: "rgba(0,0,0,0.25)",
+        fontSize: 12,
+        fontWeight: 900,
+        letterSpacing: 0.6,
+        verticalAlign: "middle",
+      }}
+      title="This pick was automatically made by the system (Autopick)."
+      aria-label="Autopick"
+    >
+      <span aria-hidden="true">⚙️</span>
+      AUTO
+    </span>
+  );
+}
 
-  const [loading, setLoading] = useState(true);
-  const [statusMsg, setStatusMsg] = useState<string>("");
+export default async function PickPage({
+  params,
+}: {
+  params: Promise<{ poolId: string }>;
+}) {
+  const supabase = await createClient();
+  const { poolId } = await params;
 
-  const [screenName, setScreenName] = useState<string | null>(null);
-  const [poolMemberId, setPoolMemberId] = useState<string | null>(null);
+  const { data: auth } = await supabase.auth.getUser();
+  if (!auth?.user) redirect("/login");
+  const userId = auth.user.id;
 
-  const [games, setGames] = useState<GameRow[]>([]);
-  const [usedTeams, setUsedTeams] = useState<string[]>([]);
-  const [existingPick, setExistingPick] = useState<string | null>(null);
-  const [selectedTeam, setSelectedTeam] = useState<string>("");
+  const devUnlock = process.env.DEV_UNLOCK_PICKS === "1";
 
-  // Admin-controlled state
-  const [isLocked, setIsLocked] = useState<boolean>(false);
-  const [seasonYear, setSeasonYear] = useState<number | null>(null);
-  const [weekType, setWeekType] = useState<string | null>(null);
-  const [weekNumber, setWeekNumber] = useState<number | null>(null);
+  // ✅ Find "current week" from the NEXT upcoming game (fallback earliest)
+  const nowIso = new Date().toISOString();
 
-  const weeklyTeams = useMemo(() => {
-    const s = new Set<string>();
-    for (const g of games) {
-      s.add(g.home_team);
-      s.add(g.away_team);
-    }
-    return Array.from(s).sort();
-  }, [games]);
+  let g: any = null;
 
-  const eligibleTeams = useMemo(() => {
-    const used = new Set(usedTeams);
-    return weeklyTeams.filter((t) => !used.has(t));
-  }, [weeklyTeams, usedTeams]);
+  const { data: nextGame } = await supabase
+    .from("games")
+    .select("season_year, week_number, phase, kickoff_at")
+    .gte("kickoff_at", nowIso)
+    .order("kickoff_at", { ascending: true })
+    .limit(1)
+    .maybeSingle();
 
-  useEffect(() => {
-    let cancelled = false;
+  if (nextGame) {
+    g = nextGame;
+  } else {
+    const { data: firstGame, error: firstErr } = await supabase
+      .from("games")
+      .select("season_year, week_number, phase, kickoff_at")
+      .order("kickoff_at", { ascending: true })
+      .limit(1)
+      .maybeSingle();
 
-    async function load() {
-      try {
-        setLoading(true);
-        setStatusMsg("");
-
-        if (!poolId) return;
-
-        const supabase = createClient();
-
-        // 1) Must be authed
-        const { data: userRes } = await supabase.auth.getUser();
-        const user = userRes?.user;
-
-        if (cancelled) return;
-
-        if (!user) {
-          router.replace("/login");
-          return;
-        }
-
-        // 2) Load pool_state (admin-controlled)
-        const { data: ps, error: psErr } = await supabase
-          .from("pool_state")
-          .select("pool_id, season_year, week_type, week_number, picks_locked")
-          .eq("pool_id", poolId)
-          .maybeSingle<PoolStateRow>();
-
-        if (cancelled) return;
-
-        if (psErr) {
-          setStatusMsg(`Error loading pool state: ${psErr.message}`);
-          return;
-        }
-
-        if (!ps) {
-          setStatusMsg(
-            "Pool state not found. Go to Admin page and click Save once to initialize."
-          );
-          return;
-        }
-
-        setSeasonYear(ps.season_year);
-        setWeekType(ps.week_type);
-        setWeekNumber(ps.week_number);
-        setIsLocked(!!ps.picks_locked);
-
-        // 3) Pool membership (scoped by poolId + user)
-        const { data: member, error: memberErr } = await supabase
-          .from("pool_members")
-          .select("user_id, screen_name")
-          .eq("pool_id", poolId)
-          .eq("user_id", user.id)
-          .maybeSingle();
-
-        if (cancelled) return;
-
-        if (memberErr) {
-          setStatusMsg(`Error loading pool member: ${memberErr.message}`);
-          return;
-        }
-        if (!member) {
-          setStatusMsg("You are not a member of this pool.");
-          return;
-        }
-
-        setPoolMemberId(member.user_id);
-        setScreenName(member.screen_name ?? null);
-
-        // 4) Load games for the admin-selected week
-        const { data: gameRows, error: gamesErr } = await supabase
-          .from("games")
-          .select("season_year, phase, week_number, home_team, away_team, kickoff_at")
-          .eq("season_year", ps.season_year)
-          .eq("phase", ps.week_type)
-          .eq("week_number", ps.week_number)
-          .order("kickoff_at", { ascending: true });
-
-        if (cancelled) return;
-
-        if (gamesErr) {
-          setStatusMsg(`Error loading games: ${gamesErr.message}`);
-          return;
-        }
-
-        setGames((gameRows ?? []) as GameRow[]);
-
-        // 5) Used teams (per pool+member)
-        const { data: usedRows, error: usedErr } = await supabase
-          .from("used_teams")
-          .select("team_abbr")
-          .eq("pool_id", poolId)
-          .eq("user_id", member.user_id);
-
-        if (cancelled) return;
-
-        if (usedErr) {
-          setStatusMsg(`Warning: could not load used teams: ${usedErr.message}`);
-          setUsedTeams([]);
-        } else {
-          setUsedTeams((usedRows ?? []).map((r: any) => r.team_abbr));
-        }
-
-        // 6) Existing pick for THIS pool+member+week
-        const { data: pickRow, error: pickErr } = await supabase
-          .from("picks")
-          .select("picked_team")
-          .eq("pool_id", poolId)
-          .eq("user_id", member.user_id)
-          .eq("season_year", ps.season_year)
-          .eq("week_type", ps.week_type)
-          .eq("week_number", ps.week_number)
-          .maybeSingle();
-
-        if (cancelled) return;
-
-        if (pickErr) {
-          setStatusMsg(`Warning: could not load existing pick: ${pickErr.message}`);
-          setExistingPick(null);
-          setSelectedTeam("");
-        } else {
-          setExistingPick(pickRow?.picked_team ?? null);
-          setSelectedTeam(pickRow?.picked_team ?? "");
-        }
-      } catch (e: any) {
-        setStatusMsg(e?.message ?? "Unexpected error.");
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    }
-
-    load();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [router, poolId]);
-
-  async function handleSubmit() {
-    setStatusMsg("");
-
-    if (isLocked) {
-      setStatusMsg("🔒 Picks are locked for this week.");
-      return;
-    }
-    if (!poolMemberId) {
-      setStatusMsg("Missing pool member. Try refreshing.");
-      return;
-    }
-    if (!selectedTeam) {
-      setStatusMsg("Please select a team.");
-      return;
-    }
-    if (seasonYear == null || weekType == null || weekNumber == null) {
-      setStatusMsg("Missing current week. Go to Admin and set week.");
-      return;
-    }
-
-    // Ensure team is eligible, unless it’s the same as existing pick
-    if (!eligibleTeams.includes(selectedTeam) && existingPick !== selectedTeam) {
-      setStatusMsg("That team is not eligible (already used or not playing this week).");
-      return;
-    }
-
-    const supabase = createClient();
-
-    const { error } = await supabase
-      .from("picks")
-      .upsert(
-        [
-          {
-            pool_id: poolId,
-            user_id: poolMemberId,
-            season_year: seasonYear,
-            week_type: weekType,
-            week_number: weekNumber,
-            picked_team: selectedTeam,
-            submitted_at: new Date().toISOString(),
-          },
-        ],
-        { onConflict: "pool_id,user_id,season_year,week_type,week_number" }
+    if (firstErr) {
+      return (
+        <main style={{ padding: 24 }}>
+          <h1 style={{ fontSize: 26, fontWeight: 800 }}>Make Your Pick</h1>
+          <p style={{ marginTop: 10, color: "tomato" }}>
+            Error loading pool state: {firstErr.message}
+          </p>
+          <div style={{ marginTop: 16 }}>
+            <Link href={`/pool/${poolId}`}>← Back to Pool Dashboard</Link>
+          </div>
+        </main>
       );
-
-    if (error) {
-      setStatusMsg(`Submit failed: ${error.message}`);
-      return;
     }
-
-    setExistingPick(selectedTeam);
-    setStatusMsg("✅ Pick saved.");
+    g = firstGame;
   }
 
-  return (
-    <main style={{ padding: 24, maxWidth: 560 }}>
-      <h1 style={{ fontSize: 26, fontWeight: 800 }}>Make Your Pick</h1>
+  const seasonYear = Number(g?.season_year ?? 2026);
+  const weekNumber = Number(g?.week_number ?? 1);
 
-      <div style={{ marginTop: 8, opacity: 0.85 }}>
+  const phaseRaw = String(g?.phase ?? "regular").toLowerCase();
+  const phase: SeasonPhase = phaseRaw.includes("play") ? "playoffs" : "regular";
+
+  const week_type = phase === "regular" ? "REG" : "PLAYOFF";
+  const weekLabel =
+    phase === "regular" ? `Week ${weekNumber}` : `Playoff W${weekNumber}`;
+
+  // ✅ Load games for this week/season
+  const { data: games, error: gamesErr } = await supabase
+    .from("games")
+    .select(
+      "id, kickoff_at, home_team, away_team, season_year, week_number, phase, favorite_team, spread_points"
+    )
+    .eq("season_year", seasonYear)
+    .eq("week_number", weekNumber)
+    .eq("phase", phase)
+    .order("kickoff_at", { ascending: true });
+
+  const teamSet = new Set<string>();
+  for (const gm of games ?? []) {
+    if (gm?.home_team) teamSet.add(String(gm.home_team));
+    if (gm?.away_team) teamSet.add(String(gm.away_team));
+  }
+  const allTeamsThisWeek = Array.from(teamSet.values()).sort();
+
+  // Existing pick (your schema has no season_year, so we match by week_number+phase)
+  const { data: existingPick } = await supabase
+    .from("picks")
+    .select("id, picked_team, was_autopick")
+    .eq("pool_id", poolId)
+    .eq("user_id", userId)
+    .eq("week_number", weekNumber)
+    .eq("phase", phase)
+    .maybeSingle();
+
+  // ✅ Used teams for this user+pool (across ALL weeks)
+  const { data: usedRows, error: usedErr } = await supabase
+    .from("v_used_teams")
+    .select("team")
+    .eq("pool_id", poolId)
+    .eq("user_id", userId);
+
+  const usedSet = new Set<string>(
+    (usedRows ?? [])
+      .map((r: any) => (r?.team ? String(r.team) : ""))
+      .filter(Boolean)
+  );
+
+  // ✅ Eligible teams = teams in this week's games MINUS used teams
+  // BUT: keep the existingPick visible/selectable (so user can see it even if it is “used”)
+  const eligibleTeams = allTeamsThisWeek.filter((t) => {
+    if (existingPick?.picked_team && t === String(existingPick.picked_team)) return true;
+    return !usedSet.has(t);
+  });
+
+  // Lock check ONLY against this season’s games
+  const naturallyLocked = (games ?? []).some((gm: any) => {
+    const t = gm?.kickoff_at ? new Date(gm.kickoff_at).getTime() : null;
+    return t != null && t <= Date.now();
+  });
+
+  const locked = devUnlock ? false : naturallyLocked;
+
+  return (
+    <main style={{ padding: 24, maxWidth: 760, margin: "0 auto" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>
         <div>
-          Pool: <strong>{poolId}</strong>
+          <h1 style={{ fontSize: 26, fontWeight: 900, margin: 0 }}>
+            Make Your Pick
+          </h1>
+          <p style={{ marginTop: 8, opacity: 0.85 }}>
+            Pool: <strong>{poolId}</strong>
+            <br />
+            Week:{" "}
+            <strong>
+              {phase} {weekNumber} ({seasonYear})
+            </strong>
+            {devUnlock ? (
+              <>
+                <br />
+                <span style={{ fontWeight: 900 }}>🧪 DEV UNLOCK ON</span>
+              </>
+            ) : null}
+          </p>
         </div>
-        {screenName ? (
-          <div>
-            Player: <strong>{screenName}</strong>
+
+        <div style={{ textAlign: "right" }}>
+          <div style={{ fontWeight: 900 }}>
+            {locked ? `🔒 LOCKED — ${weekLabel}` : `✅ OPEN — ${weekLabel}`}
+          </div>
+          <div style={{ marginTop: 10 }}>
+            <Link href={`/pool/${poolId}`} style={{ textDecoration: "none" }}>
+              ← Dashboard
+            </Link>
+          </div>
+        </div>
+      </div>
+
+      {gamesErr ? (
+        <div
+          style={{
+            marginTop: 18,
+            padding: 12,
+            borderRadius: 12,
+            border: "1px solid rgba(255,0,0,0.25)",
+            background: "rgba(255,0,0,0.10)",
+          }}
+        >
+          <strong>Error loading games:</strong>{" "}
+          <span style={{ opacity: 0.9 }}>{gamesErr.message}</span>
+        </div>
+      ) : null}
+
+      {usedErr ? (
+        <div
+          style={{
+            marginTop: 18,
+            padding: 12,
+            borderRadius: 12,
+            border: "1px solid rgba(255,0,0,0.25)",
+            background: "rgba(255,0,0,0.10)",
+          }}
+        >
+          <strong>Error loading used teams:</strong>{" "}
+          <span style={{ opacity: 0.9 }}>{usedErr.message}</span>
+        </div>
+      ) : null}
+
+      <div style={{ marginTop: 18 }}>
+        <h2 style={{ fontSize: 18, fontWeight: 900, marginBottom: 10 }}>
+          Submit Pick
+        </h2>
+
+        {existingPick?.picked_team ? (
+          <p style={{ marginTop: 0, opacity: 0.85 }}>
+            Current pick: <strong>{existingPick.picked_team}</strong>
+            {existingPick.was_autopick ? <AutoPill /> : null}
+          </p>
+        ) : (
+          <p style={{ marginTop: 0, opacity: 0.85 }}>No pick submitted yet.</p>
+        )}
+
+        {!locked && usedSet.size > 0 ? (
+          <div style={{ marginTop: 6, opacity: 0.8, fontSize: 13 }}>
+            Note: teams you already used are disabled on this pick screen.
           </div>
         ) : null}
 
-        <div>
-          Week:{" "}
-          <strong>
-            {weekType ?? "?"} {weekNumber ?? "?"}
-          </strong>{" "}
-          ({seasonYear ?? "?"})
-        </div>
-
-        {isLocked && (
-          <div style={{ marginTop: 8, color: "#b00", fontWeight: 600 }}>
-            🔒 Picks are locked for this week.
+        {locked ? (
+          <div style={{ opacity: 0.85 }}>
+            Picks are locked for this week (games have started).
           </div>
-        )}
-      </div>
+        ) : (
+          <form action={`/pool/${poolId}/pick/submit`} method="post">
+            <input type="hidden" name="pool_id" value={poolId} />
+            <input type="hidden" name="week_number" value={String(weekNumber)} />
+            <input type="hidden" name="phase" value={phase} />
+            <input type="hidden" name="week_type" value={week_type} />
 
-      {loading ? (
-        <p style={{ marginTop: 16 }}>Loading…</p>
-      ) : (
-        <>
-          <div style={{ marginTop: 18 }}>
-            <div style={{ marginBottom: 6, fontWeight: 700 }}>Eligible teams</div>
+            <div style={{ marginTop: 10 }}>
+              <label
+                style={{ display: "block", fontWeight: 800, marginBottom: 6 }}
+              >
+                Eligible teams
+              </label>
 
-            <select
-              value={selectedTeam}
-              onChange={(e) => setSelectedTeam(e.target.value)}
-              disabled={isLocked}
-              style={{ padding: 10, width: "100%", borderRadius: 8 }}
-            >
-              <option value="">— Select a team —</option>
-              {eligibleTeams.map((t) => (
-                <option key={t} value={t}>
-                  {t}
-                </option>
-              ))}
-              {existingPick && !eligibleTeams.includes(existingPick) ? (
-                <option value={existingPick}>{existingPick} (current pick)</option>
-              ) : null}
-            </select>
+              <select
+                name="picked_team"
+                defaultValue={existingPick?.picked_team ?? ""}
+                style={{
+                  width: "100%",
+                  padding: 10,
+                  borderRadius: 12,
+                  border: "1px solid rgba(255,255,255,0.18)",
+                  background: "rgba(0,0,0,0.25)",
+                }}
+              >
+                <option value="">— Select a team —</option>
+
+                {allTeamsThisWeek.map((t) => {
+                  const isUsed =
+                    usedSet.has(t) &&
+                    !(existingPick?.picked_team && t === String(existingPick.picked_team));
+
+                  return (
+                    <option key={t} value={t} disabled={isUsed}>
+                      {t}
+                      {isUsed ? " (used)" : ""}
+                    </option>
+                  );
+                })}
+              </select>
+
+              <div style={{ marginTop: 8, fontSize: 13, opacity: 0.8 }}>
+                Available this week: <strong>{eligibleTeams.length}</strong> /{" "}
+                <strong>{allTeamsThisWeek.length}</strong>
+              </div>
+            </div>
 
             <button
-              onClick={handleSubmit}
-              disabled={isLocked || !selectedTeam}
+              type="submit"
               style={{
                 marginTop: 12,
-                padding: "10px 14px",
-                borderRadius: 10,
-                fontWeight: 800,
-                cursor: isLocked ? "not-allowed" : "pointer",
+                padding: "10px 12px",
+                borderRadius: 12,
+                fontWeight: 900,
+                border: "1px solid rgba(255,255,255,0.18)",
+                background: "rgba(255,128,0,0.18)",
+                cursor: "pointer",
               }}
             >
               Submit Pick
             </button>
+          </form>
+        )}
+      </div>
 
-            <div style={{ marginTop: 10, opacity: 0.85 }}>
-              {existingPick ? (
-                <div>
-                  Existing pick: <strong>{existingPick}</strong>
-                </div>
-              ) : (
-                <div>No pick submitted yet.</div>
-              )}
+      <div style={{ marginTop: 22 }}>
+        <h2 style={{ fontSize: 18, fontWeight: 900, marginBottom: 10 }}>
+          This week’s games
+        </h2>
+
+        {(games ?? []).length === 0 ? (
+          <div style={{ opacity: 0.85 }}>No games found for this week.</div>
+        ) : (
+          <div
+            style={{
+              border: "1px solid rgba(255,255,255,0.12)",
+              borderRadius: 12,
+              overflow: "hidden",
+            }}
+          >
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "1fr 160px",
+                gap: 0,
+                background: "rgba(0,0,0,0.18)",
+                fontWeight: 900,
+              }}
+            >
+              <div style={{ padding: "10px 12px" }}>Matchup</div>
+              <div style={{ padding: "10px 12px", textAlign: "right" }}>
+                Favorite
+              </div>
             </div>
 
-            {statusMsg ? (
-              <div style={{ marginTop: 10, whiteSpace: "pre-wrap" }}>{statusMsg}</div>
-            ) : null}
-          </div>
+            {(games ?? []).map((gm: any) => (
+              <div
+                key={gm.id}
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "1fr 160px",
+                  borderTop: "1px solid rgba(255,255,255,0.10)",
+                }}
+              >
+                <div style={{ padding: "10px 12px" }}>
+                  <strong>
+                    {gm.away_team} @ {gm.home_team}
+                  </strong>{" "}
+                  —{" "}
+                  {gm.kickoff_at
+                    ? new Date(gm.kickoff_at).toLocaleString()
+                    : "TBD"}
+                </div>
 
-          <div style={{ marginTop: 22 }}>
-            <div style={{ fontWeight: 800, marginBottom: 6 }}>This week’s games</div>
-            {games.length === 0 ? (
-              <div style={{ opacity: 0.75 }}>No games found for this week.</div>
-            ) : (
-              <ul style={{ paddingLeft: 18, margin: 0 }}>
-                {games.map((g, idx) => (
-                  <li key={`${g.home_team}-${g.away_team}-${idx}`}>
-                    {g.away_team} @ {g.home_team} —{" "}
-                    {g.kickoff_at ? new Date(g.kickoff_at).toLocaleString() : ""}
-                  </li>
-                ))}
-              </ul>
-            )}
+                <div
+                  style={{
+                    padding: "10px 12px",
+                    textAlign: "right",
+                    fontFamily:
+                      "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace",
+                  }}
+                >
+                  {formatFavorite(gm.favorite_team, gm.spread_points)}
+                </div>
+              </div>
+            ))}
           </div>
-        </>
-      )}
+        )}
+      </div>
     </main>
   );
 }

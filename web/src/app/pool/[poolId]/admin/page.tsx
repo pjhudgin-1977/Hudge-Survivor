@@ -36,6 +36,16 @@ export default async function PoolDashboardPage({
 
   const userId = auth.user.id;
 
+  // ✅ Commissioner check (for showing Admin link)
+  const { data: gate } = await supabase
+    .from("pool_members")
+    .select("is_commissioner")
+    .eq("pool_id", poolId)
+    .eq("user_id", userId)
+    .maybeSingle();
+
+  const isCommissioner = Boolean(gate?.is_commissioner);
+
   // ✅ Current week = NEXT upcoming game (fallback earliest)
   const nowIso = new Date().toISOString();
 
@@ -109,7 +119,6 @@ export default async function PoolDashboardPage({
         </p>
       </div>
 
-      {/* ✅ Countdown / Lock banner */}
       <WeekCountdownBanner poolId={poolId} />
 
       {/* ✅ This Week box */}
@@ -264,6 +273,21 @@ export default async function PoolDashboardPage({
         >
           Standings
         </Link>
+
+        {isCommissioner ? (
+          <Link
+            href={`/pool/${poolId}/admin`}
+            style={{
+              padding: "10px 14px",
+              borderRadius: 10,
+              border: "1px solid rgba(0,0,0,0.18)",
+              textDecoration: "none",
+              fontWeight: 900,
+            }}
+          >
+            🛠 Admin
+          </Link>
+        ) : null}
       </div>
 
       {/* My Picks */}
@@ -293,8 +317,7 @@ export default async function PoolDashboardPage({
           </p>
         ) : picksList.length === 0 ? (
           <div style={{ marginTop: 10, opacity: 0.75 }}>
-            No picks yet. Click <strong>Make / Change Pick</strong> to submit
-            your first pick.
+            No picks yet. Click <strong>Make / Change Pick</strong> to submit your first pick.
           </div>
         ) : (
           <div style={{ marginTop: 12, display: "grid", gap: 10 }}>
