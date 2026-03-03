@@ -1,120 +1,417 @@
-import Link from "next/link";
+"use client";
 
-export default function NavBar({
-  poolId,
-  status,
-  label,
-  screenName,
-  countersText,
-  showLogout = true,
-}: {
-  poolId: string;
+import Link from "next/link";
+import { usePathname, useRouter } from "next/navigation";
+import { createClient } from "@/lib/supabaseClient";
+import { useEffect, useMemo, useState } from "react";
+
+type Props = {
+  poolId?: string;
   status?: "OPEN" | "LOCKED";
   label?: string;
-  screenName?: string;
-  countersText?: string;
-  showLogout?: boolean;
-}) {
+  isCommissioner?: boolean;
+};
+
+type MemberLite = {
+  user_id: string;
+  losses: number | null;
+  is_eliminated: boolean | null;
+  entry_fee_paid: boolean | null;
+};
+
+type Phase = "regular" | "playoffs";
+
+function normalizePhase(p: any): Phase {
+  const s = String(p ?? "").toLowerCase();
+  return s.includes("play") ? "playoffs" : "regular";
+}
+
+function fmtPhase(p: Phase) {
+  return p === "regular" ? "REG" : "PO";
+}
+
+export default function NavBar({ poolId, status, label, isCommissioner }: Props) {
+  const pathname = usePathname();
+  const router = useRouter();
+
+  useEffect(() => {
+    try {
+      sessionStorage.setItem("hudge_is_commissioner", isCommissioner ? "1" : "0");
+    } catch {}
+  }, [isCommissioner]);
+
+  const base = poolId ? `/pool/${poolId}` : null;
+
+  // =========================
+  // Survivor status counts
+  // =========================
+  const [zeroLoss, setZeroLoss] = useState<number | null>(null);
+  const [oneLoss, setOneLoss] = useState<number | null>(null);
+  const [outCount, setOutCount] = useState<number | null>(null);
+
+  // =========================
+  // Notification badges
+  // =========================
+  const [unpaidCount, setUnpaidCount] = useState<number | null>(null);
+  const [missingPickCount, setMissingPickCount] = useState<number | null>(null);
+  const [currentWeekLabel, setCurrentWeekLabel] = useState<string>("");
+
+  const items = useMemo(() => {
+    if (!base) return [{ href: "/dashboard", label: "Dashboard" }];
+
+    return [
+      { href: `${base}`, label: "Standings" },
+      { href: `${base}/payment`, label: "Pay", badge: isCommissioner ? unpaidCount : null },
+      { href: `${base}/pick`, label: "Pick", badge: isCommissioner ? missingPickCount : null },
+      { href: `${base}/my-picks`, label: "My Picks" },
+      { href: `${base}/sweat`, label: "Sweat" },
+      { href: `${base}/invite`, label: "Invite" },
+      { href: `${base}/rules`, label: "Rules" },
+    ];
+  }, [base, unpaidCount, missingPickCount, isCommissioner]);
+
+  async function loadCounts(pid: string) {
+    const supabase = createClient();
+
+    // 1) pool members (for 0L/1L/out + unpaid + alive list)
+    const { data: memData, error: memErr } = await supabase
+      .from("pool_members")
+      .select("user_id, losses, is_eliminated, entry_fee_paid")
+      .eq("pool_id", pid);
+
+    if (memErr) {
+      // Don’t break nav if RLS blocks for non-commissioner
+      setZeroLoss(null);
+      setOneLoss(null);
+      setOutCount(null);
+      setUnpaidCount(null);
+      setMissingPickCount(null);
+      setCurrentWeekLabel("");
+      return;
+    }
+
+    const members = (memData ?? []) as MemberLite[];
+
+    // Survivor buckets
+    let z = 0;
+    let o = 0;
+    let out = 0;
+
+    // unpaid
+    let unpaid = 0;
+
+    const aliveUserIds: string[] = [];
+
+    for (const m of members) {
+      const losses = Number(m.losses ?? 0);
+      const eliminated = Boolean(m.is_eliminated) || losses >= 2;
+
+      if (eliminated) out++;
+      else if (losses === 1) o++;
+      else z++;
+
+      if (!Boolean(m.entry_fee_paid)) unpaid++;
+
+      if (!eliminated) aliveUserIds.push(m.user_id);
+    }
+
+    setZeroLoss(z);
+    setOneLoss(o);
+    setOutCount(out);
+
+    // Unpaid badge: commissioner only (but harmless to compute)
+    setUnpaidCount(unpaid);
+
+    // 2) determine “current week” = next upcoming game (fallback earliest)
+    const nowIso = new Date().toISOString();
+
+    const { data: nextGame, error: nextErr } = await supabase
+      .from("games")
+      .select("week_number, phase, kickoff_at")
+      .gte("kickoff_at", nowIso)
+      .order("kickoff_at", { ascending: true })
+      .limit(1)
+      .maybeSingle();
+
+    if (nextErr) {
+      setMissingPickCount(null);
+      setCurrentWeekLabel("");
+      return;
+    }
+
+    let week_number: number | null =
+      nextGame?.week_number != null ? Number(nextGame.week_number) : null;
+    let phase: Phase | null = nextGame?.phase ? normalizePhase(nextGame.phase) : null;
+
+    if (week_number == null || !phase) {
+      const { data: firstGame, error: firstErr } = await supabase
+        .from("games")
+        .select("week_number, phase, kickoff_at")
+        .order("kickoff_at", { ascending: true })
+        .limit(1)
+        .maybeSingle();
+
+      if (firstErr) {
+        setMissingPickCount(null);
+        setCurrentWeekLabel("");
+        return;
+      }
+
+      week_number = firstGame?.week_number != null ? Number(firstGame.week_number) : null;
+      phase = firstGame?.phase ? normalizePhase(firstGame.phase) : null;
+    }
+
+    if (week_number == null || !phase) {
+      setMissingPickCount(null);
+      setCurrentWeekLabel("");
+      return;
+    }
+
+    setCurrentWeekLabel(`${fmtPhase(phase)} W${week_number}`);
+
+    // 3) missing picks among ALIVE users for current week/phase
+    // Keep it simple: read picks for this week/phase, build set, count alive missing
+    const { data: pickData, error: pickErr } = await supabase
+      .from("picks")
+      .select("user_id")
+      .eq("pool_id", pid)
+      .eq("week_number", week_number)
+      .eq("phase", phase);
+
+    if (pickErr) {
+      setMissingPickCount(null);
+      return;
+    }
+
+    const pickedSet = new Set<string>((pickData ?? []).map((r: any) => String(r.user_id)));
+    const missing = aliveUserIds.filter((uid) => !pickedSet.has(uid)).length;
+
+    setMissingPickCount(missing);
+  }
+
+  useEffect(() => {
+    if (!poolId) return;
+
+    let cancelled = false;
+
+    const run = async () => {
+      if (cancelled) return;
+      await loadCounts(poolId);
+    };
+
+    run();
+    const t = window.setInterval(run, 30_000);
+
+    return () => {
+      cancelled = true;
+      window.clearInterval(t);
+    };
+  }, [poolId]);
+
+  async function onLogout() {
+    try {
+      const supabase = createClient();
+      await supabase.auth.signOut();
+    } finally {
+      router.push("/login");
+      router.refresh();
+    }
+  }
+
   return (
     <header
       style={{
-        padding: "14px 18px",
-        borderBottom: "1px solid rgba(255,255,255,0.10)",
-        background: "rgba(0,0,0,0.35)",
+        position: "sticky",
+        top: 0,
+        zIndex: 50,
+        backdropFilter: "blur(10px)",
+        background: "rgba(10, 10, 10, 0.85)",
+        borderBottom: "1px solid rgba(255,255,255,0.08)",
       }}
     >
       <div
         style={{
+          maxWidth: 1100,
+          margin: "0 auto",
+          padding: "10px 16px",
           display: "flex",
           alignItems: "center",
           justifyContent: "space-between",
-          gap: 12,
-          flexWrap: "wrap",
+          gap: 16,
         }}
       >
-        <div style={{ display: "flex", alignItems: "baseline", gap: 10 }}>
-          <div style={{ fontWeight: 900, fontSize: 18 }}>Hudge</div>
-          <div style={{ opacity: 0.75 }}>/ Hudge Survivor Pool 2025</div>
-        </div>
+        {/* Brand + Status Pills */}
+        <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+          <Link
+            href={base ?? "/dashboard"}
+            style={{
+              color: "white",
+              textDecoration: "none",
+              fontWeight: 900,
+              letterSpacing: 0.5,
+              whiteSpace: "nowrap",
+            }}
+          >
+            🐻 Hudge Survivor Pool
+          </Link>
 
-        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          {status ? (
+          {label ? (
             <span
               style={{
-                padding: "4px 10px",
+                fontSize: 12,
+                fontWeight: 800,
+                padding: "2px 8px",
                 borderRadius: 999,
-                fontWeight: 900,
                 border: "1px solid rgba(255,255,255,0.18)",
-                background:
-                  status === "LOCKED"
-                    ? "rgba(255,0,0,0.16)"
-                    : "rgba(0,255,0,0.12)",
+                opacity: 0.9,
+                whiteSpace: "nowrap",
               }}
             >
-              {status === "LOCKED" ? "🔒 LOCKED" : "✅ OPEN"}
-              {label ? ` — ${label}` : ""}
+              {label}
+              {status ? ` • ${status}` : ""}
             </span>
           ) : null}
 
-          {screenName ? (
-            <span style={{ opacity: 0.85, fontWeight: 800 }}>
-              👤 {screenName}
-            </span>
+          {base && zeroLoss != null ? (
+            <>
+              <StatusPill color="rgba(34,197,94,0.9)" label={`0L: ${zeroLoss}`} />
+              <StatusPill color="rgba(245,158,11,0.9)" label={`1L: ${oneLoss ?? 0}`} />
+              <StatusPill color="rgba(239,68,68,0.9)" label={`Out: ${outCount ?? 0}`} />
+              {isCommissioner && currentWeekLabel ? (
+                <StatusPill
+                  color="rgba(255,255,255,0.70)"
+                  label={currentWeekLabel}
+                  title="Missing Pick badge is based on this week"
+                />
+              ) : null}
+            </>
           ) : null}
+        </div>
 
-          {showLogout ? (
-            <Link href="/logout" style={{ textDecoration: "none", fontWeight: 900 }}>
-              Logout
-            </Link>
-          ) : null}
+        {/* Nav + actions */}
+        <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+          <nav style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+            {items.map((it: any) => (
+              <NavLink
+                key={it.href}
+                href={it.href}
+                label={it.label}
+                badge={typeof it.badge === "number" ? it.badge : null}
+                active={pathname === it.href}
+              />
+            ))}
+
+            {base && isCommissioner ? (
+              <NavLink href={`${base}/admin`} label="Admin" active={pathname?.includes("/admin")} />
+            ) : null}
+          </nav>
+
+          <button
+            onClick={onLogout}
+            style={{
+              cursor: "pointer",
+              color: "rgba(255,255,255,0.92)",
+              fontWeight: 950,
+              fontSize: 13,
+              padding: "6px 10px",
+              borderRadius: 10,
+              border: "1px solid rgba(255,255,255,0.10)",
+              background: "rgba(255,255,255,0.03)",
+              whiteSpace: "nowrap",
+            }}
+            title="Log out"
+          >
+            Logout
+          </button>
         </div>
       </div>
-
-      <nav style={{ marginTop: 12, display: "flex", gap: 10, flexWrap: "wrap" }}>
-        <Link href={`/pool/${poolId}`} style={pill()}>
-          🏠 Dashboard
-        </Link>
-
-        <Link href={`/pool/${poolId}/join`} style={pill()}>
-          🤝 Join
-        </Link>
-
-        <Link href={`/pool/${poolId}/pick`} style={pill()}>
-          ✅ Pick
-        </Link>
-
-        <Link href={`/pool/${poolId}/my-picks`} style={pill()}>
-          🧾 My Picks
-        </Link>
-
-        <Link href={`/pool/${poolId}/standings`} style={pill()}>
-          📊 Standings
-        </Link>
-
-        <Link href={`/pool/${poolId}/sweat`} style={pill()}>
-          🔥 Sweat
-        </Link>
-      </nav>
-
-      {countersText ? (
-        <div style={{ marginTop: 10, opacity: 0.85, fontWeight: 800 }}>
-          {countersText}
-        </div>
-      ) : null}
     </header>
   );
 }
 
-function pill(): React.CSSProperties {
-  return {
-    display: "inline-flex",
-    alignItems: "center",
-    gap: 8,
-    padding: "8px 10px",
-    borderRadius: 12,
-    fontWeight: 900,
-    textDecoration: "none",
-    border: "1px solid rgba(255,255,255,0.14)",
-    background: "rgba(0,0,0,0.20)",
-  };
+function StatusPill({
+  label,
+  color,
+  title,
+}: {
+  label: string;
+  color: string;
+  title?: string;
+}) {
+  return (
+    <span
+      title={title}
+      style={{
+        fontSize: 12,
+        fontWeight: 900,
+        padding: "2px 8px",
+        borderRadius: 999,
+        border: "1px solid rgba(255,255,255,0.18)",
+        color: "white",
+        background: "rgba(255,255,255,0.06)",
+        whiteSpace: "nowrap",
+      }}
+    >
+      <span style={{ color, fontWeight: 950 }}>{label}</span>
+    </span>
+  );
+}
+
+function NavLink({
+  href,
+  label,
+  active,
+  badge,
+}: {
+  href: string;
+  label: string;
+  active?: boolean;
+  badge?: number | null;
+}) {
+  const showBadge = typeof badge === "number" && badge > 0;
+
+  return (
+    <Link
+      href={href}
+      style={{
+        position: "relative",
+        display: "inline-flex",
+        alignItems: "center",
+        gap: 8,
+        color: "rgba(255,255,255,0.92)",
+        textDecoration: "none",
+        fontWeight: 900,
+        fontSize: 13,
+        padding: "6px 10px",
+        borderRadius: 10,
+        border: active ? "1px solid rgba(255,255,255,0.35)" : "1px solid rgba(255,255,255,0.10)",
+        background: active ? "rgba(255,255,255,0.12)" : "rgba(255,255,255,0.03)",
+        whiteSpace: "nowrap",
+      }}
+    >
+      <span>{label}</span>
+
+      {showBadge ? (
+        <span
+          style={{
+            display: "inline-flex",
+            alignItems: "center",
+            justifyContent: "center",
+            minWidth: 18,
+            height: 18,
+            padding: "0 6px",
+            borderRadius: 999,
+            fontSize: 12,
+            fontWeight: 950,
+            border: "1px solid rgba(255,255,255,0.20)",
+            background: "rgba(255,255,255,0.10)",
+            color: "white",
+          }}
+          title={`${badge}`}
+        >
+          {badge}
+        </span>
+      ) : null}
+    </Link>
+  );
 }

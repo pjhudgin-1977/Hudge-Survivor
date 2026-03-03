@@ -1,118 +1,124 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+
+function extractPoolId(input: string): string | null {
+  const s = String(input || "").trim();
+
+  // UUID match (works even if they paste full URLs)
+  const m = s.match(/[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}/i);
+  return m ? m[0] : null;
+}
 
 export default function JoinPoolClient() {
   const router = useRouter();
   const searchParams = useSearchParams();
 
-  const poolIdFromUrl =
-    searchParams.get("poolId") || searchParams.get("poolid") || "";
+  const poolIdFromUrl = useMemo(() => {
+    return (
+      searchParams.get("poolId") ||
+      searchParams.get("poolid") ||
+      searchParams.get("id") ||
+      ""
+    );
+  }, [searchParams]);
 
-  const [poolId, setPoolId] = useState("");
+  const [text, setText] = useState("");
   const [error, setError] = useState<string | null>(null);
-  const [joining, setJoining] = useState(false);
-  const didAutoJoin = useRef(false);
+  const didAutoGo = useRef(false);
 
-  async function joinPool(id: string) {
-    setJoining(true);
-    setError(null);
-
-    try {
-      const res = await fetch("/api/join-pool", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ poolId: id }),
-      });
-
-      const contentType = res.headers.get("content-type") || "";
-      const body = contentType.includes("application/json")
-        ? await res.json().catch(() => ({}))
-        : await res.text().catch(() => "");
-
-      if (!res.ok) {
-        const msg =
-          typeof body === "string"
-            ? body.slice(0, 300)
-            : body?.error || `Failed to join pool (status ${res.status}).`;
-        setError(msg);
-        return;
-      }
-
-      router.push(`/pool/${id}`);
-    } catch (err: any) {
-      setError(err?.message || "Join failed (network / server error).");
-    } finally {
-      setJoining(false);
-    }
-  }
-
-  async function onJoin(e: React.FormEvent) {
-    e.preventDefault();
-
-    const id = (poolId || poolIdFromUrl).trim();
-    if (!id) {
-      setError("Enter a Pool ID.");
+  function go(raw: string) {
+    const pid = extractPoolId(raw);
+    if (!pid) {
+      setError("Paste a valid invite link or pool id (UUID).");
       return;
     }
+    router.push(`/join/${pid}`);
+  }
 
-    await joinPool(id);
+  function onSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setError(null);
+    go(text || poolIdFromUrl);
   }
 
   useEffect(() => {
-    const id = poolIdFromUrl.trim();
-    if (!id) return;
+    const raw = String(poolIdFromUrl || "").trim();
+    if (!raw) return;
 
-    setPoolId(id);
+    setText(raw);
 
-    if (didAutoJoin.current) return;
-    didAutoJoin.current = true;
+    if (didAutoGo.current) return;
+    didAutoGo.current = true;
 
-    joinPool(id);
+    go(raw);
   }, [poolIdFromUrl]);
 
   return (
-    <main style={{ padding: 24, maxWidth: 520 }}>
-      <h1 style={{ fontSize: 26, fontWeight: 800 }}>Join a Pool</h1>
+    <main style={{ padding: 24, maxWidth: 560 }}>
+      <h1 style={{ fontSize: 26, fontWeight: 900 }}>Join a Pool</h1>
 
-      <p style={{ marginTop: 8, opacity: 0.8 }}>
-        Paste the Pool ID you were given.
+      <p style={{ marginTop: 8, opacity: 0.85 }}>
+        Paste your invite link or pool id below.
       </p>
 
-      <form onSubmit={onJoin} style={{ marginTop: 16 }}>
+      <form onSubmit={onSubmit} style={{ marginTop: 16 }}>
         <input
-          value={poolId}
-          onChange={(e) => setPoolId(e.target.value)}
-          placeholder="e.g. 4931be58-aa45-4c89-aa36-2f0aa1061f45"
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+          placeholder="Paste invite link or pool id…"
           style={{
             width: "100%",
             padding: 10,
-            borderRadius: 8,
-            border: "1px solid #ccc",
+            borderRadius: 10,
+            border: "1px solid rgba(0,0,0,0.25)",
           }}
         />
 
-        <button
-          type="submit"
-          disabled={joining}
-          style={{
-            marginTop: 12,
-            padding: "10px 14px",
-            borderRadius: 8,
-            border: "1px solid #333",
-            cursor: "pointer",
-          }}
-        >
-          {joining ? "Joining..." : "Join"}
-        </button>
+        <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginTop: 12 }}>
+          <button
+            type="submit"
+            style={{
+              padding: "10px 14px",
+              borderRadius: 10,
+              border: "1px solid rgba(0,0,0,0.35)",
+              cursor: "pointer",
+              fontWeight: 800,
+            }}
+          >
+            Continue
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              setText("");
+              setError(null);
+            }}
+            style={{
+              padding: "10px 14px",
+              borderRadius: 10,
+              border: "1px solid rgba(0,0,0,0.20)",
+              cursor: "pointer",
+              opacity: 0.85,
+              fontWeight: 700,
+            }}
+          >
+            Clear
+          </button>
+        </div>
 
         {error && (
-          <p style={{ marginTop: 10, color: "#b00", fontWeight: 600 }}>
+          <p style={{ marginTop: 10, color: "#b00", fontWeight: 700 }}>
             {error}
           </p>
         )}
       </form>
+
+      <div style={{ marginTop: 12, fontSize: 12, opacity: 0.75 }}>
+        Tip: You can paste the full invite URL — we’ll extract the pool id automatically.
+      </div>
     </main>
   );
 }

@@ -1,8 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useEffect, useMemo, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabaseClient";
 
 type Membership = {
@@ -10,12 +10,27 @@ type Membership = {
   screen_name?: string | null;
 };
 
+function extractPoolId(input: string): string | null {
+  const s = String(input || "").trim();
+
+  // UUID match (works for full URLs too)
+  const m = s.match(/[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}/i);
+  return m ? m[0] : null;
+}
+
 export default function DashboardPage() {
   const router = useRouter();
+  const sp = useSearchParams();
+
+  const onboardingJoinOnly = useMemo(() => sp.get("onboarding") === "joinonly", [sp]);
+
   const [loading, setLoading] = useState(true);
   const [email, setEmail] = useState<string>("");
   const [memberships, setMemberships] = useState<Membership[]>([]);
   const [err, setErr] = useState<string | null>(null);
+
+  const [joinText, setJoinText] = useState("");
+  const [joinErr, setJoinErr] = useState<string | null>(null);
 
   useEffect(() => {
     const supabase = createClient();
@@ -28,7 +43,6 @@ export default function DashboardPage() {
       const user = auth?.user;
 
       if (!user) {
-        // IMPORTANT: client-side redirect (prevents the server loop)
         router.replace("/login");
         return;
       }
@@ -50,30 +64,81 @@ export default function DashboardPage() {
       const list = (data ?? []) as Membership[];
       setMemberships(list);
 
-     
+      // ✅ If the user is in exactly one pool, land them on the pool Standings (grid) page
+      if (list.length === 1 && list[0]?.pool_id) {
+        router.replace(`/pool/${list[0].pool_id}`);
+        return;
+      }
 
       setLoading(false);
     })();
   }, [router]);
+
+  function onQuickJoin() {
+    setJoinErr(null);
+
+    const pid = extractPoolId(joinText);
+    if (!pid) {
+      setJoinErr("Paste a valid invite link or pool id (UUID).");
+      return;
+    }
+
+    // Send them to the join flow
+    router.push(`/join/${pid}`);
+  }
 
   if (loading) {
     return <main className="p-6">Loading…</main>;
   }
 
   return (
-    <main className="p-6 space-y-4 max-w-3xl">
-      <h1 className="text-2xl font-semibold">Dashboard</h1>
+    <main className="p-6 space-y-5 max-w-3xl">
+      <h1 className="text-2xl font-semibold">Home</h1>
+
       <p className="opacity-80">
         Signed in as <strong>{email}</strong>
       </p>
 
-      <div className="flex gap-4 flex-wrap">
-        <Link className="underline" href="/create-pool">
-          Create Pool
-        </Link>
-        <Link className="underline" href="/join">
-          Join Pool
-        </Link>
+      {onboardingJoinOnly ? (
+        <div className="rounded-xl border p-4 bg-yellow-50/5">
+          <div className="font-semibold">Pool creation is disabled</div>
+          <div className="opacity-80 mt-1 text-sm">
+            To get started, you’ll need an invite link from a commissioner.
+          </div>
+        </div>
+      ) : null}
+
+      {/* Join-only onboarding card */}
+      <div className="rounded-xl border p-4 space-y-3">
+        <div className="font-semibold">Join a Pool</div>
+        <div className="opacity-70 text-sm">
+          Paste an invite link or pool id and we’ll take you to the join page.
+        </div>
+
+        <div className="flex gap-2 flex-wrap">
+          <input
+            className="border p-2 flex-1 min-w-[260px] rounded-lg bg-transparent"
+            placeholder="Paste invite link or pool id…"
+            value={joinText}
+            onChange={(e) => setJoinText(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") onQuickJoin();
+            }}
+          />
+
+          <button
+            className="px-4 py-2 rounded-lg border font-semibold"
+            onClick={onQuickJoin}
+          >
+            Join
+          </button>
+
+          <Link className="px-4 py-2 rounded-lg border font-semibold" href="/join">
+            Open Join Page
+          </Link>
+        </div>
+
+        {joinErr ? <div className="text-sm text-red-400">{joinErr}</div> : null}
       </div>
 
       {err ? (
@@ -82,44 +147,50 @@ export default function DashboardPage() {
         </div>
       ) : null}
 
+      {/* Pools list (only if multi-pool) */}
       <div className="rounded-xl border p-4 space-y-3">
         <div className="font-semibold">Your Pools</div>
 
         {memberships.length === 0 ? (
           <div className="opacity-70">
-            You’re not in any pools yet.{" "}
-            <Link className="underline" href="/join">
-              Join a pool
-            </Link>
-            .
+            You’re not in any pools yet. Ask your commissioner for an invite link.
           </div>
         ) : (
-          <ul className="list-disc pl-5 space-y-3">
+          <div className="grid gap-3">
             {memberships.map((m) => (
-              <li key={m.pool_id}>
-                <Link className="underline" href={`/pool/${m.pool_id}`}>
-                  {m.pool_id}
-                </Link>
-                {m.screen_name ? (
-                  <span className="opacity-70"> — as {m.screen_name}</span>
-                ) : null}
+              <div key={m.pool_id} className="rounded-xl border p-3">
+                <div className="flex items-baseline justify-between gap-3 flex-wrap">
+                  <div className="font-semibold">
+                    <Link className="underline" href={`/pool/${m.pool_id}`}>
+                      {m.pool_id}
+                    </Link>
+                    {m.screen_name ? (
+                      <span className="opacity-70"> — as {m.screen_name}</span>
+                    ) : null}
+                  </div>
 
-                <div className="mt-1 flex gap-3 flex-wrap text-sm">
-                  <Link className="underline" href={`/pool/${m.pool_id}/pick`}>
-                    Pick
-                  </Link>
-                  <Link className="underline" href={`/pool/${m.pool_id}/standings`}>
-                    Standings
-                  </Link>
-                  <Link className="underline" href={`/pool/${m.pool_id}/sweat`}>
-                    Sweat
-                  </Link>
+                  <div className="flex gap-3 flex-wrap text-sm">
+                    <Link className="underline" href={`/pool/${m.pool_id}`}>
+                      Standings
+                    </Link>
+                    <Link className="underline" href={`/pool/${m.pool_id}/pick`}>
+                      Pick
+                    </Link>
+                    <Link className="underline" href={`/pool/${m.pool_id}/sweat`}>
+                      Sweat
+                    </Link>
+                    <Link className="underline" href={`/pool/${m.pool_id}/standings2`}>
+                      Latest Picks
+                    </Link>
+                  </div>
                 </div>
-              </li>
+              </div>
             ))}
-          </ul>
+          </div>
         )}
       </div>
+
+      {/* No Create Pool link here (Join-only platform rule) */}
     </main>
   );
 }
