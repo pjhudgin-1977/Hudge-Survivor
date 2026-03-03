@@ -8,15 +8,11 @@ function isUuid(v: string) {
 }
 
 export async function GET(
-  req: Request,
-  ctx: {
-    params:
-      | { poolId: string; userId: string }
-      | Promise<{ poolId: string; userId: string }>;
-  }
+  _req: Request,
+  context: { params: Promise<{ poolId: string; userId: string }> }
 ) {
   const supabase = await createClient();
-  const { poolId, userId } = await Promise.resolve(ctx.params);
+  const { poolId, userId } = await context.params;
 
   if (!poolId || !userId || !isUuid(poolId) || !isUuid(userId)) {
     return NextResponse.json(
