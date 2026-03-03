@@ -6,14 +6,14 @@ import QRClient from "./qr-client";
 export default async function PaymentPage({
   params,
 }: {
-  params: { poolId: string };
+  params: Promise<{ poolId: string }>;
 }) {
   const supabase = await createClient();
 
   const { data: auth } = await supabase.auth.getUser();
   if (!auth?.user) redirect("/login");
 
-  const poolId = params.poolId;
+  const { poolId } = await params;
   const venmoLink = process.env.NEXT_PUBLIC_VENMO_LINK || "";
 
   return (
@@ -22,7 +22,6 @@ export default async function PaymentPage({
 
       <h1 style={{ marginTop: 20 }}>Pay Entry Fee</h1>
 
-      {/* ✅ NEW MESSAGE */}
       <div
         style={{
           marginTop: 14,
@@ -70,7 +69,6 @@ export default async function PaymentPage({
         </>
       )}
 
-      {/* ✅ Future Rules hint */}
       <div style={{ marginTop: 30, opacity: 0.75, fontSize: 14 }}>
         Full pool rules will be available on the Rules page.
       </div>
