@@ -5,14 +5,14 @@ import { createClient } from "@/lib/supabase/server";
 export default async function RulesPage({
   params,
 }: {
-  params: { poolId: string };
+  params: Promise<{ poolId: string }>;
 }) {
   const supabase = await createClient();
 
   const { data: auth } = await supabase.auth.getUser();
   if (!auth?.user) redirect("/login");
 
-  const poolId = params.poolId;
+  const { poolId } = await params;
 
   return (
     <div style={{ maxWidth: 900, margin: "0 auto", padding: "24px 18px" }}>
@@ -119,10 +119,12 @@ export default async function RulesPage({
             If multiple players survive through the playoffs:
             <ul style={{ ...ul(), marginTop: 8 }}>
               <li style={li()}>
-                <strong>Undefeated</strong> players receive <strong>2 shares</strong>.
+                <strong>Undefeated</strong> players receive{" "}
+                <strong>2 shares</strong>.
               </li>
               <li style={li()}>
-                Players with <strong>one loss</strong> receive <strong>1 share</strong>.
+                Players with <strong>one loss</strong> receive{" "}
+                <strong>1 share</strong>.
               </li>
             </ul>
           </li>
@@ -135,10 +137,18 @@ export default async function RulesPage({
           PRIZES (less hosting fees)
         </div>
         <ul style={ul()}>
-          <li style={li()}>1st Place: <strong>60%</strong> of pool</li>
-          <li style={li()}>2nd Place: <strong>25%</strong> of pool</li>
-          <li style={li()}>3rd Place: <strong>10%</strong> of pool</li>
-          <li style={li()}>4th Place: <strong>5%</strong> of pool</li>
+          <li style={li()}>
+            1st Place: <strong>60%</strong> of pool
+          </li>
+          <li style={li()}>
+            2nd Place: <strong>25%</strong> of pool
+          </li>
+          <li style={li()}>
+            3rd Place: <strong>10%</strong> of pool
+          </li>
+          <li style={li()}>
+            4th Place: <strong>5%</strong> of pool
+          </li>
         </ul>
       </section>
 
