@@ -13,9 +13,10 @@ function makeLabel(phase: Phase, weekNumber: number) {
 
 export async function GET(
   _req: Request,
-  { params }: { params: { poolId: string } }
+  context: { params: Promise<{ poolId: string }> }
 ) {
   const supabase = await createClient();
+  const { poolId } = await context.params;
 
   // Auth required (keeps pool info private)
   const { data: auth } = await supabase.auth.getUser();
@@ -60,7 +61,7 @@ export async function GET(
   const isLocked = msUntilLock <= 0;
 
   return NextResponse.json({
-    poolId: params.poolId,
+    poolId,
     season_year: game.season_year,
     phase: game.phase,
     week_number: game.week_number,
