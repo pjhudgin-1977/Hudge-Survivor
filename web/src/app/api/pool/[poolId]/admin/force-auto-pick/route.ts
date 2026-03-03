@@ -40,7 +40,7 @@ async function isPoolAdmin(
 
 export async function POST(
   _req: Request,
-  { params }: { params: { poolId: string } }
+  context: { params: Promise<{ poolId: string }> }
 ) {
   const supabase = await createClient();
 
@@ -49,7 +49,7 @@ export async function POST(
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
 
-  const poolId = params.poolId;
+  const { poolId } = await context.params;
   const userId = auth.user.id;
 
   const okAdmin = await isPoolAdmin(supabase, poolId, userId);
