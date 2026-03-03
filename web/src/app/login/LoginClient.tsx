@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabaseClient";
 
-export default function LoginPage() {
+export default function LoginClient() {
   const router = useRouter();
   const sp = useSearchParams();
   const supabase = createClient();
@@ -30,7 +30,7 @@ export default function LoginPage() {
       return;
     }
 
-    // If login was triggered by a protected page, honor it
+    // honor ?next=
     const next = sp.get("next");
     if (next) {
       setLoading(false);
@@ -77,7 +77,6 @@ export default function LoginPage() {
           overflow: "hidden",
         }}
       >
-        {/* Header */}
         <div
           style={{
             padding: "18px 18px 16px",
@@ -110,7 +109,6 @@ export default function LoginPage() {
           </div>
         </div>
 
-        {/* Body */}
         <form onSubmit={onSubmit} style={{ padding: 18 }}>
           <label style={labelStyle}>Email</label>
           <input
@@ -200,18 +198,4 @@ const inputStyle: React.CSSProperties = {
   background: "rgba(0,0,0,0.25)",
   color: "white",
   outline: "none",
-import { createClient } from "@/lib/supabase/server";
-import { redirect } from "next/navigation";
-import LoginClient from "./LoginClient";
-
-export const dynamic = "force-dynamic";
-
-export default async function LoginPage() {
-  const supabase = await createClient();
-
-  // If already logged in, send to dashboard (or pool redirect will happen there)
-  const { data: auth } = await supabase.auth.getUser();
-  if (auth?.user) redirect("/dashboard?onboarding=joinonly");
-
-  return <LoginClient />;
-}
+};
