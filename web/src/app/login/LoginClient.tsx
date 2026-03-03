@@ -132,6 +132,25 @@ export default function LoginClient() {
             autoComplete="current-password"
           />
 
+          {/* ✅ Forgot password */}
+          <div style={{ marginTop: 10, display: "flex", justifyContent: "flex-end" }}>
+            <button
+              type="button"
+              onClick={() => router.push("/reset-password")}
+              style={{
+                background: "transparent",
+                border: "none",
+                color: "rgba(255,255,255,0.78)",
+                textDecoration: "underline",
+                fontWeight: 800,
+                cursor: "pointer",
+                padding: 0,
+              }}
+            >
+              Forgot password?
+            </button>
+          </div>
+
           {err ? (
             <div
               style={{
