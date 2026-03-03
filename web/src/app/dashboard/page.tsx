@@ -5,6 +5,8 @@ import { useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabaseClient";
 
+export const dynamic = "force-dynamic";
+
 type Membership = {
   pool_id: string;
   screen_name?: string | null;
