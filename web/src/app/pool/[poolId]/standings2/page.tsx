@@ -34,13 +34,14 @@ function isUuid(v: string) {
   );
 }
 
-export default async function Standings2Page(props: {
-  params: { poolId: string } | Promise<{ poolId: string }>;
+export default async function Standings2Page({
+  params,
+}: {
+  params: Promise<{ poolId: string }>;
 }) {
   const supabase = await createClient();
 
-  const resolved = await Promise.resolve(props.params);
-  const poolId = resolved.poolId;
+  const { poolId } = await params;
 
   const { data: auth } = await supabase.auth.getUser();
   if (!auth?.user) redirect("/login");
