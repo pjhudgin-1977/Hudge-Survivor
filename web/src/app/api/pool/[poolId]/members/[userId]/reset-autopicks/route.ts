@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 
+export const runtime = "nodejs";
+
 function isUuid(v: string) {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
     v
@@ -8,15 +10,11 @@ function isUuid(v: string) {
 }
 
 export async function POST(
-  req: Request,
-  ctx: {
-    params:
-      | { poolId: string; userId: string }
-      | Promise<{ poolId: string; userId: string }>;
-  }
+  _req: Request,
+  context: { params: Promise<{ poolId: string; userId: string }> }
 ) {
   const supabase = await createClient();
-  const { poolId, userId } = await Promise.resolve(ctx.params);
+  const { poolId, userId } = await context.params;
 
   if (!poolId || !userId || !isUuid(poolId) || !isUuid(userId)) {
     return NextResponse.json(
