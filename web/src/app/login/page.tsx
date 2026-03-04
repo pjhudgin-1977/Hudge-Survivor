@@ -55,7 +55,7 @@ export default function LoginPage() {
           return;
         }
 
-        // ✅ Force the browser to go exactly where we want next
+        // ✅ Force redirect back to the invite join path (or wherever next points)
         window.location.assign(next);
         return;
       }
@@ -70,7 +70,7 @@ export default function LoginPage() {
         return;
       }
 
-      // ✅ Force the browser to go exactly where we want next
+      // ✅ Force redirect back to the invite join path (or wherever next points)
       window.location.assign(next);
     } catch (e: any) {
       setErr(e?.message || "Something went wrong.");
@@ -118,49 +118,24 @@ export default function LoginPage() {
                 Hudge Survivor Pool
               </div>
               <div style={{ opacity: 0.85, marginTop: 4 }}>
-                Sign in to make picks, sweat games, and survive 🐻
+                New player? Create an account and you’ll be added to the pool automatically.
               </div>
             </div>
           </div>
 
-          <div
-            style={{
-              marginTop: 18,
-              display: "flex",
-              gap: 10,
-              alignItems: "center",
-              flexWrap: "wrap",
-            }}
-          >
+          {/* MODE TOGGLE */}
+          <div style={{ marginTop: 18, display: "flex", gap: 10, flexWrap: "wrap" }}>
             <button
               type="button"
               onClick={() => setMode("signin")}
-              style={{
-                padding: "10px 12px",
-                borderRadius: 12,
-                border: "1px solid rgba(255,255,255,0.18)",
-                background:
-                  mode === "signin" ? "rgba(255,95,0,0.35)" : "rgba(0,0,0,0.2)",
-                color: "white",
-                fontWeight: 900,
-                cursor: "pointer",
-              }}
+              style={mode === "signin" ? pillActive : pill}
             >
               Log in
             </button>
             <button
               type="button"
               onClick={() => setMode("signup")}
-              style={{
-                padding: "10px 12px",
-                borderRadius: 12,
-                border: "1px solid rgba(255,255,255,0.18)",
-                background:
-                  mode === "signup" ? "rgba(255,95,0,0.35)" : "rgba(0,0,0,0.2)",
-                color: "white",
-                fontWeight: 900,
-                cursor: "pointer",
-              }}
+              style={mode === "signup" ? pillActive : pill}
             >
               Create account
             </button>
@@ -176,44 +151,26 @@ export default function LoginPage() {
         <form onSubmit={submit} style={{ padding: 22 }}>
           {mode === "signup" && (
             <>
-              <label style={{ display: "block", fontWeight: 900, marginBottom: 8 }}>
-                Full name
-              </label>
+              <label style={labelStyle}>Full name</label>
               <input
                 value={fullName}
                 onChange={(e) => setFullName(e.target.value)}
-                placeholder="Patrick Hudgin"
+                placeholder="Full name"
                 style={inputStyle}
                 autoComplete="name"
               />
 
-              <label
-                style={{
-                  display: "block",
-                  fontWeight: 900,
-                  marginTop: 16,
-                  marginBottom: 8,
-                }}
-              >
-                Who referred you?
-              </label>
+              <label style={{ ...labelStyle, marginTop: 16 }}>Who referred you?</label>
               <input
                 value={referrer}
                 onChange={(e) => setReferrer(e.target.value)}
-                placeholder="Name of commissioner / friend"
+                placeholder="Commissioner / friend"
                 style={inputStyle}
               />
             </>
           )}
 
-          <label
-            style={{
-              display: "block",
-              fontWeight: 900,
-              marginTop: mode === "signup" ? 16 : 0,
-              marginBottom: 8,
-            }}
-          >
+          <label style={{ ...labelStyle, marginTop: mode === "signup" ? 16 : 0 }}>
             Email
           </label>
           <input
@@ -224,9 +181,7 @@ export default function LoginPage() {
             autoComplete="email"
           />
 
-          <label style={{ display: "block", fontWeight: 900, marginTop: 16, marginBottom: 8 }}>
-            Password
-          </label>
+          <label style={{ ...labelStyle, marginTop: 16 }}>Password</label>
           <input
             value={password}
             onChange={(e) => setPassword(e.target.value)}
@@ -236,40 +191,42 @@ export default function LoginPage() {
             autoComplete={mode === "signup" ? "new-password" : "current-password"}
           />
 
-          <button
-            disabled={loading}
-            style={{
-              marginTop: 18,
-              width: "100%",
-              padding: "14px 14px",
-              borderRadius: 14,
-              border: "1px solid rgba(255,255,255,0.18)",
-              background: "linear-gradient(180deg, rgba(255,95,0,0.9), rgba(255,95,0,0.65))",
-              color: "white",
-              fontSize: 22,
-              fontWeight: 950,
-              cursor: loading ? "not-allowed" : "pointer",
-              opacity: loading ? 0.75 : 1,
-            }}
-          >
+          <button disabled={loading} style={primaryButton}>
             {loading ? "Working…" : mode === "signup" ? "Create account" : "Log in"}
           </button>
 
-          {err && (
-            <div style={{ marginTop: 12, color: "#ffb4b4", fontWeight: 800 }}>
-              {err}
-            </div>
-          )}
+          {err && <div style={{ marginTop: 12, color: "#ffb4b4", fontWeight: 800 }}>{err}</div>}
 
-          <div style={{ marginTop: 14, opacity: 0.75, fontSize: 13, lineHeight: 1.35 }}>
-            New here? Use your invite link (like <b>/join/HUDGE-7K9P</b>). You’ll be asked
-            to log in or create an account, then you’ll be added automatically.
+          <div style={{ marginTop: 14, opacity: 0.78, fontSize: 13, lineHeight: 1.35 }}>
+            If you arrived from an invite link, just create your account here — we’ll take you
+            right back to the invite and add you automatically.
           </div>
         </form>
       </div>
     </main>
   );
 }
+
+const pill: React.CSSProperties = {
+  padding: "10px 12px",
+  borderRadius: 12,
+  border: "1px solid rgba(255,255,255,0.18)",
+  background: "rgba(0,0,0,0.2)",
+  color: "white",
+  fontWeight: 900,
+  cursor: "pointer",
+};
+
+const pillActive: React.CSSProperties = {
+  ...pill,
+  background: "rgba(255,95,0,0.35)",
+};
+
+const labelStyle: React.CSSProperties = {
+  display: "block",
+  fontWeight: 900,
+  marginBottom: 8,
+};
 
 const inputStyle: React.CSSProperties = {
   width: "100%",
@@ -280,4 +237,17 @@ const inputStyle: React.CSSProperties = {
   color: "white",
   outline: "none",
   fontSize: 16,
+};
+
+const primaryButton: React.CSSProperties = {
+  marginTop: 18,
+  width: "100%",
+  padding: "14px 14px",
+  borderRadius: 14,
+  border: "1px solid rgba(255,255,255,0.18)",
+  background: "linear-gradient(180deg, rgba(255,95,0,0.9), rgba(255,95,0,0.65))",
+  color: "white",
+  fontSize: 22,
+  fontWeight: 950,
+  cursor: "pointer",
 };
