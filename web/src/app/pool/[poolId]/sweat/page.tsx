@@ -16,6 +16,11 @@ type PickRow = {
   home_score?: number | null;
   away_score?: number | null;
 
+  // these exist on v_sweat_game_board
+  season_year?: number | null;
+  week_number?: number | null;
+  phase?: string | null;
+
   pick_team?: string | null;
   picked_team?: string | null;
 };
@@ -29,11 +34,20 @@ type GameGroup = {
   home_score: number | null;
   away_score: number | null;
 
+  season_year: number | null;
+  week_number: number | null;
+  phase: string | null;
+
   picks: {
     user_id: string | null;
     screen_name: string;
     pick_team: string | null;
   }[];
+};
+
+type PopularityRow = {
+  picked_team: string | null;
+  pick_count: number | null;
 };
 
 function fmtKickoff(d?: string | null) {
@@ -183,10 +197,13 @@ export default async function SweatPage({
         status: (r.status ?? null) as string | null,
         home_team: (r.home_team ?? null) as string | null,
         away_team: (r.away_team ?? null) as string | null,
-        home_score:
-          typeof r.home_score === "number" ? (r.home_score as number) : null,
-        away_score:
-          typeof r.away_score === "number" ? (r.away_score as number) : null,
+        home_score: typeof r.home_score === "number" ? (r.home_score as number) : null,
+        away_score: typeof r.away_score === "number" ? (r.away_score as number) : null,
+
+        season_year: typeof r.season_year === "number" ? (r.season_year as number) : null,
+        week_number: typeof r.week_number === "number" ? (r.week_number as number) : null,
+        phase: (r.phase ?? null) as string | null,
+
         picks: [],
       });
     }
@@ -208,6 +225,34 @@ export default async function SweatPage({
 
   // Next relevant game (first not complete, otherwise first game)
   const nextGame = games.find((g) => !isComplete(g)) ?? games[0] ?? null;
+
+  // Decide “current” week/phase for popularity: use next game if present, else first game
+  const popularityContext = nextGame ?? games[0] ?? null;
+  const popWeek = popularityContext?.week_number ?? null;
+  const popPhase = popularityContext?.phase ?? null;
+
+  // Fetch popularity (counts per team) for that week/phase
+  let popularity: { team: string; count: number }[] = [];
+  if (popWeek != null && popPhase) {
+    const { data: popRows } = await supabase
+      .from("v_pick_popularity")
+      .select("picked_team, pick_count")
+      .eq("pool_id", poolId)
+      .eq("week_number", popWeek)
+      .eq("phase", popPhase);
+
+    const raw = (popRows ?? []) as PopularityRow[];
+
+    popularity = raw
+      .filter((r) => r.picked_team)
+      .map((r) => ({
+        team: String(r.picked_team),
+        count: Number(r.pick_count ?? 0),
+      }))
+      .sort((a, b) => b.count - a.count);
+  }
+
+  const popularityTotal = popularity.reduce((a, b) => a + b.count, 0);
 
   let poolAvg = 0;
   let poolCount = 0;
@@ -264,6 +309,91 @@ export default async function SweatPage({
         </div>
       </div>
 
+      {/* 🔥 Pick Popularity Panel */}
+      <div
+        style={{
+          marginTop: 16,
+          border: "1px solid rgba(0,0,0,0.12)",
+          borderRadius: 12,
+          padding: 14,
+          display: "grid",
+          gap: 10,
+        }}
+      >
+        <div style={{ display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
+          <div>
+            <div style={{ fontSize: 14, opacity: 0.75 }}>🔥 Pick Popularity</div>
+            <div style={{ marginTop: 4, fontSize: 16, fontWeight: 800 }}>
+              {popWeek != null ? (
+                <>
+                  {String(popPhase ?? "").toUpperCase()} · Week {popWeek}
+                </>
+              ) : (
+                <>No week detected yet</>
+              )}
+            </div>
+          </div>
+
+          <div style={{ opacity: 0.75, fontSize: 13 }}>
+            {popularityTotal > 0 ? (
+              <>
+                {popularityTotal} picks counted
+              </>
+            ) : (
+              <>No picks yet</>
+            )}
+          </div>
+        </div>
+
+        {popularityTotal === 0 ? (
+          <div style={{ opacity: 0.75, fontSize: 13 }}>No popularity data available yet.</div>
+        ) : (
+          <div style={{ display: "grid", gap: 8 }}>
+            {popularity.slice(0, 10).map((r) => {
+              const pct = popularityTotal ? Math.round((r.count / popularityTotal) * 100) : 0;
+              const barPct = popularityTotal ? Math.round((r.count / popularityTotal) * 100) : 0;
+
+              return (
+                <div
+                  key={r.team}
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns: "64px 1fr 90px",
+                    gap: 10,
+                    alignItems: "center",
+                  }}
+                >
+                  <div style={{ fontWeight: 900 }}>{r.team}</div>
+
+                  <div
+                    style={{
+                      height: 10,
+                      borderRadius: 999,
+                      background: "rgba(0,0,0,0.08)",
+                      overflow: "hidden",
+                      border: "1px solid rgba(0,0,0,0.10)",
+                    }}
+                    title={`${r.count} picks (${pct}%)`}
+                  >
+                    <div
+                      style={{
+                        height: "100%",
+                        width: `${barPct}%`,
+                        background: "rgba(255,95,0,0.75)", // Bears-ish orange pop
+                      }}
+                    />
+                  </div>
+
+                  <div style={{ textAlign: "right", fontSize: 13, opacity: 0.85 }}>
+                    <strong>{r.count}</strong> <span style={{ opacity: 0.7 }}>({pct}%)</span>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
       {nextGame ? (
         <div
           style={{
@@ -295,8 +425,8 @@ export default async function SweatPage({
                 </span>
               </div>
               <div style={{ marginTop: 4, fontSize: 13, opacity: 0.75 }}>
-                {nextGame.away_team ?? "AWAY"} @ {nextGame.home_team ?? "HOME"} ·{" "}
-                Kickoff: {fmtKickoff(nextGame.kickoff_at)}
+                {nextGame.away_team ?? "AWAY"} @ {nextGame.home_team ?? "HOME"} · Kickoff:{" "}
+                {fmtKickoff(nextGame.kickoff_at)}
               </div>
             </div>
 
