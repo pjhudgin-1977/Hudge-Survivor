@@ -1,13 +1,12 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
 
 type Mode = "login" | "signup";
 
-export default function LoginClient() {
+export default function LoginClient({ next }: { next: string | null }) {
   const router = useRouter();
-  const sp = useSearchParams();
 
   const [mode, setMode] = useState<Mode>("login");
 
@@ -21,7 +20,7 @@ export default function LoginClient() {
   const [msg, setMsg] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
-  // ✅ Supabase client created only in the browser (prevents Vercel prerender crash)
+  // ✅ Supabase client created only in the browser (prevents prerender crash)
   const [supabase, setSupabase] = useState<any>(null);
 
   useEffect(() => {
@@ -33,9 +32,7 @@ export default function LoginClient() {
         const client = mod.createClient();
         if (alive) setSupabase(client);
       } catch (e: any) {
-        if (alive) {
-          setErr(e?.message || "Failed to initialize auth client.");
-        }
+        if (alive) setErr(e?.message || "Failed to initialize auth client.");
       }
     })();
 
@@ -72,6 +69,7 @@ export default function LoginClient() {
       return;
     }
 
+    // SIGN UP
     if (mode === "signup") {
       const nick = nickname.trim();
       if (!nick) {
@@ -83,11 +81,7 @@ export default function LoginClient() {
       const { data, error } = await supabase.auth.signUp({
         email: email.trim(),
         password,
-        options: {
-          data: {
-            screen_name: nick,
-          },
-        },
+        options: { data: { screen_name: nick } },
       });
 
       setLoading(false);
@@ -97,13 +91,16 @@ export default function LoginClient() {
         return;
       }
 
+      // Email confirmations ON → no session yet
       if (!data.session) {
-        setMsg("Account created! Check your email to confirm, then come back to log in.");
+        setMsg(
+          "Account created! Check your email to confirm, then come back to log in."
+        );
         setMode("login");
         return;
       }
 
-      const next = sp.get("next");
+      // If session exists, route just like login
       if (next) {
         router.push(next);
         return;
@@ -115,16 +112,12 @@ export default function LoginClient() {
         .limit(1)
         .maybeSingle();
 
-      if (member?.pool_id) {
-        router.push(`/pool/${member.pool_id}`);
-      } else {
-        router.push("/dashboard?onboarding=joinonly");
-      }
-
+      if (member?.pool_id) router.push(`/pool/${member.pool_id}`);
+      else router.push("/dashboard?onboarding=joinonly");
       return;
     }
 
-    // login
+    // LOGIN
     const { error } = await supabase.auth.signInWithPassword({
       email: email.trim(),
       password,
@@ -136,7 +129,6 @@ export default function LoginClient() {
       return;
     }
 
-    const next = sp.get("next");
     if (next) {
       setLoading(false);
       router.push(next);
@@ -151,14 +143,11 @@ export default function LoginClient() {
 
     setLoading(false);
 
-    if (member?.pool_id) {
-      router.push(`/pool/${member.pool_id}`);
-    } else {
-      router.push("/dashboard?onboarding=joinonly");
-    }
+    if (member?.pool_id) router.push(`/pool/${member.pool_id}`);
+    else router.push("/dashboard?onboarding=joinonly");
   }
 
-  // small shell while loading supabase client
+  // tiny shell while supabase loads
   if (!supabase && !err) {
     return (
       <main
@@ -235,7 +224,9 @@ export default function LoginClient() {
         </div>
 
         <form onSubmit={onSubmit} style={{ padding: 18 }}>
-          <div style={{ fontSize: 18, fontWeight: 950, marginBottom: 12 }}>{title}</div>
+          <div style={{ fontSize: 18, fontWeight: 950, marginBottom: 12 }}>
+            {title}
+          </div>
 
           <label style={labelStyle}>Email</label>
           <input
@@ -395,7 +386,7 @@ export default function LoginClient() {
                 >
                   Create an account
                 </button>
-                . You’ll need an invite link from your commissioner to join a pool.
+                .
               </>
             ) : (
               <>
