@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabaseClient";
 
@@ -9,7 +9,15 @@ type Mode = "login" | "signup";
 export default function LoginClient() {
   const router = useRouter();
   const sp = useSearchParams();
-  const supabase = createClient();
+
+  // ✅ Avoid prerender/build crashes: only create Supabase client after mount
+  const [mounted, setMounted] = useState(false);
+  const [supabase, setSupabase] = useState<ReturnType<typeof createClient> | null>(null);
+
+  useEffect(() => {
+    setMounted(true);
+    setSupabase(createClient());
+  }, []);
 
   const [mode, setMode] = useState<Mode>("login");
 
@@ -32,6 +40,12 @@ export default function LoginClient() {
     e.preventDefault();
     setErr(null);
     setMsg(null);
+
+    if (!supabase) {
+      setErr("Please wait a second and try again.");
+      return;
+    }
+
     setLoading(true);
 
     if (!email.trim()) {
@@ -58,7 +72,7 @@ export default function LoginClient() {
         password,
         options: {
           data: {
-            screen_name: nick, // ✅ stored on the auth user as metadata
+            screen_name: nick,
           },
         },
       });
@@ -111,7 +125,6 @@ export default function LoginClient() {
       return;
     }
 
-    // honor ?next=
     const next = sp.get("next");
     if (next) {
       setLoading(false);
@@ -119,7 +132,6 @@ export default function LoginClient() {
       return;
     }
 
-    // Otherwise: go to first pool if any, else dashboard
     const { data: member } = await supabase
       .from("pool_members")
       .select("pool_id")
@@ -133,6 +145,25 @@ export default function LoginClient() {
     } else {
       router.push("/dashboard?onboarding=joinonly");
     }
+  }
+
+  // During prerender/build: render a tiny shell (prevents crashes)
+  if (!mounted) {
+    return (
+      <main
+        style={{
+          minHeight: "100vh",
+          display: "grid",
+          placeItems: "center",
+          padding: 20,
+          background:
+            "radial-gradient(1200px 600px at 20% 0%, rgba(255,92,0,0.18), transparent 60%), radial-gradient(900px 500px at 100% 10%, rgba(255,255,255,0.10), transparent 55%), linear-gradient(180deg, #050A14 0%, #050812 45%, #04060F 100%)",
+          color: "white",
+        }}
+      >
+        <div style={{ opacity: 0.85, fontWeight: 900 }}>Loading…</div>
+      </main>
+    );
   }
 
   return (
@@ -262,7 +293,6 @@ export default function LoginClient() {
             </button>
           </div>
 
-          {/* Forgot password (login only) */}
           {mode === "login" ? (
             <div style={{ marginTop: 10, display: "flex", justifyContent: "flex-end" }}>
               <button
