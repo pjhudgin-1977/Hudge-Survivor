@@ -1,11 +1,13 @@
 import LoginClient from "./LoginClient";
 
-export default function LoginPage({
+export default async function LoginPage({
   searchParams,
 }: {
-  searchParams?: Record<string, string | string[] | undefined>;
+  searchParams: Promise<{ next?: string | string[] }>;
 }) {
-  const nextParam = searchParams?.next;
+  const sp = await searchParams;
+  const nextParam = sp?.next;
+
   const next =
     typeof nextParam === "string"
       ? nextParam
