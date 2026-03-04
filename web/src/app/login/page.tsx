@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import type { CSSProperties } from "react";
 import { useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabaseClient";
 
@@ -55,7 +56,6 @@ export default function LoginPage() {
           return;
         }
 
-        // ✅ Force redirect back to the invite join path (or wherever next points)
         window.location.assign(next);
         return;
       }
@@ -70,7 +70,6 @@ export default function LoginPage() {
         return;
       }
 
-      // ✅ Force redirect back to the invite join path (or wherever next points)
       window.location.assign(next);
     } catch (e: any) {
       setErr(e?.message || "Something went wrong.");
@@ -150,7 +149,6 @@ export default function LoginPage() {
             </div>
           </div>
 
-          {/* ✅ Extra clarity for new users */}
           {mode === "signin" && (
             <div
               style={{
@@ -231,7 +229,7 @@ export default function LoginPage() {
   );
 }
 
-const pill: React.CSSProperties = {
+const pill: CSSProperties = {
   padding: "10px 12px",
   borderRadius: 12,
   border: "1px solid rgba(255,255,255,0.18)",
@@ -241,18 +239,18 @@ const pill: React.CSSProperties = {
   cursor: "pointer",
 };
 
-const pillActive: React.CSSProperties = {
+const pillActive: CSSProperties = {
   ...pill,
   background: "rgba(255,95,0,0.35)",
 };
 
-const labelStyle: React.CSSProperties = {
+const labelStyle: CSSProperties = {
   display: "block",
   fontWeight: 900,
   marginBottom: 8,
 };
 
-const inputStyle: React.CSSProperties = {
+const inputStyle: CSSProperties = {
   width: "100%",
   padding: "14px 14px",
   borderRadius: 14,
@@ -263,7 +261,7 @@ const inputStyle: React.CSSProperties = {
   fontSize: 16,
 };
 
-const primaryButton: React.CSSProperties = {
+const primaryButton: CSSProperties = {
   marginTop: 18,
   width: "100%",
   padding: "14px 14px",
