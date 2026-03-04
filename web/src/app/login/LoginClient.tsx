@@ -2,22 +2,12 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { createClient } from "@/lib/supabaseClient";
 
 type Mode = "login" | "signup";
 
 export default function LoginClient() {
   const router = useRouter();
   const sp = useSearchParams();
-
-  // ✅ Avoid prerender/build crashes: only create Supabase client after mount
-  const [mounted, setMounted] = useState(false);
-  const [supabase, setSupabase] = useState<ReturnType<typeof createClient> | null>(null);
-
-  useEffect(() => {
-    setMounted(true);
-    setSupabase(createClient());
-  }, []);
 
   const [mode, setMode] = useState<Mode>("login");
 
@@ -30,6 +20,29 @@ export default function LoginClient() {
   const [err, setErr] = useState<string | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+
+  // ✅ Supabase client created only in the browser (prevents Vercel prerender crash)
+  const [supabase, setSupabase] = useState<any>(null);
+
+  useEffect(() => {
+    let alive = true;
+
+    (async () => {
+      try {
+        const mod = await import("@/lib/supabaseClient");
+        const client = mod.createClient();
+        if (alive) setSupabase(client);
+      } catch (e: any) {
+        if (alive) {
+          setErr(e?.message || "Failed to initialize auth client.");
+        }
+      }
+    })();
+
+    return () => {
+      alive = false;
+    };
+  }, []);
 
   const title = useMemo(
     () => (mode === "login" ? "Sign in" : "Create account"),
@@ -84,14 +97,12 @@ export default function LoginClient() {
         return;
       }
 
-      // If email confirmations are ON, there may be no session yet.
       if (!data.session) {
         setMsg("Account created! Check your email to confirm, then come back to log in.");
         setMode("login");
         return;
       }
 
-      // If session exists, route the same way as login
       const next = sp.get("next");
       if (next) {
         router.push(next);
@@ -113,7 +124,7 @@ export default function LoginClient() {
       return;
     }
 
-    // mode === "login"
+    // login
     const { error } = await supabase.auth.signInWithPassword({
       email: email.trim(),
       password,
@@ -147,8 +158,8 @@ export default function LoginClient() {
     }
   }
 
-  // During prerender/build: render a tiny shell (prevents crashes)
-  if (!mounted) {
+  // small shell while loading supabase client
+  if (!supabase && !err) {
     return (
       <main
         style={{
