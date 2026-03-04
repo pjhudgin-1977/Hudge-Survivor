@@ -8,17 +8,61 @@ function isUuid(v: string) {
   );
 }
 
-function ErrorBox({ title, message }: { title: string; message: string }) {
+function Card({
+  title,
+  children,
+}: {
+  title: string;
+  children: React.ReactNode;
+}) {
   return (
-    <main style={{ padding: 24, maxWidth: 720 }}>
-      <h1 style={{ fontSize: 26, fontWeight: 900 }}>{title}</h1>
-      <p style={{ marginTop: 10, color: "#ffb4b4", fontWeight: 800 }}>
-        {message}
-      </p>
-      <p style={{ marginTop: 12, opacity: 0.85 }}>
-        Ask the commissioner for a fresh invite link.
-      </p>
+    <main
+      style={{
+        minHeight: "100vh",
+        display: "grid",
+        placeItems: "center",
+        padding: 24,
+        background:
+          "radial-gradient(900px 500px at 30% 10%, rgba(255,95,0,0.28), transparent 55%), radial-gradient(900px 500px at 70% 80%, rgba(5,160,255,0.14), transparent 55%), #070A10",
+        color: "white",
+      }}
+    >
+      <div
+        style={{
+          width: "min(720px, 92vw)",
+          borderRadius: 18,
+          border: "1px solid rgba(255,255,255,0.14)",
+          background: "rgba(0,0,0,0.35)",
+          boxShadow: "0 20px 80px rgba(0,0,0,0.55)",
+          overflow: "hidden",
+        }}
+      >
+        <div style={{ padding: 22 }}>
+          <div style={{ fontSize: 28, fontWeight: 950, lineHeight: 1.05 }}>
+            {title}
+          </div>
+        </div>
+
+        <div style={{ borderTop: "1px solid rgba(255,255,255,0.12)" }} />
+        <div style={{ padding: 22 }}>{children}</div>
+      </div>
     </main>
+  );
+}
+
+function ErrorBox({ message }: { message: string }) {
+  return (
+    <Card title="Join Pool">
+      <div style={{ color: "#ffb4b4", fontWeight: 900 }}>{message}</div>
+      <div style={{ marginTop: 10, opacity: 0.85 }}>
+        Ask the commissioner for a fresh invite link.
+      </div>
+      <div style={{ marginTop: 14 }}>
+        <Link href="/login" style={{ color: "white", fontWeight: 900 }}>
+          Go to login
+        </Link>
+      </div>
+    </Card>
   );
 }
 
@@ -30,9 +74,79 @@ export default async function JoinPoolPage({
   const supabase = await createClient();
   const { poolId: raw } = await params;
 
-  // Must be signed in
+  // ✅ If not logged in, show a public pool preview instead of forcing login blindly
   const { data: auth } = await supabase.auth.getUser();
-  if (!auth?.user) redirect(`/login?next=/join/${raw}`);
+  if (!auth?.user) {
+    // Use the new RPC (works for anon)
+    const { data: preview, error: previewErr } = await supabase.rpc(
+      "get_pool_preview_by_code",
+      { p_code: raw }
+    );
+
+    if (previewErr) {
+      return <ErrorBox message={`Preview error: ${previewErr.message}`} />;
+    }
+
+    const p = preview?.[0];
+    if (!p?.pool_id) {
+      return <ErrorBox message="Invalid or expired invite link." />;
+    }
+
+    return (
+      <Card title="You’ve been invited 🎟️">
+        <div style={{ display: "grid", gap: 10 }}>
+          <div style={{ fontSize: 18, fontWeight: 900 }}>
+            {p.pool_name ?? "Survivor Pool"}
+          </div>
+          <div style={{ opacity: 0.85 }}>
+            Commissioner: <strong>{p.commissioner_name ?? "Commissioner"}</strong>
+          </div>
+
+          <div
+            style={{
+              marginTop: 10,
+              padding: 12,
+              borderRadius: 14,
+              border: "1px solid rgba(255,255,255,0.14)",
+              background: "rgba(0,0,0,0.22)",
+              opacity: 0.92,
+              fontSize: 13,
+              lineHeight: 1.35,
+            }}
+          >
+            Next step: create an account (or log in) and we’ll add you to the pool
+            automatically.
+          </div>
+
+          <div style={{ marginTop: 12, display: "flex", gap: 12, flexWrap: "wrap" }}>
+            <Link
+              href={`/login?next=/join/${raw}`}
+              style={{
+                display: "inline-block",
+                padding: "12px 14px",
+                borderRadius: 14,
+                border: "1px solid rgba(255,255,255,0.18)",
+                background:
+                  "linear-gradient(180deg, rgba(255,95,0,0.9), rgba(255,95,0,0.65))",
+                color: "white",
+                fontSize: 18,
+                fontWeight: 950,
+                textDecoration: "none",
+              }}
+            >
+              Log in / Create account to join
+            </Link>
+
+            <div style={{ alignSelf: "center", opacity: 0.75, fontSize: 13 }}>
+              Invite: <strong>{raw}</strong>
+            </div>
+          </div>
+        </div>
+      </Card>
+    );
+  }
+
+  // Logged in → join flow
   const userId = auth.user.id;
 
   // Resolve join token -> actual pool UUID
@@ -45,15 +159,8 @@ export default async function JoinPoolPage({
       { p_code: raw }
     );
 
-    if (lookupErr) {
-      return (
-        <ErrorBox title="Join Pool" message={`Invite code error: ${lookupErr.message}`} />
-      );
-    }
-
-    if (!invite || !invite[0]?.pool_id) {
-      return <ErrorBox title="Join Pool" message="Invalid or expired invite code." />;
-    }
+    if (lookupErr) return <ErrorBox message={`Invite code error: ${lookupErr.message}`} />;
+    if (!invite || !invite[0]?.pool_id) return <ErrorBox message="Invalid or expired invite code." />;
 
     poolId = String(invite[0].pool_id);
 
@@ -65,36 +172,17 @@ export default async function JoinPoolPage({
       .eq("user_id", userId)
       .maybeSingle();
 
-    if (existingError) {
-      return (
-        <main style={{ padding: 24, maxWidth: 720 }}>
-          <h1 style={{ fontSize: 26, fontWeight: 900 }}>Join Pool</h1>
-          <p style={{ marginTop: 10, color: "#ffb4b4", fontWeight: 800 }}>
-            Error checking membership: {existingError.message}
-          </p>
-        </main>
-      );
-    }
+    if (existingError) return <ErrorBox message={`Error checking membership: ${existingError.message}`} />;
+    if (existing) redirect(`/pool/${poolId}`);
 
-    if (existing) {
-      redirect(`/pool/${poolId}`);
-    }
-
-    // 3) Now redeem (increment uses) only for a real new join
+    // 3) Redeem (increment uses) only for a real new join
     const { data: redeemedPoolId, error: redeemErr } = await supabase.rpc(
       "redeem_invite_code",
       { p_code: raw }
     );
 
-    if (redeemErr) {
-      return (
-        <ErrorBox title="Join Pool" message={`Invite redeem error: ${redeemErr.message}`} />
-      );
-    }
-
-    if (!redeemedPoolId) {
-      return <ErrorBox title="Join Pool" message="Invite code is no longer valid." />;
-    }
+    if (redeemErr) return <ErrorBox message={`Invite redeem error: ${redeemErr.message}`} />;
+    if (!redeemedPoolId) return <ErrorBox message="Invite code is no longer valid." />;
 
     poolId = String(redeemedPoolId);
   }
@@ -107,41 +195,19 @@ export default async function JoinPoolPage({
     .eq("user_id", userId)
     .maybeSingle();
 
-  if (existingError) {
-    return (
-      <main style={{ padding: 24, maxWidth: 720 }}>
-        <h1 style={{ fontSize: 26, fontWeight: 900 }}>Join Pool</h1>
-        <p style={{ marginTop: 10, color: "#ffb4b4", fontWeight: 800 }}>
-          Error checking membership: {existingError.message}
-        </p>
-      </main>
-    );
-  }
-
+  if (existingError) return <ErrorBox message={`Error checking membership: ${existingError.message}`} />;
   if (existing) redirect(`/pool/${poolId}`);
+
+  const screenName = auth.user.email?.split("@")[0] ?? "Player";
 
   // Insert membership
   const { error: insertError } = await supabase.from("pool_members").insert({
     pool_id: poolId,
     user_id: userId,
-    screen_name: auth.user.email?.split("@")[0] ?? "Player",
+    screen_name: screenName,
   });
 
-  if (insertError) {
-    return (
-      <main style={{ padding: 24, maxWidth: 720 }}>
-        <h1 style={{ fontSize: 26, fontWeight: 900 }}>Join Pool</h1>
-        <p style={{ marginTop: 10, color: "#ffb4b4", fontWeight: 800 }}>
-          Error joining: {insertError.message}
-        </p>
-        <p style={{ marginTop: 12 }}>
-          <Link href={`/pool/${poolId}`} style={{ color: "white" }}>
-            Go back to pool
-          </Link>
-        </p>
-      </main>
-    );
-  }
+  if (insertError) return <ErrorBox message={`Error joining: ${insertError.message}`} />;
 
   redirect(`/pool/${poolId}`);
 }
