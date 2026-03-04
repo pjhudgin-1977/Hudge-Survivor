@@ -1,13 +1,22 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { CSSProperties } from "react";
-import { useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabaseClient";
 
 export default function LoginPage() {
-  const sp = useSearchParams();
-  const next = useMemo(() => sp.get("next") || "/", [sp]);
+  // ✅ Read ?next=... only on the client (avoids prerender errors)
+  const [next, setNext] = useState<string>("/");
+
+  useEffect(() => {
+    try {
+      const sp = new URLSearchParams(window.location.search);
+      const n = sp.get("next");
+      setNext(n && n.startsWith("/") ? n : "/");
+    } catch {
+      setNext("/");
+    }
+  }, []);
 
   const [mode, setMode] = useState<"signin" | "signup">("signin");
 
@@ -20,6 +29,8 @@ export default function LoginPage() {
 
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+
+  const nextLabel = useMemo(() => next || "/", [next]);
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -56,7 +67,7 @@ export default function LoginPage() {
           return;
         }
 
-        window.location.assign(next);
+        window.location.assign(nextLabel);
         return;
       }
 
@@ -70,7 +81,7 @@ export default function LoginPage() {
         return;
       }
 
-      window.location.assign(next);
+      window.location.assign(nextLabel);
     } catch (e: any) {
       setErr(e?.message || "Something went wrong.");
     } finally {
@@ -92,7 +103,7 @@ export default function LoginPage() {
     >
       {/* ✅ Debug stamp so we KNOW prod is updated */}
       <div style={{ position: "fixed", top: 10, right: 16, fontSize: 12, opacity: 0.75 }}>
-        Build: login-v3
+        Build: login-v4
       </div>
 
       <div
@@ -145,7 +156,7 @@ export default function LoginPage() {
             </button>
 
             <div style={{ marginLeft: "auto", opacity: 0.7, fontSize: 12 }}>
-              After login → <span style={{ fontWeight: 900 }}>{next}</span>
+              After login → <span style={{ fontWeight: 900 }}>{nextLabel}</span>
             </div>
           </div>
 
@@ -218,11 +229,6 @@ export default function LoginPage() {
           {err && (
             <div style={{ marginTop: 12, color: "#ffb4b4", fontWeight: 800 }}>{err}</div>
           )}
-
-          <div style={{ marginTop: 14, opacity: 0.78, fontSize: 13, lineHeight: 1.35 }}>
-            If you arrived from an invite link, create your account here — we’ll take you
-            right back to the invite and add you automatically.
-          </div>
         </form>
       </div>
     </main>
