@@ -10,7 +10,11 @@ export default function InvitePage() {
   const inviteUrl = useMemo(() => {
     if (!poolId) return "";
     if (typeof window === "undefined") return "";
-    return `${window.location.origin}/join/${poolId}`;
+
+    const base =
+      process.env.NEXT_PUBLIC_SITE_URL || window.location.origin;
+
+    return `${base}/join/${poolId}`;
   }, [poolId]);
 
   const [copied, setCopied] = useState(false);
@@ -19,7 +23,7 @@ export default function InvitePage() {
     try {
       await navigator.clipboard.writeText(inviteUrl);
       setCopied(true);
-      setTimeout(() => setCopied(false), 1200);
+      setTimeout(() => setCopied(false), 1500);
     } catch {
       setCopied(false);
     }
@@ -27,10 +31,10 @@ export default function InvitePage() {
 
   return (
     <main style={{ padding: 24, maxWidth: 720 }}>
-      <h1 style={{ fontSize: 26, fontWeight: 900 }}>Invite</h1>
+      <h1 style={{ fontSize: 26, fontWeight: 900 }}>Invite Friends</h1>
 
       <p style={{ marginTop: 8, opacity: 0.8 }}>
-        Share this link with friends to join your pool:
+        Share this link with friends to join your pool.
       </p>
 
       <div
@@ -60,13 +64,13 @@ export default function InvitePage() {
             fontWeight: 800,
           }}
         >
-          {copied ? "✅ Copied" : "📋 Copy link"}
+          {copied ? "✅ Copied" : "📋 Copy invite link"}
         </button>
       </div>
 
       <p style={{ marginTop: 14, opacity: 0.75, fontSize: 13 }}>
-        Tip: This link works for people who are not logged in — it will prompt them
-        to log in, then join them to the pool.
+        Anyone with this link can join your pool. If they are not logged in,
+        they will be prompted to log in first.
       </p>
     </main>
   );
