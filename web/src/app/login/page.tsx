@@ -5,7 +5,7 @@ import type { CSSProperties } from "react";
 import { createClient } from "@/lib/supabaseClient";
 
 export default function LoginPage() {
-  // ✅ Read ?next=... only on the client (avoids prerender errors)
+  // Read ?next=... only on the client (avoids prerender issues)
   const [next, setNext] = useState<string>("/");
 
   useEffect(() => {
@@ -23,7 +23,6 @@ export default function LoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
 
-  // Signup extras
   const [fullName, setFullName] = useState("");
   const [referrer, setReferrer] = useState("");
 
@@ -47,7 +46,7 @@ export default function LoginPage() {
           return;
         }
         if (!referrer.trim()) {
-          setErr("Please tell us who referred you.");
+          setErr("Please tell us who invited you.");
           return;
         }
 
@@ -90,44 +89,11 @@ export default function LoginPage() {
   }
 
   return (
-    <main
-      style={{
-        minHeight: "100vh",
-        display: "grid",
-        placeItems: "center",
-        padding: 24,
-        background:
-          "radial-gradient(900px 500px at 30% 10%, rgba(255,95,0,0.35), transparent 55%), radial-gradient(900px 500px at 70% 80%, rgba(5,160,255,0.18), transparent 55%), #070A10",
-        color: "white",
-      }}
-    >
-      {/* ✅ Debug stamp so we KNOW prod is updated */}
-      <div style={{ position: "fixed", top: 10, right: 16, fontSize: 12, opacity: 0.75 }}>
-        Build: login-v4
-      </div>
-
-      <div
-        style={{
-          width: "min(720px, 92vw)",
-          borderRadius: 18,
-          border: "1px solid rgba(255,255,255,0.14)",
-          background: "rgba(0,0,0,0.35)",
-          boxShadow: "0 20px 80px rgba(0,0,0,0.55)",
-          overflow: "hidden",
-        }}
-      >
+    <main style={page}>
+      <div style={card}>
         <div style={{ padding: 22 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
-            <div
-              style={{
-                width: 54,
-                height: 54,
-                borderRadius: 16,
-                background:
-                  "radial-gradient(circle at 30% 30%, #ff7a18, #c2410c 60%, #1f2937 100%)",
-                border: "1px solid rgba(255,255,255,0.16)",
-              }}
-            />
+            <div style={logo} />
             <div>
               <div style={{ fontSize: 30, fontWeight: 950, lineHeight: 1.05 }}>
                 Hudge Survivor Pool
@@ -138,7 +104,6 @@ export default function LoginPage() {
             </div>
           </div>
 
-          {/* MODE TOGGLE */}
           <div style={{ marginTop: 18, display: "flex", gap: 10, flexWrap: "wrap" }}>
             <button
               type="button"
@@ -154,25 +119,10 @@ export default function LoginPage() {
             >
               Create account
             </button>
-
-            <div style={{ marginLeft: "auto", opacity: 0.7, fontSize: 12 }}>
-              After login → <span style={{ fontWeight: 900 }}>{nextLabel}</span>
-            </div>
           </div>
 
           {mode === "signin" && (
-            <div
-              style={{
-                marginTop: 14,
-                padding: 12,
-                borderRadius: 14,
-                border: "1px solid rgba(255,255,255,0.14)",
-                background: "rgba(0,0,0,0.22)",
-                opacity: 0.92,
-                fontSize: 13,
-                lineHeight: 1.35,
-              }}
-            >
+            <div style={hintBox}>
               New here? Click <b>Create account</b> above. If you came from an invite link,
               we’ll take you right back to it and add you automatically.
             </div>
@@ -193,7 +143,7 @@ export default function LoginPage() {
                 autoComplete="name"
               />
 
-              <label style={{ ...labelStyle, marginTop: 16 }}>Who referred you?</label>
+              <label style={{ ...labelStyle, marginTop: 16 }}>Who invited you?</label>
               <input
                 value={referrer}
                 onChange={(e) => setReferrer(e.target.value)}
@@ -226,14 +176,39 @@ export default function LoginPage() {
             {loading ? "Working…" : mode === "signup" ? "Create account" : "Log in"}
           </button>
 
-          {err && (
-            <div style={{ marginTop: 12, color: "#ffb4b4", fontWeight: 800 }}>{err}</div>
-          )}
+          {err && <div style={{ marginTop: 12, color: "#ffb4b4", fontWeight: 800 }}>{err}</div>}
         </form>
       </div>
     </main>
   );
 }
+
+const page: CSSProperties = {
+  minHeight: "100vh",
+  display: "grid",
+  placeItems: "center",
+  padding: 24,
+  background:
+    "radial-gradient(900px 500px at 30% 10%, rgba(255,95,0,0.35), transparent 55%), radial-gradient(900px 500px at 70% 80%, rgba(5,160,255,0.18), transparent 55%), #070A10",
+  color: "white",
+};
+
+const card: CSSProperties = {
+  width: "min(720px, 92vw)",
+  borderRadius: 18,
+  border: "1px solid rgba(255,255,255,0.14)",
+  background: "rgba(0,0,0,0.35)",
+  boxShadow: "0 20px 80px rgba(0,0,0,0.55)",
+  overflow: "hidden",
+};
+
+const logo: CSSProperties = {
+  width: 54,
+  height: 54,
+  borderRadius: 16,
+  background: "radial-gradient(circle at 30% 30%, #ff7a18, #c2410c 60%, #1f2937 100%)",
+  border: "1px solid rgba(255,255,255,0.16)",
+};
 
 const pill: CSSProperties = {
   padding: "10px 12px",
@@ -248,6 +223,17 @@ const pill: CSSProperties = {
 const pillActive: CSSProperties = {
   ...pill,
   background: "rgba(255,95,0,0.35)",
+};
+
+const hintBox: CSSProperties = {
+  marginTop: 14,
+  padding: 12,
+  borderRadius: 14,
+  border: "1px solid rgba(255,255,255,0.14)",
+  background: "rgba(0,0,0,0.22)",
+  opacity: 0.92,
+  fontSize: 13,
+  lineHeight: 1.35,
 };
 
 const labelStyle: CSSProperties = {
