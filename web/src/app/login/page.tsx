@@ -91,6 +91,11 @@ export default function LoginPage() {
         color: "white",
       }}
     >
+      {/* ✅ Debug stamp so we KNOW prod is updated */}
+      <div style={{ position: "fixed", top: 10, right: 16, fontSize: 12, opacity: 0.75 }}>
+        Build: login-v3
+      </div>
+
       <div
         style={{
           width: "min(720px, 92vw)",
@@ -118,7 +123,7 @@ export default function LoginPage() {
                 Hudge Survivor Pool
               </div>
               <div style={{ opacity: 0.85, marginTop: 4 }}>
-                New player? Create an account and you’ll be added to the pool automatically.
+                New player? Tap <b>Create account</b> and you’ll be added automatically.
               </div>
             </div>
           </div>
@@ -144,6 +149,25 @@ export default function LoginPage() {
               After login → <span style={{ fontWeight: 900 }}>{next}</span>
             </div>
           </div>
+
+          {/* ✅ Extra clarity for new users */}
+          {mode === "signin" && (
+            <div
+              style={{
+                marginTop: 14,
+                padding: 12,
+                borderRadius: 14,
+                border: "1px solid rgba(255,255,255,0.14)",
+                background: "rgba(0,0,0,0.22)",
+                opacity: 0.92,
+                fontSize: 13,
+                lineHeight: 1.35,
+              }}
+            >
+              New here? Click <b>Create account</b> above. If you came from an invite link,
+              we’ll take you right back to it and add you automatically.
+            </div>
+          )}
         </div>
 
         <div style={{ borderTop: "1px solid rgba(255,255,255,0.12)" }} />
@@ -170,9 +194,7 @@ export default function LoginPage() {
             </>
           )}
 
-          <label style={{ ...labelStyle, marginTop: mode === "signup" ? 16 : 0 }}>
-            Email
-          </label>
+          <label style={{ ...labelStyle, marginTop: mode === "signup" ? 16 : 0 }}>Email</label>
           <input
             value={email}
             onChange={(e) => setEmail(e.target.value)}
@@ -195,10 +217,12 @@ export default function LoginPage() {
             {loading ? "Working…" : mode === "signup" ? "Create account" : "Log in"}
           </button>
 
-          {err && <div style={{ marginTop: 12, color: "#ffb4b4", fontWeight: 800 }}>{err}</div>}
+          {err && (
+            <div style={{ marginTop: 12, color: "#ffb4b4", fontWeight: 800 }}>{err}</div>
+          )}
 
           <div style={{ marginTop: 14, opacity: 0.78, fontSize: 13, lineHeight: 1.35 }}>
-            If you arrived from an invite link, just create your account here — we’ll take you
+            If you arrived from an invite link, create your account here — we’ll take you
             right back to the invite and add you automatically.
           </div>
         </form>
