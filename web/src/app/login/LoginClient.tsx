@@ -1,26 +1,107 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabaseClient";
+
+type Mode = "login" | "signup";
 
 export default function LoginClient() {
   const router = useRouter();
   const sp = useSearchParams();
   const supabase = createClient();
 
+  const [mode, setMode] = useState<Mode>("login");
+
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [nickname, setNickname] = useState("");
+
+  const [showPw, setShowPw] = useState(false);
+
   const [err, setErr] = useState<string | null>(null);
+  const [msg, setMsg] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+
+  const title = useMemo(
+    () => (mode === "login" ? "Sign in" : "Create account"),
+    [mode]
+  );
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     setErr(null);
+    setMsg(null);
     setLoading(true);
 
+    if (!email.trim()) {
+      setLoading(false);
+      setErr("Email is required.");
+      return;
+    }
+    if (!password) {
+      setLoading(false);
+      setErr("Password is required.");
+      return;
+    }
+
+    if (mode === "signup") {
+      const nick = nickname.trim();
+      if (!nick) {
+        setLoading(false);
+        setErr("Nickname is required.");
+        return;
+      }
+
+      const { data, error } = await supabase.auth.signUp({
+        email: email.trim(),
+        password,
+        options: {
+          data: {
+            screen_name: nick, // ✅ stored on the auth user as metadata
+          },
+        },
+      });
+
+      setLoading(false);
+
+      if (error) {
+        setErr(error.message);
+        return;
+      }
+
+      // If email confirmations are ON, there may be no session yet.
+      if (!data.session) {
+        setMsg("Account created! Check your email to confirm, then come back to log in.");
+        setMode("login");
+        return;
+      }
+
+      // If session exists, route the same way as login
+      const next = sp.get("next");
+      if (next) {
+        router.push(next);
+        return;
+      }
+
+      const { data: member } = await supabase
+        .from("pool_members")
+        .select("pool_id")
+        .limit(1)
+        .maybeSingle();
+
+      if (member?.pool_id) {
+        router.push(`/pool/${member.pool_id}`);
+      } else {
+        router.push("/dashboard?onboarding=joinonly");
+      }
+
+      return;
+    }
+
+    // mode === "login"
     const { error } = await supabase.auth.signInWithPassword({
-      email,
+      email: email.trim(),
       password,
     });
 
@@ -103,13 +184,17 @@ export default function LoginClient() {
                 Hudge Survivor Pool
               </div>
               <div style={{ fontSize: 13, opacity: 0.78, marginTop: 2 }}>
-                Sign in to make picks, sweat games, and survive 🐻
+                {mode === "login"
+                  ? "Sign in to make picks, sweat games, and survive 🐻"
+                  : "Create your account to join a pool 🐻"}
               </div>
             </div>
           </div>
         </div>
 
         <form onSubmit={onSubmit} style={{ padding: 18 }}>
+          <div style={{ fontSize: 18, fontWeight: 950, marginBottom: 12 }}>{title}</div>
+
           <label style={labelStyle}>Email</label>
           <input
             style={inputStyle}
@@ -122,34 +207,81 @@ export default function LoginClient() {
 
           <div style={{ height: 12 }} />
 
-          <label style={labelStyle}>Password</label>
-          <input
-            style={inputStyle}
-            type="password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            placeholder="••••••••"
-            autoComplete="current-password"
-          />
+          {mode === "signup" ? (
+            <>
+              <label style={labelStyle}>Nickname</label>
+              <input
+                style={inputStyle}
+                value={nickname}
+                onChange={(e) => setNickname(e.target.value)}
+                placeholder="What should we call you?"
+                autoComplete="nickname"
+              />
+              <div style={{ height: 12 }} />
+            </>
+          ) : null}
 
-          {/* ✅ Forgot password */}
-          <div style={{ marginTop: 10, display: "flex", justifyContent: "flex-end" }}>
+          <label style={labelStyle}>Password</label>
+
+          <div style={{ position: "relative" }}>
+            <input
+              style={{ ...inputStyle, paddingRight: 44 }}
+              type={showPw ? "text" : "password"}
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder="••••••••"
+              autoComplete={mode === "login" ? "current-password" : "new-password"}
+            />
+
             <button
               type="button"
-              onClick={() => router.push("/reset-password")}
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={() => setShowPw((v) => !v)}
+              aria-label={showPw ? "Hide password" : "Show password"}
+              title={showPw ? "Hide password" : "Show password"}
               style={{
-                background: "transparent",
-                border: "none",
-                color: "rgba(255,255,255,0.78)",
-                textDecoration: "underline",
-                fontWeight: 800,
+                position: "absolute",
+                right: 10,
+                top: "50%",
+                transform: "translateY(-50%)",
+                width: 32,
+                height: 32,
+                borderRadius: 10,
+                border: "1px solid rgba(255,255,255,0.14)",
+                background: "rgba(0,0,0,0.20)",
+                color: "rgba(255,255,255,0.92)",
                 cursor: "pointer",
-                padding: 0,
+                display: "inline-flex",
+                alignItems: "center",
+                justifyContent: "center",
+                fontSize: 16,
+                lineHeight: 1,
               }}
             >
-              Forgot password?
+              {showPw ? "🙈" : "👁️"}
             </button>
           </div>
+
+          {/* Forgot password (login only) */}
+          {mode === "login" ? (
+            <div style={{ marginTop: 10, display: "flex", justifyContent: "flex-end" }}>
+              <button
+                type="button"
+                onClick={() => router.push("/reset-password")}
+                style={{
+                  background: "transparent",
+                  border: "none",
+                  color: "rgba(255,255,255,0.78)",
+                  textDecoration: "underline",
+                  fontWeight: 800,
+                  cursor: "pointer",
+                  padding: 0,
+                }}
+              >
+                Forgot password?
+              </button>
+            </div>
+          ) : null}
 
           {err ? (
             <div
@@ -165,6 +297,23 @@ export default function LoginClient() {
               }}
             >
               {err}
+            </div>
+          ) : null}
+
+          {msg ? (
+            <div
+              style={{
+                marginTop: 12,
+                padding: "10px 12px",
+                borderRadius: 12,
+                border: "1px solid rgba(0,255,140,0.35)",
+                background: "rgba(0,255,140,0.10)",
+                color: "rgba(220,255,235,0.95)",
+                fontSize: 13,
+                fontWeight: 800,
+              }}
+            >
+              {msg}
             </div>
           ) : null}
 
@@ -187,12 +336,43 @@ export default function LoginClient() {
               boxShadow: loading ? "none" : "0 12px 30px rgba(255,92,0,0.22)",
             }}
           >
-            {loading ? "Signing in…" : "Log in"}
+            {loading ? "Please wait…" : mode === "login" ? "Log in" : "Create account"}
           </button>
 
           <div style={{ marginTop: 14, fontSize: 12, opacity: 0.75, lineHeight: 1.4 }}>
-            New here? You’ll need an invite link from your commissioner. If you already
-            have one, paste it on the Dashboard after login.
+            {mode === "login" ? (
+              <>
+                New here?{" "}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setErr(null);
+                    setMsg(null);
+                    setMode("signup");
+                  }}
+                  style={linkBtnStyle}
+                >
+                  Create an account
+                </button>
+                . You’ll need an invite link from your commissioner to join a pool.
+              </>
+            ) : (
+              <>
+                Already have an account?{" "}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setErr(null);
+                    setMsg(null);
+                    setMode("login");
+                  }}
+                  style={linkBtnStyle}
+                >
+                  Log in
+                </button>
+                .
+              </>
+            )}
           </div>
         </form>
       </div>
@@ -217,4 +397,14 @@ const inputStyle: React.CSSProperties = {
   background: "rgba(0,0,0,0.25)",
   color: "white",
   outline: "none",
+};
+
+const linkBtnStyle: React.CSSProperties = {
+  background: "transparent",
+  border: "none",
+  color: "rgba(255,255,255,0.92)",
+  textDecoration: "underline",
+  fontWeight: 900,
+  cursor: "pointer",
+  padding: 0,
 };

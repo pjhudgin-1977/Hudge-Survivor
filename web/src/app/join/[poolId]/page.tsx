@@ -198,7 +198,11 @@ export default async function JoinPoolPage({
   if (existingError) return <ErrorBox message={`Error checking membership: ${existingError.message}`} />;
   if (existing) redirect(`/pool/${poolId}`);
 
-  const screenName = auth.user.email?.split("@")[0] ?? "Player";
+  // ✅ Prefer nickname from Auth metadata (set at signup), fallback to email prefix
+  const meta = (auth.user.user_metadata || {}) as Record<string, any>;
+  const screenName =
+    (typeof meta.screen_name === "string" && meta.screen_name.trim()) ||
+    (auth.user.email?.split("@")[0] ?? "Player");
 
   // Insert membership
   const { error: insertError } = await supabase.from("pool_members").insert({
