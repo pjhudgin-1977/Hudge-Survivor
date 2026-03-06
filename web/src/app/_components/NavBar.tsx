@@ -72,7 +72,6 @@ export default function NavBar({ poolId, status, label, isCommissioner }: Props)
       { href: `${base}/my-picks`, label: "My Picks" },
       { href: `${base}/sweat`, label: "Sweat" },
       { href: `${base}/invite`, label: "Invite" },
-      ...(isCommissioner ? [{ href: `${base}/admin`, label: "Admin" }] : []),
       { href: `${base}/rules`, label: "Rules" },
     ];
   }, [base, unpaidCount, missingPickCount, isCommissioner]);
