@@ -17,6 +17,7 @@ type MemberLite = {
   losses: number | null;
   is_eliminated: boolean | null;
   entry_fee_paid: boolean | null;
+  screen_name?: string | null;
 };
 
 type Phase = "regular" | "playoffs";
@@ -56,22 +57,66 @@ export default function NavBar({ poolId, status, label, isCommissioner }: Props)
   const [missingPickCount, setMissingPickCount] = useState<number | null>(null);
   const [currentWeekLabel, setCurrentWeekLabel] = useState<string>("");
 
+  // =========================
+  // Player badge
+  // =========================
+  const [playerBadgeName, setPlayerBadgeName] = useState<string>("Profile");
+
   const items = useMemo(() => {
     if (!base) return [{ href: "/dashboard", label: "Dashboard" }];
 
     return [
-  { href: `${base}`, label: "Standings" },
-  { href: `${base}/payment`, label: "Pay", badge: isCommissioner ? unpaidCount : null },
-  { href: `${base}/pick`, label: "Pick", badge: isCommissioner ? missingPickCount : null },
-  { href: `${base}/my-picks`, label: "My Picks" },
-  { href: `${base}/sweat`, label: "Sweat" },
-  { href: `${base}/invite`, label: "Invite" },
-
-  ...(isCommissioner ? [{ href: `${base}/admin`, label: "Admin" }] : []),
-
-  { href: `${base}/rules`, label: "Rules" },
-];
+      { href: `${base}`, label: "Standings" },
+      { href: `${base}/payment`, label: "Pay", badge: isCommissioner ? unpaidCount : null },
+      { href: `${base}/pick`, label: "Pick", badge: isCommissioner ? missingPickCount : null },
+      { href: `${base}/my-picks`, label: "My Picks" },
+      { href: `${base}/sweat`, label: "Sweat" },
+      { href: `${base}/invite`, label: "Invite" },
+      ...(isCommissioner ? [{ href: `${base}/admin`, label: "Admin" }] : []),
+      { href: `${base}/rules`, label: "Rules" },
+    ];
   }, [base, unpaidCount, missingPickCount, isCommissioner]);
+
+  async function loadPlayerBadge(pid?: string) {
+    const supabase = createClient();
+
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user) {
+      setPlayerBadgeName("Profile");
+      return;
+    }
+
+    if (pid) {
+      const { data: member } = await supabase
+        .from("pool_members")
+        .select("screen_name")
+        .eq("pool_id", pid)
+        .eq("user_id", user.id)
+        .maybeSingle();
+
+      const memberScreenName = String(member?.screen_name ?? "").trim();
+      if (memberScreenName) {
+        setPlayerBadgeName(memberScreenName);
+        return;
+      }
+    }
+
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("full_name")
+      .eq("user_id", user.id)
+      .maybeSingle();
+
+    const fallbackName =
+      String(profile?.full_name ?? "").trim() ||
+      user.email?.split("@")[0]?.trim() ||
+      "Profile";
+
+    setPlayerBadgeName(fallbackName);
+  }
 
   async function loadCounts(pid: string) {
     const supabase = createClient();
@@ -173,7 +218,6 @@ export default function NavBar({ poolId, status, label, isCommissioner }: Props)
     setCurrentWeekLabel(`${fmtPhase(phase)} W${week_number}`);
 
     // 3) missing picks among ALIVE users for current week/phase
-    // Keep it simple: read picks for this week/phase, build set, count alive missing
     const { data: pickData, error: pickErr } = await supabase
       .from("picks")
       .select("user_id")
@@ -193,13 +237,14 @@ export default function NavBar({ poolId, status, label, isCommissioner }: Props)
   }
 
   useEffect(() => {
-    if (!poolId) return;
-
     let cancelled = false;
 
     const run = async () => {
       if (cancelled) return;
-      await loadCounts(poolId);
+      await loadPlayerBadge(poolId);
+      if (poolId) {
+        await loadCounts(poolId);
+      }
     };
 
     run();
@@ -303,6 +348,12 @@ export default function NavBar({ poolId, status, label, isCommissioner }: Props)
                 active={pathname === it.href}
               />
             ))}
+
+            <NavLink
+              href="/profile"
+              label={`👤 ${playerBadgeName}`}
+              active={pathname === "/profile"}
+            />
 
             {base && isCommissioner ? (
               <NavLink href={`${base}/admin`} label="Admin" active={pathname?.includes("/admin")} />
