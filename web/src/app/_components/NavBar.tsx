@@ -60,14 +60,17 @@ export default function NavBar({ poolId, status, label, isCommissioner }: Props)
     if (!base) return [{ href: "/dashboard", label: "Dashboard" }];
 
     return [
-      { href: `${base}`, label: "Standings" },
-      { href: `${base}/payment`, label: "Pay", badge: isCommissioner ? unpaidCount : null },
-      { href: `${base}/pick`, label: "Pick", badge: isCommissioner ? missingPickCount : null },
-      { href: `${base}/my-picks`, label: "My Picks" },
-      { href: `${base}/sweat`, label: "Sweat" },
-      { href: `${base}/invite`, label: "Invite" },
-      { href: `${base}/rules`, label: "Rules" },
-    ];
+  { href: `${base}`, label: "Standings" },
+  { href: `${base}/payment`, label: "Pay", badge: isCommissioner ? unpaidCount : null },
+  { href: `${base}/pick`, label: "Pick", badge: isCommissioner ? missingPickCount : null },
+  { href: `${base}/my-picks`, label: "My Picks" },
+  { href: `${base}/sweat`, label: "Sweat" },
+  { href: `${base}/invite`, label: "Invite" },
+
+  ...(isCommissioner ? [{ href: `${base}/admin`, label: "Admin" }] : []),
+
+  { href: `${base}/rules`, label: "Rules" },
+];
   }, [base, unpaidCount, missingPickCount, isCommissioner]);
 
   async function loadCounts(pid: string) {

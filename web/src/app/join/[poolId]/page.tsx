@@ -157,14 +157,27 @@ export default async function JoinPoolPage({
   if (existing) redirect(`/pool/${poolId}`);
 
   // 4) Join the pool (RLS must allow inserts for authenticated users)
-  const { error: joinError } = await supabase.from("pool_members").insert({
-    pool_id: poolId,
-    user_id: userId,
-    role: "member",
-    is_commissioner: false,
-    eliminated: false,
-    losses: 0,
-  });
+  const { error: joinError } = // Get nickname for required screen_name
+const { data: prof } = await supabase
+  .from("profiles")
+  .select("nickname, full_name")
+  .eq("id", userId)
+  .maybeSingle();
+
+const screenName =
+  String((prof as any)?.nickname ?? "").trim() ||
+  String((prof as any)?.full_name ?? "").trim() ||
+  "Player";
+
+const { error: joinError } = await supabase.from("pool_members").insert({
+  pool_id: poolId,
+  user_id: userId,
+  screen_name: screenName,
+  role: "member",
+  is_commissioner: false,
+  eliminated: false,
+  losses: 0,
+});
 
   if (joinError) {
     return (
