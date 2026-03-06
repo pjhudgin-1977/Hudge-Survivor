@@ -83,7 +83,6 @@ export default function PoolStandingsGridPage() {
 
         const mem = (m ?? []) as MemberRow[];
 
-        // profiles (optional)
         const ids = mem.map((x) => x.user_id).filter(Boolean);
         const profMap: Record<string, ProfileRow> = {};
 
@@ -98,7 +97,6 @@ export default function PoolStandingsGridPage() {
           }
         }
 
-        // picks (include counted_in_losses)
         const { data: pk, error: pkErr } = await supabase
           .from("picks")
           .select("user_id, week_number, phase, picked_team, was_autopick, result, counted_in_losses")
@@ -117,15 +115,17 @@ export default function PoolStandingsGridPage() {
     })();
   }, [poolId]);
 
-  // Weeks/columns: 17 regular + 4 playoffs
   const columns = useMemo(() => {
     const cols: { key: string; label: string; phase: "regular" | "playoffs"; week: number }[] = [];
-    for (let w = 1; w <= 17; w++) cols.push({ key: `REG_${w}`, label: `W${w}`, phase: "regular", week: w });
-    for (let w = 1; w <= 4; w++) cols.push({ key: `PO_${w}`, label: `P${w}`, phase: "playoffs", week: w });
+    for (let w = 1; w <= 17; w++) {
+      cols.push({ key: `REG_${w}`, label: `W${w}`, phase: "regular", week: w });
+    }
+    for (let w = 1; w <= 4; w++) {
+      cols.push({ key: `PO_${w}`, label: `P${w}`, phase: "playoffs", week: w });
+    }
     return cols;
   }, []);
 
-  // Build lookup: user|phase|week => pick
   const pickMap = useMemo(() => {
     const map: Record<string, PickRow> = {};
     for (const p of picks) {
@@ -147,7 +147,6 @@ export default function PoolStandingsGridPage() {
       const screen = String(m.screen_name ?? "").trim() || "—";
       const fullLine = nameInitialLine(profilesById[m.user_id]?.full_name);
 
-      // Primary sort: 0-loss -> 1-loss -> eliminated, Secondary: name
       const section = eliminated ? 2 : losses === 0 ? 0 : 1;
 
       return {
@@ -193,14 +192,18 @@ export default function PoolStandingsGridPage() {
 
   async function togglePaid(targetUserId: string) {
     if (!confirm("Toggle paid status?")) return;
+
     const current = members.find((m) => m.user_id === targetUserId);
     const nextVal = !Boolean(current?.entry_fee_paid);
 
     setMembers((prev) =>
-      prev.map((m) => (m.user_id === targetUserId ? { ...m, entry_fee_paid: nextVal } : m))
+      prev.map((m) =>
+        m.user_id === targetUserId ? { ...m, entry_fee_paid: nextVal } : m
+      )
     );
 
     setSavingUserId(targetUserId);
+
     try {
       const supabase = createClient();
       const { error } = await supabase
@@ -212,7 +215,9 @@ export default function PoolStandingsGridPage() {
       if (error) throw error;
     } catch (e: any) {
       setMembers((prev) =>
-        prev.map((m) => (m.user_id === targetUserId ? { ...m, entry_fee_paid: !nextVal } : m))
+        prev.map((m) =>
+          m.user_id === targetUserId ? { ...m, entry_fee_paid: !nextVal } : m
+        )
       );
       alert(e?.message ?? "Update failed (permission/RLS).");
     } finally {
@@ -223,7 +228,9 @@ export default function PoolStandingsGridPage() {
   if (loading) {
     return (
       <div style={{ padding: 16 }}>
-        <div style={{ fontSize: 20, fontWeight: 900, marginBottom: 10 }}>Standings</div>
+        <div style={{ fontSize: 20, fontWeight: 900, marginBottom: 10 }}>
+          Standings
+        </div>
         <div style={{ opacity: 0.8 }}>Loading…</div>
       </div>
     );
@@ -232,7 +239,9 @@ export default function PoolStandingsGridPage() {
   if (err) {
     return (
       <div style={{ padding: 16 }}>
-        <div style={{ fontSize: 20, fontWeight: 900, marginBottom: 10 }}>Standings</div>
+        <div style={{ fontSize: 20, fontWeight: 900, marginBottom: 10 }}>
+          Standings
+        </div>
         <div
           style={{
             padding: 12,
@@ -250,9 +259,19 @@ export default function PoolStandingsGridPage() {
 
   return (
     <div style={{ padding: 16 }}>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, marginBottom: 12 }}>
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          gap: 12,
+          marginBottom: 12,
+        }}
+      >
         <div>
-          <div style={{ fontSize: 22, fontWeight: 950, letterSpacing: 0.2 }}>Standings</div>
+          <div style={{ fontSize: 22, fontWeight: 950, letterSpacing: 0.2 }}>
+            Standings
+          </div>
           <div style={{ opacity: 0.7, marginTop: 2, fontSize: 13 }}>
             Grid view • 17 Regular + 4 Playoffs • A = autopick • Strike-through = counted loss
           </div>
@@ -298,7 +317,14 @@ export default function PoolStandingsGridPage() {
         </div>
       </div>
 
-      <div style={{ borderRadius: 16, border: "1px solid rgba(255,255,255,0.18)", overflow: "auto", boxShadow: "0 10px 30px rgba(0,0,0,0.25)" }}>
+      <div
+        style={{
+          borderRadius: 16,
+          border: "1px solid rgba(255,255,255,0.18)",
+          overflow: "auto",
+          boxShadow: "0 10px 30px rgba(0,0,0,0.25)",
+        }}
+      >
         <table
           style={{
             width: "max-content",
@@ -310,16 +336,45 @@ export default function PoolStandingsGridPage() {
         >
           <thead>
             <tr>
-              <th style={{ ...headerStyle, ...stickyNameStyle, textAlign: "left", padding: "12px 12px", borderBottom: "1px solid rgba(255,255,255,0.18)", fontWeight: 950 }}>
+              <th
+                style={{
+                  ...headerStyle,
+                  ...stickyNameStyle,
+                  textAlign: "left",
+                  padding: "12px 12px",
+                  borderBottom: "1px solid rgba(255,255,255,0.18)",
+                  fontWeight: 950,
+                }}
+              >
                 Players
               </th>
 
-              <th style={{ ...headerStyle, textAlign: "center", padding: "12px 10px", minWidth: 110, borderBottom: "1px solid rgba(255,255,255,0.18)", fontWeight: 950, zIndex: 6 }}>
-  Paid
-</th>
+              <th
+                style={{
+                  ...headerStyle,
+                  textAlign: "center",
+                  padding: "12px 10px",
+                  minWidth: 110,
+                  borderBottom: "1px solid rgba(255,255,255,0.18)",
+                  fontWeight: 950,
+                  zIndex: 6,
+                }}
+              >
+                Paid
+              </th>
 
               {columns.map((c) => (
-                <th key={c.key} style={{ ...headerStyle, textAlign: "center", padding: "12px 10px", minWidth: 72, borderBottom: "1px solid rgba(255,255,255,0.18)", fontWeight: 950 }}>
+                <th
+                  key={c.key}
+                  style={{
+                    ...headerStyle,
+                    textAlign: "center",
+                    padding: "12px 10px",
+                    minWidth: 72,
+                    borderBottom: "1px solid rgba(255,255,255,0.18)",
+                    fontWeight: 950,
+                  }}
+                >
                   {c.label}
                 </th>
               ))}
@@ -338,49 +393,100 @@ export default function PoolStandingsGridPage() {
 
               return (
                 <tr key={r.user_id} style={{ background: rowBg }}>
-                  <td style={{ ...stickyNameStyle, padding: showNames ? "10px 12px" : "12px 12px", borderBottom: "1px solid rgba(255,255,255,0.10)", verticalAlign: "top" }}>
-                    <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 10 }}>
-                      <div style={{ fontWeight: 950, fontSize: 14 }}>{r.screen_name}</div>
-                      <div style={{ fontSize: 12, fontWeight: 900, opacity: r.eliminated ? 0.65 : 0.85, whiteSpace: "nowrap" }} title="Losses">
+                  <td
+                    style={{
+                      ...stickyNameStyle,
+                      padding: showNames ? "10px 12px" : "12px 12px",
+                      borderBottom: "1px solid rgba(255,255,255,0.10)",
+                      verticalAlign: "top",
+                    }}
+                  >
+                    <div
+                      style={{
+                        display: "flex",
+                        alignItems: "baseline",
+                        justifyContent: "space-between",
+                        gap: 10,
+                      }}
+                    >
+                      <div style={{ fontWeight: 950, fontSize: 14 }}>
+                        {r.screen_name}
+                      </div>
+                      <div
+                        style={{
+                          fontSize: 12,
+                          fontWeight: 900,
+                          opacity: r.eliminated ? 0.65 : 0.85,
+                          whiteSpace: "nowrap",
+                        }}
+                        title="Losses"
+                      >
                         L: {r.losses}
                       </div>
                     </div>
 
                     {showNames && (
-                      <div style={{ marginTop: 4, fontSize: 12, opacity: 0.75, fontWeight: 800, lineHeight: 1.2 }}>
+                      <div
+                        style={{
+                          marginTop: 4,
+                          fontSize: 12,
+                          opacity: 0.75,
+                          fontWeight: 800,
+                          lineHeight: 1.2,
+                        }}
+                      >
                         {r.full_name_line || "—"}
                       </div>
                     )}
                   </td>
 
-                 <td
-  style={{
-    textAlign: "center",
-    padding: "8px 8px",
-    minWidth: 110,
-    borderBottom: "1px solid rgba(255,255,255,0.10)",
-    fontWeight: 950,
-    position: "relative",
-    zIndex: 10,
-    background: "rgba(10, 12, 18, 0.70)",
-  }}
->
+                  <td
+                    style={{
+                      textAlign: "center",
+                      padding: "8px 8px",
+                      minWidth: 110,
+                      borderBottom: "1px solid rgba(255,255,255,0.10)",
+                      fontWeight: 950,
+                      position: "relative",
+                      zIndex: 10,
+                      background: "rgba(10, 12, 18, 0.70)",
+                    }}
+                  >
+                    <button
+                      disabled={isSaving}
+                      onClick={() => togglePaid(r.user_id)}
+                      style={{
+                        width: "100%",
+                        borderRadius: 10,
+                        padding: "6px 8px",
+                        border: "1px solid rgba(255,255,255,0.22)",
+                        background: "rgba(0,0,0,0.25)",
+                        color: "white",
+                        fontWeight: 950,
+                        cursor: isSaving ? "default" : "pointer",
+                        opacity: isSaving ? 0.65 : 1,
+                      }}
+                      title={r.entry_fee_paid ? "Entry fee paid" : "Not paid"}
+                    >
+                      {isSaving ? "Saving…" : r.entry_fee_paid ? "✅ Yes" : "❌ No"}
+                    </button>
+                  </td>
+
                   {columns.map((c) => {
                     const k = `${r.user_id}|${c.phase}|${c.week}`;
                     const p = pickMap[k];
 
                     const team = String(p?.picked_team ?? "").trim();
                     const auto = Boolean(p?.was_autopick);
-
-                    // ✅ Strike ONLY when counted_in_losses === true
                     const strike = p?.counted_in_losses === true;
-
                     const text = team ? `${team}${auto ? " A" : ""}` : "";
 
                     return (
                       <td
                         key={c.key}
-                        title={`result=${String(p?.result ?? "")} counted=${String(p?.counted_in_losses)}`}
+                        title={`result=${String(p?.result ?? "")} counted=${String(
+                          p?.counted_in_losses
+                        )}`}
                         style={{
                           textAlign: "center",
                           padding: "10px 8px",
