@@ -314,9 +314,21 @@ export default function PoolStandingsGridPage() {
                 Players
               </th>
 
-              <th style={{ ...headerStyle, textAlign: "center", padding: "12px 10px", minWidth: 110, borderBottom: "1px solid rgba(255,255,255,0.18)", fontWeight: 950, zIndex: 6 }}>
-                Paid
-              </th>
+              {isCommissioner ? (
+  <th
+    style={{
+      ...headerStyle,
+      textAlign: "center",
+      padding: "12px 10px",
+      minWidth: 110,
+      borderBottom: "1px solid rgba(255,255,255,0.18)",
+      fontWeight: 950,
+      zIndex: 6,
+    }}
+  >
+    Paid
+  </th>
+) : null}
 
               {columns.map((c) => (
                 <th key={c.key} style={{ ...headerStyle, textAlign: "center", padding: "12px 10px", minWidth: 72, borderBottom: "1px solid rgba(255,255,255,0.18)", fontWeight: 950 }}>
@@ -353,27 +365,39 @@ export default function PoolStandingsGridPage() {
                     )}
                   </td>
 
-                  <td style={{ textAlign: "center", padding: "8px 8px", minWidth: 110, borderBottom: "1px solid rgba(255,255,255,0.10)", fontWeight: 950, position: "relative", zIndex: 10, background: "rgba(10, 12, 18, 0.70)" }}>
-                    <button
-                      disabled={isSaving}
-                      onClick={() => togglePaid(r.user_id)}
-                      style={{
-                        width: "100%",
-                        borderRadius: 10,
-                        padding: "6px 8px",
-                        border: "1px solid rgba(255,255,255,0.22)",
-                        background: "rgba(0,0,0,0.25)",
-                        color: "white",
-                        fontWeight: 950,
-                        cursor: isSaving ? "default" : "pointer",
-                        opacity: isSaving ? 0.65 : 1,
-                      }}
-                      title={r.entry_fee_paid ? "Entry fee paid" : "Not paid"}
-                    >
-                      {isSaving ? "Saving…" : r.entry_fee_paid ? "✅ Yes" : "❌ No"}
-                    </button>
-                  </td>
-
+                  {isCommissioner ? (
+  <td
+    style={{
+      textAlign: "center",
+      padding: "8px 8px",
+      minWidth: 110,
+      borderBottom: "1px solid rgba(255,255,255,0.10)",
+      fontWeight: 950,
+      position: "relative",
+      zIndex: 10,
+      background: "rgba(10, 12, 18, 0.70)",
+    }}
+  >
+    <button
+      disabled={isSaving}
+      onClick={() => togglePaid(r.user_id)}
+      style={{
+        width: "100%",
+        borderRadius: 10,
+        padding: "6px 8px",
+        border: "1px solid rgba(255,255,255,0.22)",
+        background: "rgba(0,0,0,0.25)",
+        color: "white",
+        fontWeight: 950,
+        cursor: isSaving ? "default" : "pointer",
+        opacity: isSaving ? 0.65 : 1,
+      }}
+      title={r.entry_fee_paid ? "Entry fee paid" : "Not paid"}
+    >
+      {isSaving ? "Saving…" : r.entry_fee_paid ? "✅ Yes" : "❌ No"}
+    </button>
+  </td>
+) : null}
                   {columns.map((c) => {
                     const k = `${r.user_id}|${c.phase}|${c.week}`;
                     const p = pickMap[k];
