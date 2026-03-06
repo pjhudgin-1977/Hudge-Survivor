@@ -41,9 +41,18 @@ export default async function PaymentPage({
       </p>
 
       {!venmoLink ? (
-        <p style={{ marginTop: 16 }}>
-          Missing Venmo link environment variable.
-        </p>
+        <div
+          style={{
+            marginTop: 18,
+            padding: "12px 14px",
+            borderRadius: 10,
+            border: "1px solid rgba(255,255,255,0.15)",
+            background: "rgba(255,255,255,0.05)",
+          }}
+        >
+          Payment instructions have not been configured yet.  
+          Please contact the commissioner for payment details.
+        </div>
       ) : (
         <>
           <a
