@@ -165,10 +165,14 @@ const { data: prof } = await supabase
   .eq("id", userId)
   .maybeSingle();
 
+const emailPrefix = auth.user.email?.split("@")[0]?.trim() || null;
+
 const screenName =
-  String((prof as any)?.nickname ?? "").trim() ||
-  String((prof as any)?.full_name ?? "").trim() ||
+  profile?.nickname?.trim() ||
+  profile?.full_name?.trim() ||
+  emailPrefix ||
   "Player";
+
 
 const { error: joinError } = await supabase.from("pool_members").insert({
   pool_id: poolId,
