@@ -96,9 +96,7 @@ export default async function JoinPoolPage({
     return (
       <main style={{ padding: 24, maxWidth: 720 }}>
         <h1 style={{ fontSize: 26, fontWeight: 950 }}>Join Pool</h1>
-        <p style={{ marginTop: 10, opacity: 0.85 }}>
-          Invalid invite link.
-        </p>
+        <p style={{ marginTop: 10, opacity: 0.85 }}>Invalid invite link.</p>
         <p style={{ marginTop: 10, opacity: 0.8 }}>
           Paste a HUDGE-XXXX invite code or a pool id (UUID).
         </p>
@@ -156,33 +154,30 @@ export default async function JoinPoolPage({
 
   if (existing) redirect(`/pool/${poolId}`);
 
- // 4) Join the pool (RLS must allow inserts for authenticated users)
+  // 4) Join the pool
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("nickname, full_name")
+    .eq("user_id", userId)
+    .maybeSingle();
 
-// Get nickname for required screen_name
-const { data: prof } = await supabase
-  .from("profiles")
-  .select("nickname, full_name")
-  .eq("id", userId)
-  .maybeSingle();
+  const emailPrefix = auth.user.email?.split("@")[0]?.trim() || null;
 
-const emailPrefix = auth.user.email?.split("@")[0]?.trim() || null;
+  const screenName =
+    profile?.nickname?.trim() ||
+    profile?.full_name?.trim() ||
+    emailPrefix ||
+    "Player";
 
-const screenName =
-  profile?.nickname?.trim() ||
-  profile?.full_name?.trim() ||
-  emailPrefix ||
-  "Player";
-
-
-const { error: joinError } = await supabase.from("pool_members").insert({
-  pool_id: poolId,
-  user_id: userId,
-  screen_name: screenName,
-  role: "member",
-  is_commissioner: false,
-  losses: 0,
-  is_eliminated: false,
-});
+  const { error: joinError } = await supabase.from("pool_members").insert({
+    pool_id: poolId,
+    user_id: userId,
+    screen_name: screenName,
+    role: "member",
+    is_commissioner: false,
+    losses: 0,
+    is_eliminated: false,
+  });
 
   if (joinError) {
     return (
