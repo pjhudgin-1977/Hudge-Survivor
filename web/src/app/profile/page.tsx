@@ -128,6 +128,8 @@ export default async function ProfilePage({
               borderRadius: 10,
               border: "1px solid #ccc",
               fontSize: 16,
+              background: "rgba(0,0,0,0.2)",
+              color: "white",
             }}
           />
         </div>
@@ -147,29 +149,30 @@ export default async function ProfilePage({
               borderRadius: 10,
               border: "1px solid #ccc",
               fontSize: 16,
+              background: "rgba(0,0,0,0.2)",
+              color: "white",
             }}
           />
         </div>
 
         <div style={{ display: "grid", gap: 8 }}>
-          <label htmlFor="email" style={{ fontWeight: 700 }}>
-            Email
+          <label style={{ fontWeight: 700 }}>
+            Email (managed by account)
           </label>
-          <input
-            id="email"
-            name="email"
-            type="text"
-            value={user.email ?? ""}
-            disabled
+
+          <div
             style={{
               padding: "12px 14px",
               borderRadius: 10,
               border: "1px solid #ccc",
               fontSize: 16,
-              background: "#f5f5f5",
-              opacity: 0.8,
+              background: "#ffffff",
+              color: "#111111",
+              fontWeight: 600,
             }}
-          />
+          >
+            {profile?.email ?? user.email ?? ""}
+          </div>
         </div>
 
         <button
