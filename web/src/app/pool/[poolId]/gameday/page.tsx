@@ -246,8 +246,7 @@ export default async function GameDayPage({
   }
 
   let displayWeekNumber = currentWeekNumber;
-  let displayWeekType = currentWeekType;
-
+  let displayWeekType: string | null = currentWeekType;
   let gamesData: GameRow[] | null = null;
   let displayPhase = weekTypeToPhase(displayWeekType);
 
