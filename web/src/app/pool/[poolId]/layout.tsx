@@ -29,7 +29,7 @@ export default async function PoolLayout({
 
   return (
     <div>
-      <NavBar poolId={poolId} isCommissioner={isCommissioner} />
+<NavBar />
       <main>{children}</main>
     </div>
   );
