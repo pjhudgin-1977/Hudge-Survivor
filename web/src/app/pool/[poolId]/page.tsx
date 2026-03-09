@@ -7,6 +7,7 @@ import { createClient } from "@/lib/supabaseClient";
 
 type PickRow = {
   user_id: string;
+  entry_no: number;
   week_number: number;
   phase: string;
   picked_team: string | null;
@@ -17,6 +18,7 @@ type PickRow = {
 
 type MemberRow = {
   user_id: string;
+  entry_no: number;
   screen_name: string | null;
   losses: number | null;
   is_eliminated: boolean | null;
@@ -52,12 +54,15 @@ export default function PoolStandingsGridPage() {
   const [err, setErr] = useState<string | null>(null);
 
   const [showNames, setShowNames] = useState(false);
-
+  const [commissionerNote, setCommissionerNote] = useState<string | null>(null);
   const [members, setMembers] = useState<MemberRow[]>([]);
-  const [profilesById, setProfilesById] = useState<Record<string, ProfileRow>>({});
+  const [myUserId, setMyUserId] = useState<string | null>(null);
+  const [profilesById, setProfilesById] = useState<Record<string, ProfileRow>>(
+    {}
+  );
   const [picks, setPicks] = useState<PickRow[]>([]);
 
-  const [savingUserId, setSavingUserId] = useState<string | null>(null);
+  const [savingKey, setSavingKey] = useState<string | null>(null);
 
   const [isCommissioner, setIsCommissioner] = useState(false);
   useEffect(() => {
@@ -74,16 +79,35 @@ export default function PoolStandingsGridPage() {
       setErr(null);
 
       try {
+        const { data: auth } = await supabase.auth.getUser();
+        setMyUserId(auth?.user?.id ?? null);
+
+        // Safe optional load: do not fail the whole page if this column/table is not ready yet
+        try {
+          const { data: poolRow } = await supabase
+            .from("pools")
+            .select("commissioner_note")
+            .eq("id", poolId)
+            .maybeSingle();
+
+          setCommissionerNote((poolRow as any)?.commissioner_note ?? null);
+        } catch {
+          setCommissionerNote(null);
+        }
+
         const { data: m, error: mErr } = await supabase
           .from("pool_members")
-          .select("user_id, screen_name, losses, is_eliminated, entry_fee_paid")
-          .eq("pool_id", poolId);
+          .select(
+            "user_id, entry_no, screen_name, losses, is_eliminated, entry_fee_paid"
+          )
+          .eq("pool_id", poolId)
+          .order("entry_no", { ascending: true });
 
         if (mErr) throw mErr;
 
         const mem = (m ?? []) as MemberRow[];
 
-        const ids = mem.map((x) => x.user_id).filter(Boolean);
+        const ids = Array.from(new Set(mem.map((x) => x.user_id).filter(Boolean)));
         const profMap: Record<string, ProfileRow> = {};
 
         if (ids.length > 0) {
@@ -99,7 +123,9 @@ export default function PoolStandingsGridPage() {
 
         const { data: pk, error: pkErr } = await supabase
           .from("picks")
-          .select("user_id, week_number, phase, picked_team, was_autopick, result, counted_in_losses")
+          .select(
+            "user_id, entry_no, week_number, phase, picked_team, was_autopick, result, counted_in_losses"
+          )
           .eq("pool_id", poolId);
 
         if (pkErr) throw pkErr;
@@ -116,7 +142,12 @@ export default function PoolStandingsGridPage() {
   }, [poolId]);
 
   const columns = useMemo(() => {
-    const cols: { key: string; label: string; phase: "regular" | "playoffs"; week: number }[] = [];
+    const cols: {
+      key: string;
+      label: string;
+      phase: "regular" | "playoffs";
+      week: number;
+    }[] = [];
     for (let w = 1; w <= 17; w++) {
       cols.push({ key: `REG_${w}`, label: `W${w}`, phase: "regular", week: w });
     }
@@ -131,8 +162,9 @@ export default function PoolStandingsGridPage() {
     for (const p of picks) {
       const phase = normalizePhase(p.phase) as "regular" | "playoffs";
       const week = Number(p.week_number);
-      if (!p.user_id || !Number.isFinite(week)) continue;
-      map[`${p.user_id}|${phase}|${week}`] = p;
+      const entryNo = Number(p.entry_no ?? 1);
+      if (!p.user_id || !Number.isFinite(week) || !Number.isFinite(entryNo)) continue;
+      map[`${p.user_id}|${entryNo}|${phase}|${week}`] = p;
     }
     return map;
   }, [picks]);
@@ -143,20 +175,24 @@ export default function PoolStandingsGridPage() {
     const list = members.map((m) => {
       const losses = Number(m.losses ?? 0);
       const eliminated = Boolean(m.is_eliminated) || losses >= 2;
+      const entryNo = Number(m.entry_no ?? 1);
 
-      const screen = String(m.screen_name ?? "").trim() || "—";
+      const baseScreen = String(m.screen_name ?? "").trim() || "—";
+      const screen = `${baseScreen} #${entryNo}`;
       const fullLine = nameInitialLine(profilesById[m.user_id]?.full_name);
 
       const section = eliminated ? 2 : losses === 0 ? 0 : 1;
 
       return {
+        row_key: `${m.user_id}|${entryNo}`,
         user_id: m.user_id,
+        entry_no: entryNo,
         screen_name: screen,
         full_name_line: fullLine,
         losses,
         eliminated,
         section,
-        sortName: norm(screen),
+        sortName: `${norm(baseScreen)}|${String(entryNo).padStart(3, "0")}`,
         entry_fee_paid: Boolean(m.entry_fee_paid),
       };
     });
@@ -171,6 +207,15 @@ export default function PoolStandingsGridPage() {
     return list;
   }, [members, profilesById]);
 
+  const totalEntries = rows.length;
+  const aliveEntries = rows.filter((r) => !r.eliminated).length;
+  const lastLifeEntries = rows.filter((r) => !r.eliminated && r.losses === 1).length;
+  const eliminatedEntries = rows.filter((r) => r.eliminated).length;
+  const paidEntries = rows.filter((r) => r.entry_fee_paid).length;
+
+  const myEntries = rows.filter((r) => r.user_id === myUserId);
+  const myPaidCount = myEntries.filter((r) => r.entry_fee_paid).length;
+
   const headerStyle: React.CSSProperties = {
     position: "sticky",
     top: 0,
@@ -184,25 +229,30 @@ export default function PoolStandingsGridPage() {
     left: 0,
     zIndex: 3,
     background: "rgba(10, 12, 18, 0.96)",
-    width: 240,
-    minWidth: 240,
-    maxWidth: 240,
+    width: 260,
+    minWidth: 260,
+    maxWidth: 260,
     overflow: "hidden",
   };
 
-  async function togglePaid(targetUserId: string) {
+  async function togglePaid(targetUserId: string, targetEntryNo: number) {
     if (!confirm("Toggle paid status?")) return;
 
-    const current = members.find((m) => m.user_id === targetUserId);
+    const key = `${targetUserId}|${targetEntryNo}`;
+    const current = members.find(
+      (m) => m.user_id === targetUserId && Number(m.entry_no ?? 1) === targetEntryNo
+    );
     const nextVal = !Boolean(current?.entry_fee_paid);
 
     setMembers((prev) =>
       prev.map((m) =>
-        m.user_id === targetUserId ? { ...m, entry_fee_paid: nextVal } : m
+        m.user_id === targetUserId && Number(m.entry_no ?? 1) === targetEntryNo
+          ? { ...m, entry_fee_paid: nextVal }
+          : m
       )
     );
 
-    setSavingUserId(targetUserId);
+    setSavingKey(key);
 
     try {
       const supabase = createClient();
@@ -210,18 +260,21 @@ export default function PoolStandingsGridPage() {
         .from("pool_members")
         .update({ entry_fee_paid: nextVal })
         .eq("pool_id", poolId)
-        .eq("user_id", targetUserId);
+        .eq("user_id", targetUserId)
+        .eq("entry_no", targetEntryNo);
 
       if (error) throw error;
     } catch (e: any) {
       setMembers((prev) =>
         prev.map((m) =>
-          m.user_id === targetUserId ? { ...m, entry_fee_paid: !nextVal } : m
+          m.user_id === targetUserId && Number(m.entry_no ?? 1) === targetEntryNo
+            ? { ...m, entry_fee_paid: !nextVal }
+            : m
         )
       );
       alert(e?.message ?? "Update failed (permission/RLS).");
     } finally {
-      setSavingUserId(null);
+      setSavingKey(null);
     }
   }
 
@@ -273,7 +326,8 @@ export default function PoolStandingsGridPage() {
             Standings
           </div>
           <div style={{ opacity: 0.7, marginTop: 2, fontSize: 13 }}>
-            Grid view • 17 Regular + 4 Playoffs • A = autopick • Strike-through = counted loss
+            Grid view • 17 Regular + 4 Playoffs • A = autopick • Strike-through =
+            counted loss
           </div>
         </div>
 
@@ -306,7 +360,9 @@ export default function PoolStandingsGridPage() {
               fontWeight: 900,
               fontSize: 13,
               border: "1px solid rgba(255,255,255,0.24)",
-              background: showNames ? "rgba(255,255,255,0.12)" : "rgba(0,0,0,0.25)",
+              background: showNames
+                ? "rgba(255,255,255,0.12)"
+                : "rgba(0,0,0,0.25)",
               color: "white",
               cursor: "pointer",
               whiteSpace: "nowrap",
@@ -314,6 +370,205 @@ export default function PoolStandingsGridPage() {
           >
             {showNames ? "Hide names" : "Show names"}
           </button>
+        </div>
+      </div>
+
+      {myEntries.length > 0 && (
+        <div
+          style={{
+            borderRadius: 16,
+            border: "1px solid rgba(255,255,255,0.18)",
+            background: "rgba(255,255,255,0.06)",
+            padding: "14px 16px",
+            marginBottom: 14,
+          }}
+        >
+          <div
+            style={{
+              fontSize: 12,
+              fontWeight: 900,
+              opacity: 0.75,
+              marginBottom: 10,
+            }}
+          >
+            YOUR ENTRIES
+          </div>
+
+          <div style={{ display: "grid", gap: 10 }}>
+            {myEntries.map((entry) => {
+              const entryPicks = picks
+                .filter(
+                  (p) =>
+                    p.user_id === entry.user_id &&
+                    Number(p.entry_no ?? 1) === entry.entry_no
+                )
+                .sort(
+                  (a, b) => Number(b.week_number ?? 0) - Number(a.week_number ?? 0)
+                );
+
+              const latestPick = entryPicks[0];
+              const latestTeam = String(latestPick?.picked_team ?? "").trim() || "—";
+
+              const statusText = entry.eliminated
+                ? "❌ Eliminated"
+                : entry.losses === 1
+                ? "⚠️ Last Life"
+                : "🐻 Alive";
+
+              return (
+                <div
+                  key={`my-entry-${entry.user_id}-${entry.entry_no}`}
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns: "minmax(180px, 1fr) 140px 140px 140px",
+                    gap: 10,
+                    alignItems: "center",
+                    padding: "10px 12px",
+                    borderRadius: 12,
+                    background: "rgba(0,0,0,0.18)",
+                    border: "1px solid rgba(255,255,255,0.10)",
+                  }}
+                >
+                  <div style={{ fontWeight: 950 }}>{entry.screen_name}</div>
+
+                  <div style={{ fontWeight: 900, opacity: 0.92 }}>{statusText}</div>
+
+                  <div style={{ fontWeight: 900, opacity: 0.92 }}>
+                    Pick: {latestTeam}
+                  </div>
+
+                  <div style={{ textAlign: "right" }}>
+                    <Link
+                      href={`/pool/${poolId}/pick?entry=${entry.entry_no}`}
+                      style={{
+                        display: "inline-block",
+                        padding: "8px 12px",
+                        borderRadius: 10,
+                        textDecoration: "none",
+                        fontWeight: 900,
+                        border: "1px solid rgba(255,255,255,0.18)",
+                        background: "rgba(255,128,0,0.18)",
+                        color: "white",
+                        whiteSpace: "nowrap",
+                      }}
+                    >
+                      Make Pick
+                    </Link>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {myEntries.length > 0 && (
+        <div
+          style={{
+            borderRadius: 16,
+            border: "1px solid rgba(255,255,255,0.18)",
+            background: "rgba(255,255,255,0.06)",
+            padding: "14px 16px",
+            marginBottom: 14,
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            gap: 12,
+          }}
+        >
+          <div>
+            <div style={{ fontSize: 12, fontWeight: 900, opacity: 0.75 }}>
+              PAYMENT STATUS
+            </div>
+
+            <div style={{ fontSize: 18, fontWeight: 950, marginTop: 4 }}>
+              {myPaidCount} / {myEntries.length} Entries Paid
+            </div>
+          </div>
+
+          <Link
+            href={`/pool/${poolId}/payment`}
+            style={{
+              padding: "8px 12px",
+              borderRadius: 10,
+              border: "1px solid rgba(255,255,255,0.18)",
+              background: "rgba(0,128,255,0.18)",
+              fontWeight: 900,
+              textDecoration: "none",
+              color: "white",
+              whiteSpace: "nowrap",
+            }}
+          >
+            Manage Payment
+          </Link>
+        </div>
+      )}
+
+      {commissionerNote && commissionerNote.trim() !== "" && (
+        <div
+          style={{
+            borderRadius: 16,
+            border: "1px solid rgba(255,255,255,0.18)",
+            background: "rgba(255,255,255,0.06)",
+            padding: "14px 16px",
+            marginBottom: 14,
+          }}
+        >
+          <div
+            style={{
+              fontSize: 12,
+              fontWeight: 900,
+              opacity: 0.75,
+              marginBottom: 6,
+            }}
+          >
+            COMMISSIONER MESSAGE
+          </div>
+
+          <div
+            style={{
+              fontSize: 15,
+              fontWeight: 800,
+              lineHeight: 1.4,
+              opacity: 0.95,
+            }}
+          >
+            {commissionerNote}
+          </div>
+        </div>
+      )}
+
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(5, minmax(140px, 1fr))",
+          gap: 12,
+          marginBottom: 14,
+        }}
+      >
+        <div style={snapshotCardStyle}>
+          <div style={snapshotLabelStyle}>Alive</div>
+          <div style={snapshotValueStyle}>🐻 {aliveEntries}</div>
+        </div>
+
+        <div style={snapshotCardStyle}>
+          <div style={snapshotLabelStyle}>Last Life</div>
+          <div style={snapshotValueStyle}>⚠️ {lastLifeEntries}</div>
+        </div>
+
+        <div style={snapshotCardStyle}>
+          <div style={snapshotLabelStyle}>Eliminated</div>
+          <div style={snapshotValueStyle}>❌ {eliminatedEntries}</div>
+        </div>
+
+        <div style={snapshotCardStyle}>
+          <div style={snapshotLabelStyle}>Paid</div>
+          <div style={snapshotValueStyle}>💵 {paidEntries}</div>
+        </div>
+
+        <div style={snapshotCardStyle}>
+          <div style={snapshotLabelStyle}>Total Entries</div>
+          <div style={snapshotValueStyle}>{totalEntries}</div>
         </div>
       </div>
 
@@ -389,10 +644,10 @@ export default function PoolStandingsGridPage() {
                 ? "rgba(255,165,0,0.06)"
                 : "rgba(0,0,0,0.10)";
 
-              const isSaving = savingUserId === r.user_id;
+              const isSaving = savingKey === `${r.user_id}|${r.entry_no}`;
 
               return (
-                <tr key={r.user_id} style={{ background: rowBg }}>
+                <tr key={r.row_key} style={{ background: rowBg }}>
                   <td
                     style={{
                       ...stickyNameStyle,
@@ -438,6 +693,26 @@ export default function PoolStandingsGridPage() {
                         {r.full_name_line || "—"}
                       </div>
                     )}
+
+                    <div style={{ marginTop: 8 }}>
+                      <Link
+                        href={`/pool/${poolId}/pick?entry=${r.entry_no}`}
+                        style={{
+                          display: "inline-block",
+                          padding: "6px 10px",
+                          borderRadius: 10,
+                          textDecoration: "none",
+                          fontWeight: 900,
+                          fontSize: 12,
+                          border: "1px solid rgba(255,255,255,0.18)",
+                          background: "rgba(255,128,0,0.18)",
+                          color: "white",
+                          whiteSpace: "nowrap",
+                        }}
+                      >
+                        Pick Entry {r.entry_no}
+                      </Link>
+                    </div>
                   </td>
 
                   <td
@@ -454,7 +729,7 @@ export default function PoolStandingsGridPage() {
                   >
                     <button
                       disabled={isSaving}
-                      onClick={() => togglePaid(r.user_id)}
+                      onClick={() => togglePaid(r.user_id, r.entry_no)}
                       style={{
                         width: "100%",
                         borderRadius: 10,
@@ -473,7 +748,7 @@ export default function PoolStandingsGridPage() {
                   </td>
 
                   {columns.map((c) => {
-                    const k = `${r.user_id}|${c.phase}|${c.week}`;
+                    const k = `${r.user_id}|${r.entry_no}|${c.phase}|${c.week}`;
                     const p = pickMap[k];
 
                     const team = String(p?.picked_team ?? "").trim();
@@ -509,8 +784,30 @@ export default function PoolStandingsGridPage() {
       </div>
 
       <div style={{ marginTop: 10, opacity: 0.65, fontSize: 12 }}>
-        Sorting: 0-loss section → 1-loss section → Eliminated, and within each section by user name.
+        Sorting: 0-loss section → 1-loss section → Eliminated, and within each
+        section by user name + entry number.
       </div>
     </div>
   );
 }
+
+const snapshotCardStyle: React.CSSProperties = {
+  borderRadius: 14,
+  border: "1px solid rgba(255,255,255,0.16)",
+  background: "rgba(255,255,255,0.05)",
+  padding: "14px 16px",
+};
+
+const snapshotLabelStyle: React.CSSProperties = {
+  fontSize: 12,
+  fontWeight: 900,
+  opacity: 0.72,
+  textTransform: "uppercase",
+  letterSpacing: 0.5,
+};
+
+const snapshotValueStyle: React.CSSProperties = {
+  marginTop: 8,
+  fontSize: 24,
+  fontWeight: 950,
+};

@@ -8,13 +8,13 @@ type Status = "SAFE" | "ON_LAST_LIFE" | "ELIMINATED";
 
 type Row = {
   user_id: string;
+  entry_no: number;
   screen_name: string;
   losses: number;
   is_eliminated: boolean;
   strikes_left: number;
   status: Status;
 
-  // Latest pick
   latest_pick_team?: string | null;
   latest_pick_week?: number | null;
   latest_pick_phase?: string | null;
@@ -76,11 +76,11 @@ export default function StandingsPage() {
         return;
       }
 
-      // 1) Load pool members (base standings)
       const { data: members, error: memErr } = await supabase
         .from("pool_members")
-        .select("user_id, screen_name, losses, is_eliminated")
-        .eq("pool_id", poolId);
+        .select("user_id, entry_no, screen_name, losses, is_eliminated")
+        .eq("pool_id", poolId)
+        .order("entry_no", { ascending: true });
 
       if (memErr) {
         setErr(memErr.message);
@@ -88,11 +88,11 @@ export default function StandingsPage() {
         return;
       }
 
-      // 2) Load latest pick per user for this pool
-      // We'll do it in one query, then reduce to latest per user by submitted_at
       const { data: picks, error: pickErr } = await supabase
         .from("picks")
-        .select("user_id, week_number, phase, picked_team, submitted_at, result, was_autopick")
+        .select(
+          "user_id, entry_no, week_number, phase, picked_team, submitted_at, result, was_autopick"
+        )
         .eq("pool_id", poolId)
         .order("submitted_at", { ascending: false });
 
@@ -102,13 +102,16 @@ export default function StandingsPage() {
         return;
       }
 
-      const latestByUser = new Map<string, any>();
+      const latestByEntry = new Map<string, any>();
       for (const p of picks ?? []) {
         const uid = String((p as any).user_id);
-        if (!latestByUser.has(uid)) latestByUser.set(uid, p);
+        const entryNo = Number((p as any).entry_no ?? 1);
+        const key = `${uid}|${entryNo}`;
+        if (!latestByEntry.has(key)) latestByEntry.set(key, p);
       }
 
       const mapped: Row[] = (members ?? []).map((r: any) => {
+        const entryNo = Number(r.entry_no ?? 1);
         const losses = Number(r.losses ?? 0);
         const eliminatedByLosses = losses >= 2;
         const is_eliminated = Boolean(r.is_eliminated) || eliminatedByLosses;
@@ -119,11 +122,13 @@ export default function StandingsPage() {
         if (is_eliminated) status = "ELIMINATED";
         else if (losses === 1) status = "ON_LAST_LIFE";
 
-        const lp = latestByUser.get(String(r.user_id)) ?? null;
+        const screenBase = String(r.screen_name ?? "").trim() || "Player";
+        const lp = latestByEntry.get(`${String(r.user_id)}|${entryNo}`) ?? null;
 
         return {
           user_id: r.user_id,
-          screen_name: r.screen_name,
+          entry_no: entryNo,
+          screen_name: `${screenBase} #${entryNo}`,
           losses,
           is_eliminated,
           strikes_left,
@@ -156,10 +161,12 @@ export default function StandingsPage() {
   const eliminated = sorted.length - alive;
 
   function statusBadge(r: Row) {
-    if (r.status === "ELIMINATED")
+    if (r.status === "ELIMINATED") {
       return <span style={badgeGray}>❌ Eliminated</span>;
-    if (r.status === "ON_LAST_LIFE")
+    }
+    if (r.status === "ON_LAST_LIFE") {
       return <span style={badgeOrange}>⚠️ Last Life</span>;
+    }
     return <span style={badgeNavy}>🐻 Alive</span>;
   }
 
@@ -178,7 +185,6 @@ export default function StandingsPage() {
     const res = String(r.latest_pick_result ?? "").toLowerCase();
     if (!res) return <span style={badgeThin}>—</span>;
 
-    // Tie counts as loss per your rule, so show it “bad”
     if (res.includes("win")) return <span style={badgeGreen}>WIN</span>;
     if (res.includes("tie")) return <span style={badgeRed}>TIE*</span>;
     if (res.includes("loss")) return <span style={badgeRed}>LOSS</span>;
@@ -220,7 +226,7 @@ export default function StandingsPage() {
             <tbody>
               {sorted.map((r, idx) => (
                 <tr
-                  key={r.user_id}
+                  key={`${r.user_id}|${r.entry_no}`}
                   style={{
                     opacity: r.is_eliminated ? 0.55 : 1,
                     background: idx % 2 ? "rgba(0,0,0,0.12)" : "transparent",
@@ -252,7 +258,6 @@ export default function StandingsPage() {
   );
 }
 
-// Existing styles (kept simple + Bears-ish)
 const badgeNavy: React.CSSProperties = {
   display: "inline-block",
   padding: "3px 8px",

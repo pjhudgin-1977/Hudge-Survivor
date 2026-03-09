@@ -4,11 +4,11 @@ import Standings2Client from "./Standings2Client";
 
 type MemberRow = {
   user_id: string;
+  entry_no: number;
   screen_name: string | null;
   entry_fee_paid: boolean | null;
   autopicks_used: number | null;
 
-  // NEW (Latest Pick fields)
   latest_pick_team?: string | null;
   latest_pick_week?: number | null;
   latest_pick_phase?: string | null;
@@ -19,6 +19,7 @@ type MemberRow = {
 
 type PickRow = {
   user_id: string;
+  entry_no: number;
   week_number: number;
   phase: string;
   picked_team: string | null;
@@ -73,12 +74,12 @@ export default async function Standings2Page({
   }
   const isCommissioner = !!comm;
 
-  // 1) Load members (RLS-safe: pool member rows should be visible in your policies)
   const { data: members, error } = await supabase
     .from("pool_members")
-    .select("user_id, screen_name, entry_fee_paid, autopicks_used")
+    .select("user_id, entry_no, screen_name, entry_fee_paid, autopicks_used")
     .eq("pool_id", poolId)
-    .order("screen_name", { ascending: true });
+    .order("screen_name", { ascending: true })
+    .order("entry_no", { ascending: true });
 
   if (error) {
     return (
@@ -91,9 +92,11 @@ export default async function Standings2Page({
     );
   }
 
-  const baseRows = (members ?? []) as MemberRow[];
+  const baseRows = ((members ?? []) as MemberRow[]).map((m) => ({
+    ...m,
+    entry_no: Number(m.entry_no ?? 1),
+  }));
 
-  // 2) Determine “current week/phase” from the next upcoming game (fallback: latest game)
   const nowIso = new Date().toISOString();
 
   let currentWeekNumber: number | null = null;
@@ -109,7 +112,7 @@ export default async function Standings2Page({
 
   if (!nextErr && nextGame && nextGame.length > 0) {
     currentWeekNumber = nextGame[0].week_number ?? null;
-    currentPhase = (nextGame[0].phase as any) ?? null;
+    currentPhase = (nextGame[0].phase as string | null) ?? null;
   } else {
     const { data: lastGame, error: lastErr } = await supabase
       .from("games")
@@ -120,18 +123,16 @@ export default async function Standings2Page({
 
     if (!lastErr && lastGame && lastGame.length > 0) {
       currentWeekNumber = lastGame[0].week_number ?? null;
-      currentPhase = (lastGame[0].phase as any) ?? null;
+      currentPhase = (lastGame[0].phase as string | null) ?? null;
     }
   }
 
-  // 3) Load picks needed to compute “Latest Pick”
-  //    Rule: prefer current week pick if exists; else use most recently submitted pick.
   let currentWeekPickMap = new Map<string, PickRow>();
   if (currentWeekNumber != null && currentPhase) {
     const { data: curPicks, error: curErr } = await supabase
       .from("picks")
       .select(
-        "user_id, week_number, phase, picked_team, was_autopick, result, locked, submitted_at"
+        "user_id, entry_no, week_number, phase, picked_team, was_autopick, result, locked, submitted_at"
       )
       .eq("pool_id", poolId)
       .eq("week_number", currentWeekNumber)
@@ -139,17 +140,19 @@ export default async function Standings2Page({
 
     if (!curErr && curPicks) {
       for (const p of curPicks as PickRow[]) {
-        currentWeekPickMap.set(p.user_id, p);
+        const entryNo = Number(p.entry_no ?? 1);
+        currentWeekPickMap.set(`${p.user_id}|${entryNo}`, {
+          ...p,
+          entry_no: entryNo,
+        });
       }
     }
   }
 
-  // Pull recent picks for pool and pick the first per user (submitted_at desc)
-  // NOTE: This is simple + reliable for typical pool sizes.
   const { data: recentPicks, error: recentErr } = await supabase
     .from("picks")
     .select(
-      "user_id, week_number, phase, picked_team, was_autopick, result, locked, submitted_at"
+      "user_id, entry_no, week_number, phase, picked_team, was_autopick, result, locked, submitted_at"
     )
     .eq("pool_id", poolId)
     .order("submitted_at", { ascending: false })
@@ -158,16 +161,20 @@ export default async function Standings2Page({
   const latestPickMap = new Map<string, PickRow>();
   if (!recentErr && recentPicks) {
     for (const p of recentPicks as PickRow[]) {
-      if (!latestPickMap.has(p.user_id)) {
-        latestPickMap.set(p.user_id, p);
+      const entryNo = Number(p.entry_no ?? 1);
+      const key = `${p.user_id}|${entryNo}`;
+      if (!latestPickMap.has(key)) {
+        latestPickMap.set(key, {
+          ...p,
+          entry_no: entryNo,
+        });
       }
     }
   }
 
-  // 4) Build final rows with latest pick fields
   const rows: MemberRow[] = baseRows.map((m) => {
-    const preferred =
-      currentWeekPickMap.get(m.user_id) ?? latestPickMap.get(m.user_id);
+    const key = `${m.user_id}|${m.entry_no}`;
+    const preferred = currentWeekPickMap.get(key) ?? latestPickMap.get(key);
 
     return {
       ...m,

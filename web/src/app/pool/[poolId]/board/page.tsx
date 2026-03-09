@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { createClient } from "@/lib/supabaseClient";
@@ -16,7 +16,8 @@ type Message = {
 export default function BoardPage() {
   const params = useParams();
   const poolId = params.poolId as string;
-  const supabase = createClient();
+
+  const supabase = useMemo(() => createClient(), []);
 
   const [messages, setMessages] = useState<Message[]>([]);
   const [message, setMessage] = useState("");
@@ -25,50 +26,77 @@ export default function BoardPage() {
   const [editingNote, setEditingNote] = useState(false);
   const [noteDraft, setNoteDraft] = useState("");
 
+  const loadingRef = useRef(false);
+  const editingNoteRef = useRef(false);
+
+  useEffect(() => {
+    editingNoteRef.current = editingNote;
+  }, [editingNote]);
+
   async function loadBoard() {
-    const { data: noteData } = await supabase
-      .from("pool_notes")
-      .select("note")
-      .eq("pool_id", poolId)
-      .maybeSingle();
+    if (!poolId) return;
+    if (loadingRef.current) return;
+    loadingRef.current = true;
 
-    setCommissionerNote(noteData?.note ?? null);
-    setNoteDraft(noteData?.note ?? "");
-
-    const { data: msgs, error } = await supabase
-      .from("pool_messages")
-      .select("id,user_id,message,created_at")
-      .eq("pool_id", poolId)
-      .order("created_at", { ascending: false })
-      .limit(50);
-
-    if (error) {
-      console.error("Load board error:", error);
-      return;
-    }
-
-    const userIds = [...new Set((msgs || []).map((m) => m.user_id))];
-
-    let nameMap: Record<string, string> = {};
-
-    if (userIds.length > 0) {
-      const { data: members } = await supabase
-        .from("pool_members")
-        .select("user_id,screen_name")
+    try {
+      const { data: noteData, error: noteError } = await supabase
+        .from("pool_notes")
+        .select("note")
         .eq("pool_id", poolId)
-        .in("user_id", userIds);
+        .maybeSingle();
 
-      (members || []).forEach((m) => {
-        nameMap[m.user_id] = m.screen_name || "Player";
-      });
+      if (noteError) {
+        console.error("Load commissioner note error:", noteError);
+      }
+
+      const loadedNote = noteData?.note ?? null;
+      setCommissionerNote(loadedNote);
+
+      if (!editingNoteRef.current) {
+        setNoteDraft(loadedNote ?? "");
+      }
+
+      const { data: msgs, error } = await supabase
+        .from("pool_messages")
+        .select("id,user_id,message,created_at")
+        .eq("pool_id", poolId)
+        .order("created_at", { ascending: false })
+        .limit(50);
+
+      if (error) {
+        console.error("Load board error:", error);
+        return;
+      }
+
+      const userIds = [...new Set((msgs || []).map((m) => m.user_id))];
+
+      let nameMap: Record<string, string> = {};
+
+      if (userIds.length > 0) {
+        const { data: members, error: membersError } = await supabase
+          .from("pool_members")
+          .select("user_id,screen_name")
+          .eq("pool_id", poolId)
+          .in("user_id", userIds);
+
+        if (membersError) {
+          console.error("Load member names error:", membersError);
+        }
+
+        (members || []).forEach((m) => {
+          nameMap[m.user_id] = m.screen_name || "Player";
+        });
+      }
+
+      const withNames = (msgs || []).map((m) => ({
+        ...m,
+        screen_name: nameMap[m.user_id] || "Player",
+      }));
+
+      setMessages(withNames);
+    } finally {
+      loadingRef.current = false;
     }
-
-    const withNames = (msgs || []).map((m) => ({
-      ...m,
-      screen_name: nameMap[m.user_id] || "Player",
-    }));
-
-    setMessages(withNames);
   }
 
   async function postMessage() {
@@ -76,41 +104,76 @@ export default function BoardPage() {
 
     setLoading(true);
 
-    await fetch(`/api/pool/${poolId}/messages`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ message }),
-    });
+    try {
+      const res = await fetch(`/api/pool/${poolId}/messages`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ message }),
+      });
 
-    setMessage("");
-    await loadBoard();
-    setLoading(false);
+      if (!res.ok) {
+        const text = await res.text();
+        alert(`Post failed: ${text}`);
+        return;
+      }
+
+      setMessage("");
+      await loadBoard();
+    } finally {
+      setLoading(false);
+    }
   }
 
   async function saveNote() {
-    await supabase.from("pool_notes").upsert({
-      pool_id: poolId,
-      note: noteDraft,
-    });
+    const { error } = await supabase.from("pool_notes").upsert(
+      {
+        pool_id: poolId,
+        note: noteDraft,
+      },
+      {
+        onConflict: "pool_id",
+      }
+    );
 
-    setCommissionerNote(noteDraft);
+    if (error) {
+      console.error("Save commissioner note error:", error);
+      alert(`Save failed: ${error.message}`);
+      return;
+    }
+
     setEditingNote(false);
+    await loadBoard();
   }
 
   useEffect(() => {
     loadBoard();
+  }, [poolId, supabase]);
 
-    const intervalId = window.setInterval(() => {
-      console.log("Polling board...");
-      loadBoard();
-    }, 4000);
+  useEffect(() => {
+    if (!poolId) return;
+
+    const topic = `pool:${poolId}:board`;
+
+    const boardChannel = supabase
+      .channel(topic, {
+        config: {
+          private: true,
+        },
+      })
+      .on("broadcast", { event: "*" }, (payload) => {
+        console.log("📡 board broadcast received:", payload);
+        loadBoard();
+      })
+      .subscribe((status) => {
+        console.log("board broadcast status:", status);
+      });
 
     return () => {
-      window.clearInterval(intervalId);
+      supabase.removeChannel(boardChannel);
     };
-  }, [poolId]);
+  }, [poolId, supabase]);
 
   return (
     <main style={{ maxWidth: 900, margin: "0 auto", padding: 24 }}>
@@ -163,7 +226,10 @@ export default function BoardPage() {
               </button>
 
               <button
-                onClick={() => setEditingNote(false)}
+                onClick={() => {
+                  setEditingNote(false);
+                  setNoteDraft(commissionerNote ?? "");
+                }}
                 style={{
                   padding: "6px 12px",
                   borderRadius: 8,
@@ -181,7 +247,10 @@ export default function BoardPage() {
             </div>
 
             <button
-              onClick={() => setEditingNote(true)}
+              onClick={() => {
+                setNoteDraft(commissionerNote ?? "");
+                setEditingNote(true);
+              }}
               style={{
                 marginTop: 8,
                 padding: "4px 10px",

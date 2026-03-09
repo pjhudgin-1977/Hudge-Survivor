@@ -7,8 +7,14 @@ function isUuid(v: string) {
   );
 }
 
+function normalizePhase(p: string | null | undefined) {
+  const s = String(p ?? "").toLowerCase();
+  if (s.includes("play")) return "playoffs";
+  return "regular";
+}
+
 export async function GET(
-  _req: Request,
+  req: Request,
   context: { params: Promise<{ poolId: string; userId: string }> }
 ) {
   const supabase = await createClient();
@@ -25,13 +31,22 @@ export async function GET(
     );
   }
 
-  // Must be logged in
+  const url = new URL(req.url);
+  const entryNoRaw = url.searchParams.get("entryNo");
+  const entryNo = Number(entryNoRaw || "1");
+
+  if (!Number.isFinite(entryNo) || entryNo < 1) {
+    return NextResponse.json(
+      { error: `Invalid entryNo: ${String(entryNoRaw)}` },
+      { status: 400 }
+    );
+  }
+
   const { data: auth } = await supabase.auth.getUser();
   if (!auth?.user) {
     return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
   }
 
-  // Must be commissioner
   const { data: isComm, error: commErr } = await supabase.rpc(
     "is_pool_commissioner",
     { pid: poolId }
@@ -46,9 +61,9 @@ export async function GET(
     return NextResponse.json({ error: "Not authorized" }, { status: 403 });
   }
 
-  // Determine current week from next upcoming game
   const nowIso = new Date().toISOString();
-  const { data: nextGame, error: gameErr } = await supabase
+
+  const { data: nextGame, error: nextErr } = await supabase
     .from("games")
     .select("season_year, week_number, phase, kickoff_at")
     .gte("kickoff_at", nowIso)
@@ -56,21 +71,35 @@ export async function GET(
     .limit(1)
     .maybeSingle();
 
-  if (gameErr || !nextGame) {
-    return NextResponse.json(
-      { error: "Could not determine current week" },
-      { status: 500 }
-    );
+  let currentGame = nextGame;
+
+  if (nextErr || !currentGame) {
+    const { data: lastGame, error: lastErr } = await supabase
+      .from("games")
+      .select("season_year, week_number, phase, kickoff_at")
+      .order("kickoff_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (lastErr || !lastGame) {
+      return NextResponse.json(
+        { error: "Could not determine current week" },
+        { status: 500 }
+      );
+    }
+
+    currentGame = lastGame;
   }
 
-  const { season_year, week_number, phase } = nextGame;
+  const seasonYear = currentGame.season_year;
+  const weekNumber = currentGame.week_number;
+  const phase = currentGame.phase;
 
-  // Teams playing this week
   const { data: weekGames, error: weekErr } = await supabase
     .from("games")
     .select("home_team, away_team")
-    .eq("season_year", season_year)
-    .eq("week_number", week_number)
+    .eq("season_year", seasonYear)
+    .eq("week_number", weekNumber)
     .eq("phase", phase);
 
   if (weekErr) {
@@ -86,13 +115,14 @@ export async function GET(
     if (g.away_team) weekTeams.add(String(g.away_team).toUpperCase());
   }
 
-  // Exclude teams already used by this member in this PHASE (no season_year column in picks)
+  const normalizedPhase = normalizePhase(phase);
+
   const { data: pastPicks, error: picksErr } = await supabase
     .from("picks")
-    .select("picked_team")
+    .select("picked_team, phase")
     .eq("pool_id", poolId)
     .eq("user_id", userId)
-    .eq("phase", phase)
+    .eq("entry_no", entryNo)
     .not("picked_team", "is", null);
 
   if (picksErr) {
@@ -104,14 +134,18 @@ export async function GET(
 
   const used = new Set<string>();
   for (const p of pastPicks ?? []) {
+    if (normalizePhase(p.phase) !== normalizedPhase) continue;
     if (p.picked_team) used.add(String(p.picked_team).toUpperCase());
   }
 
-  const eligible = Array.from(weekTeams).filter((t) => !used.has(t)).sort();
+  const eligible = Array.from(weekTeams)
+    .filter((t) => !used.has(t))
+    .sort();
 
   return NextResponse.json({
     ok: true,
-    week_number,
+    entry_no: entryNo,
+    week_number: weekNumber,
     phase,
     teams: eligible,
   });

@@ -13,13 +13,13 @@ export default async function InvitePage({
   const { data: auth } = await supabase.auth.getUser();
   if (!auth?.user) redirect(`/login?next=/pool/${poolId}/invite`);
 
-  // ✅ Generate a fresh invite code via RPC (RLS-enforced: only commissioners/admins can do this)
+  // Create / rotate invite code with no expiration and no use limit
   const { data: code, error: codeError } = await supabase.rpc(
     "create_invite_code",
     {
       p_pool_id: poolId,
-      p_max_uses: 100,
-      p_expires_in: "30 days",
+      p_max_uses: null,
+      p_expires_in: null,
     }
   );
 
@@ -111,7 +111,7 @@ export default async function InvitePage({
         </div>
 
         <div style={{ marginTop: 12, fontSize: 13, opacity: 0.75 }}>
-          Codes expire in 30 days and allow up to 100 uses.
+          This invite code stays active until you create a new one.
         </div>
       </div>
 

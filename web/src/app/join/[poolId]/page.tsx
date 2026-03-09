@@ -12,6 +12,20 @@ function isInviteCode(v: string) {
   return /^HUDGE-[A-Z0-9]{4}$/i.test(v);
 }
 
+function nextEntryNo(rows: Array<{ entry_no: number | null }>) {
+  const used = new Set(
+    rows
+      .map((r) => Number(r.entry_no))
+      .filter((n) => Number.isInteger(n) && n >= 1 && n <= 3)
+  );
+
+  for (const n of [1, 2, 3]) {
+    if (!used.has(n)) return n;
+  }
+
+  return null;
+}
+
 export default async function JoinPoolPage({
   params,
 }: {
@@ -65,7 +79,8 @@ export default async function JoinPoolPage({
     }
 
     const expired =
-      invite?.expires_at != null && new Date(invite.expires_at).getTime() <= Date.now();
+      invite?.expires_at != null &&
+      new Date(invite.expires_at).getTime() <= Date.now();
 
     const outOfUses =
       invite?.max_uses != null &&
@@ -115,13 +130,13 @@ export default async function JoinPoolPage({
 
   const userId = auth.user.id;
 
-  // 3) If already a member, send them to the pool
-  const { data: existing, error: existingError } = await supabase
+  // 3) Check existing entries for this pool/user
+  const { data: existingRows, error: existingError } = await supabase
     .from("pool_members")
-    .select("user_id")
+    .select("entry_no")
     .eq("pool_id", poolId)
     .eq("user_id", userId)
-    .maybeSingle();
+    .order("entry_no", { ascending: true });
 
   if (existingError) {
     return (
@@ -152,9 +167,29 @@ export default async function JoinPoolPage({
     );
   }
 
-  if (existing) redirect(`/pool/${poolId}`);
+  const entries = (existingRows ?? []) as Array<{ entry_no: number | null }>;
+  const newEntryNo = nextEntryNo(entries);
 
-  // 4) Join the pool
+  if (newEntryNo == null) {
+    return (
+      <main style={{ padding: 24, maxWidth: 720 }}>
+        <h1 style={{ fontSize: 26, fontWeight: 950 }}>Join Pool</h1>
+        <p style={{ marginTop: 10, opacity: 0.85 }}>
+          You already have the maximum of 3 entries in this pool.
+        </p>
+        <p style={{ marginTop: 10, opacity: 0.8 }}>
+          No additional entry was created.
+        </p>
+        <div style={{ marginTop: 14 }}>
+          <Link href={`/pool/${poolId}`} style={{ textDecoration: "underline" }}>
+            Go to pool
+          </Link>
+        </div>
+      </main>
+    );
+  }
+
+  // 4) Create the next entry
   const { data: profile } = await supabase
     .from("profiles")
     .select("nickname, full_name")
@@ -163,15 +198,19 @@ export default async function JoinPoolPage({
 
   const emailPrefix = auth.user.email?.split("@")[0]?.trim() || null;
 
-  const screenName =
+  const baseScreenName =
     profile?.nickname?.trim() ||
     profile?.full_name?.trim() ||
     emailPrefix ||
     "Player";
 
+  const screenName =
+    newEntryNo === 1 ? baseScreenName : `${baseScreenName} (Entry ${newEntryNo})`;
+
   const { error: joinError } = await supabase.from("pool_members").insert({
     pool_id: poolId,
     user_id: userId,
+    entry_no: newEntryNo,
     screen_name: screenName,
     role: "member",
     is_commissioner: false,
