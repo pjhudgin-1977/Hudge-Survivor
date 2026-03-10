@@ -499,8 +499,7 @@ export default function PoolStandingsGridPage() {
               whiteSpace: "nowrap",
             }}
           >
-            Manage Payment
-          </Link>
+{myPaidCount >= myEntries.length ? "Paid" : "Pay Now"}          </Link>
         </div>
       )}
 
