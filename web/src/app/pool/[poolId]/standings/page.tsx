@@ -78,8 +78,7 @@ export default function StandingsPage() {
 
       const { data: members, error: memErr } = await supabase
         .from("pool_members")
-        .select("user_id, entry_no, screen_name, losses, is_eliminated")
-        .eq("pool_id", poolId)
+.select("user_id, entry_no, screen_name, losses, is_eliminated, profiles(full_name)")        .eq("pool_id", poolId)
         .order("entry_no", { ascending: true });
 
       if (memErr) {
@@ -87,7 +86,18 @@ export default function StandingsPage() {
         setLoading(false);
         return;
       }
+const userIds = [...new Set((members || []).map((m) => m.user_id).filter(Boolean))];
 
+const { data: profiles, error: profErr } = await supabase
+  .from("profiles")
+  .select("user_id, full_name")
+  .in("user_id", userIds);
+
+if (profErr) {
+  setErr(profErr.message);
+  setLoading(false);
+  return;
+}
       const { data: picks, error: pickErr } = await supabase
         .from("picks")
         .select(
@@ -124,7 +134,8 @@ export default function StandingsPage() {
 
         const screenBase = String(r.screen_name ?? "").trim() || "Player";
         const lp = latestByEntry.get(`${String(r.user_id)}|${entryNo}`) ?? null;
-
+const full_name =
+  (profiles ?? []).find((p: any) => String(p.user_id) === String(r.user_id))?.full_name ?? null;
         return {
           user_id: r.user_id,
           entry_no: entryNo,
@@ -233,8 +244,10 @@ export default function StandingsPage() {
                   }}
                 >
                   <td>{idx + 1}</td>
-                  <td style={{ fontWeight: 800 }}>{r.screen_name}</td>
-                  <td>{statusBadge(r)}</td>
+<td style={{ fontWeight: 800 }}>
+  {r.screen_name}
+  <div style={{ color: "yellow", fontSize: 12 }}>TEST NAME LINE</div>
+</td>                 <td>{statusBadge(r)}</td>
 
                   <td style={{ fontWeight: 800 }}>
                     {pickLabel(r)}

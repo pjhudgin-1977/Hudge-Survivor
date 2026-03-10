@@ -26,7 +26,7 @@ type MemberRow = {
 };
 
 type ProfileRow = {
-  id: string;
+  user_id: string;
   full_name: string | null;
 };
 
@@ -98,8 +98,8 @@ export default function PoolStandingsGridPage() {
         const { data: m, error: mErr } = await supabase
           .from("pool_members")
           .select(
-            "user_id, entry_no, screen_name, losses, is_eliminated, entry_fee_paid"
-          )
+  "user_id, entry_no, screen_name, losses, is_eliminated, entry_fee_paid"
+)
           .eq("pool_id", poolId)
           .order("entry_no", { ascending: true });
 
@@ -113,12 +113,10 @@ export default function PoolStandingsGridPage() {
         if (ids.length > 0) {
           const { data: p, error: pErr } = await supabase
             .from("profiles")
-            .select("id, full_name")
-            .in("id", ids);
+.select("user_id, full_name")            .in("user_id", ids);
 
           if (!pErr && p) {
-            for (const row of p as ProfileRow[]) profMap[row.id] = row;
-          }
+for (const row of p as ProfileRow[]) profMap[row.user_id] = row;          }
         }
 
         const { data: pk, error: pkErr } = await supabase
@@ -429,8 +427,15 @@ export default function PoolStandingsGridPage() {
                     border: "1px solid rgba(255,255,255,0.10)",
                   }}
                 >
-                  <div style={{ fontWeight: 950 }}>{entry.screen_name}</div>
-
+<div>
+<div style={{ fontWeight: 950 }}>
+  {entry.screen_name}
+</div>  {showNames && (
+    <div style={{ fontSize: 12, opacity: 0.7 }}>
+      {entry.full_name ?? "-"}
+    </div>
+  )}
+</div>
                   <div style={{ fontWeight: 900, opacity: 0.92 }}>{statusText}</div>
 
                   <div style={{ fontWeight: 900, opacity: 0.92 }}>

@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import React, { useMemo, useState } from "react";
 import { createClient } from "@/lib/supabaseClient";
 
@@ -210,7 +211,16 @@ export default function Standings2Client(props: {
         return;
       }
 
-      const submittedAt = new Date().toISOString();
+      const basePayload = {
+        pool_id: poolId,
+        user_id: forceUserId,
+        entry_no: forceEntryNo,
+        week_number: cw.week_number,
+        phase: cw.phase,
+        picked_team: forceTeam,
+        submitted_at: new Date().toISOString(),
+        was_autopick: false,
+      };
 
       const { data: existing, error: existingErr } = await supabase
         .from("picks")
@@ -229,7 +239,7 @@ export default function Standings2Client(props: {
           .from("picks")
           .update({
             picked_team: forceTeam,
-            submitted_at: submittedAt,
+            submitted_at: new Date().toISOString(),
             was_autopick: false,
           })
           .eq("pool_id", poolId)
@@ -240,16 +250,9 @@ export default function Standings2Client(props: {
 
         if (updateErr) throw updateErr;
       } else {
-        const { error: insertErr } = await supabase.from("picks").insert({
-          pool_id: poolId,
-          user_id: forceUserId,
-          entry_no: forceEntryNo,
-          week_number: cw.week_number,
-          phase: cw.phase,
-          picked_team: forceTeam,
-          submitted_at: submittedAt,
-          was_autopick: false,
-        } as any);
+        const { error: insertErr } = await supabase
+          .from("picks")
+          .insert(basePayload as any);
 
         if (insertErr) throw insertErr;
       }
@@ -396,9 +399,24 @@ export default function Standings2Client(props: {
                     </td>
 
                     <td style={{ padding: 10 }}>
-                      <span style={{ fontWeight: 800 }}>
-                        {r.entry_fee_paid ? "PAID" : "—"}
-                      </span>
+                      <Link
+                        href={`/pool/${poolId}/payment`}
+                        style={{
+                          display: "inline-block",
+                          padding: "6px 10px",
+                          borderRadius: 10,
+                          border: "1px solid rgba(255,255,255,0.18)",
+                          background: r.entry_fee_paid
+                            ? "rgba(34,197,94,0.18)"
+                            : "rgba(255,255,255,0.10)",
+                          color: "white",
+                          fontWeight: 800,
+                          textDecoration: "none",
+                          whiteSpace: "nowrap",
+                        }}
+                      >
+                        {r.entry_fee_paid ? "Paid" : "Pay Now"}
+                      </Link>
                     </td>
 
                     <td style={{ padding: 10 }}>
