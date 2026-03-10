@@ -38,7 +38,7 @@ export default function NavBar() {
         p === `${b}/my-picks`,
     },
     {
-      label: "Board",
+      label: "Message Board",
       href: `${base}/board`,
       active: (p, b) => p === `${b}/board`,
     },
