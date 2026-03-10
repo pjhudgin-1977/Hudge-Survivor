@@ -432,8 +432,7 @@ for (const row of p as ProfileRow[]) profMap[row.user_id] = row;          }
   {entry.screen_name}
 </div>  {showNames && (
     <div style={{ fontSize: 12, opacity: 0.7 }}>
-      {entry.full_name ?? "-"}
-    </div>
+{entry.full_name_line || "—"}    </div>
   )}
 </div>
                   <div style={{ fontWeight: 900, opacity: 0.92 }}>{statusText}</div>
