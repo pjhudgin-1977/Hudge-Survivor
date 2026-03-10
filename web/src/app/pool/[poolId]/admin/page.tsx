@@ -45,23 +45,6 @@ export default async function AdminHomePage({
   const { data: auth } = await supabase.auth.getUser();
   if (!auth?.user) redirect(`/login?next=/pool/${poolId}/admin`);
 
-  const userId = auth.user.id;
-
-  // ✅ Gate: commissioners/admins only
-  const { data: gate } = await supabase
-    .from("pool_members")
-    .select("is_commissioner, role")
-    .eq("pool_id", poolId)
-    .eq("user_id", userId)
-    .maybeSingle();
-
-  const isCommissioner =
-    Boolean(gate?.is_commissioner) ||
-    String(gate?.role ?? "").toLowerCase() === "commissioner" ||
-    String(gate?.role ?? "").toLowerCase() === "admin";
-
-  if (!isCommissioner) redirect(`/pool/${poolId}`);
-
   return (
     <main style={{ padding: 24, display: "grid", gap: 16, maxWidth: 980 }}>
       <div style={{ display: "grid", gap: 6 }}>
@@ -114,26 +97,6 @@ export default async function AdminHomePage({
           desc="Quick links to autolock/grade and troubleshooting."
           href={`/pool/${poolId}/admin/settings`}
         />
-      </div>
-
-      <div
-        style={{
-          borderRadius: 16,
-          border: "1px solid rgba(255,255,255,0.18)",
-          background: "rgba(0,0,0,0.18)",
-          padding: 14,
-          fontSize: 13,
-          opacity: 0.85,
-          lineHeight: 1.5,
-        }}
-      >
-        <div style={{ fontWeight: 950, marginBottom: 6 }}>
-          Why you were seeing “Pool Dashboard” on /admin
-        </div>
-        <div>
-          The file <code>web/src/app/pool/[poolId]/admin/page.tsx</code> currently
-          contains the Pool Dashboard code. Replacing it restores the Admin home.
-        </div>
       </div>
     </main>
   );

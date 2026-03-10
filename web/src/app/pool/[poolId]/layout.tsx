@@ -17,19 +17,22 @@ export default async function PoolLayout({
   const userId = auth.user.id;
   const { poolId } = await params;
 
-  // ✅ Use is_commissioner boolean
-  const { data: member } = await supabase
+  const { data: memberRows } = await supabase
     .from("pool_members")
-    .select("is_commissioner")
+    .select("is_commissioner, role")
     .eq("pool_id", poolId)
-    .eq("user_id", userId)
-    .maybeSingle();
+    .eq("user_id", userId);
 
-  const isCommissioner = !!member?.is_commissioner;
+  const isCommissioner = (memberRows || []).some(
+    (row) =>
+      Boolean(row?.is_commissioner) ||
+      String(row?.role ?? "").toLowerCase() === "commissioner" ||
+      String(row?.role ?? "").toLowerCase() === "admin"
+  );
 
   return (
     <div>
-<NavBar />
+      <NavBar />
       <main>{children}</main>
     </div>
   );

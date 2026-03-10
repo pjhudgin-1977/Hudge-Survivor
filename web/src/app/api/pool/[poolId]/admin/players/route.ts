@@ -15,46 +15,126 @@ export async function POST(
 
   const body = await req.json();
 
-  // ✅ We update a pool member row by (pool_id, user_id)
-  const target_user_id = String(body.user_id || "");
-  const entry_fee_paid = !!body.entry_fee_paid;
+  const targetUserId = String(body.user_id || "");
+  const targetEntryNo = Number(body.entry_no || 1);
 
-  const entry_fee_amount =
-    body.entry_fee_amount === null || body.entry_fee_amount === undefined
+  const screenName =
+    body.screen_name === undefined ? undefined : String(body.screen_name || "").trim();
+
+  const fullName =
+    body.full_name === undefined ? undefined : String(body.full_name || "").trim();
+
+  const entryFeePaid =
+    body.entry_fee_paid === undefined ? undefined : !!body.entry_fee_paid;
+
+  const entryFeeAmount =
+    body.entry_fee_amount === undefined
+      ? undefined
+      : body.entry_fee_amount === null || body.entry_fee_amount === ""
       ? null
       : Number(body.entry_fee_amount);
 
-  if (!target_user_id) {
+  if (!targetUserId) {
     return NextResponse.json({ error: "Missing user_id" }, { status: 400 });
   }
 
-  // Simple guard: requester must be a member of this pool
-  const { data: me } = await supabase
-    .from("pool_members")
-    .select("user_id")
-    .eq("pool_id", poolId)
-    .eq("user_id", userRes.user.id)
-    .maybeSingle();
+  if (!Number.isFinite(targetEntryNo) || targetEntryNo < 1) {
+    return NextResponse.json({ error: "Invalid entry_no" }, { status: 400 });
+  }
 
-  if (!me) {
+  const { data: meRows } = await supabase
+    .from("pool_members")
+    .select("is_commissioner, role")
+    .eq("pool_id", poolId)
+    .eq("user_id", userRes.user.id);
+
+  const isCommissioner = (meRows || []).some(
+    (row) =>
+      Boolean(row?.is_commissioner) ||
+      String(row?.role ?? "").toLowerCase() === "commissioner" ||
+      String(row?.role ?? "").toLowerCase() === "admin"
+  );
+
+  if (!isCommissioner) {
     return NextResponse.json(
-      { error: "Not a member of this pool" },
+      { error: "Only commissioners can edit players" },
       { status: 403 }
     );
   }
 
-  const { error } = await supabase
+  const { data: targetRow } = await supabase
     .from("pool_members")
-    .update({
-      entry_fee_paid,
-      entry_fee_amount,
-      entry_fee_paid_at: entry_fee_paid ? new Date().toISOString() : null,
-    })
+    .select("user_id, entry_no")
     .eq("pool_id", poolId)
-    .eq("user_id", target_user_id);
+    .eq("user_id", targetUserId)
+    .eq("entry_no", targetEntryNo)
+    .maybeSingle();
 
-  if (error) {
-    return NextResponse.json({ error: error.message }, { status: 400 });
+  if (!targetRow) {
+    return NextResponse.json({ error: "Player row not found" }, { status: 404 });
+  }
+
+  const poolMemberUpdate: Record<string, any> = {};
+
+  if (screenName !== undefined) {
+    poolMemberUpdate.screen_name = screenName || null;
+  }
+
+  if (entryFeePaid !== undefined) {
+    poolMemberUpdate.entry_fee_paid = entryFeePaid;
+    poolMemberUpdate.entry_fee_paid_at = entryFeePaid ? new Date().toISOString() : null;
+  }
+
+  if (entryFeeAmount !== undefined) {
+    if (entryFeeAmount !== null && !Number.isFinite(entryFeeAmount)) {
+      return NextResponse.json({ error: "Invalid entry fee amount" }, { status: 400 });
+    }
+    poolMemberUpdate.entry_fee_amount = entryFeeAmount;
+  }
+
+  if (Object.keys(poolMemberUpdate).length > 0) {
+    const { error: poolMemberError } = await supabase
+      .from("pool_members")
+      .update(poolMemberUpdate)
+      .eq("pool_id", poolId)
+      .eq("user_id", targetUserId)
+      .eq("entry_no", targetEntryNo);
+
+    if (poolMemberError) {
+      return NextResponse.json({ error: poolMemberError.message }, { status: 400 });
+    }
+  }
+
+     if (fullName !== undefined) {
+    const { data: existingProfile } = await supabase
+      .from("profiles")
+      .select("user_id")
+      .eq("user_id", targetUserId)
+      .maybeSingle();
+
+    if (!existingProfile) {
+      return NextResponse.json(
+        {
+          error:
+            "No profile row exists yet for this user. Full name can be edited after a profile row is created.",
+        },
+        { status: 400 }
+      );
+    }
+
+    const { error: profileUpdateError } = await supabase
+      .from("profiles")
+      .update({
+        full_name: fullName || null,
+      })
+      .eq("user_id", targetUserId);
+
+    if (profileUpdateError) {
+      return NextResponse.json(
+        { error: profileUpdateError.message },
+        { status: 400 }
+      );
+    }
   }
 
   return NextResponse.json({ ok: true });
