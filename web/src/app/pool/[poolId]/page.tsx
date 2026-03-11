@@ -63,8 +63,9 @@ export default function PoolStandingsGridPage() {
   const [picks, setPicks] = useState<PickRow[]>([]);
 
   const [savingKey, setSavingKey] = useState<string | null>(null);
-
+  const [addingEntry, setAddingEntry] = useState(false);
   const [isCommissioner, setIsCommissioner] = useState(false);
+
   useEffect(() => {
     try {
       setIsCommissioner(sessionStorage.getItem("hudge_is_commissioner") === "1");
@@ -82,7 +83,6 @@ export default function PoolStandingsGridPage() {
         const { data: auth } = await supabase.auth.getUser();
         setMyUserId(auth?.user?.id ?? null);
 
-        // Safe optional load: do not fail the whole page if this column/table is not ready yet
         try {
           const { data: poolRow } = await supabase
             .from("pools")
@@ -98,8 +98,8 @@ export default function PoolStandingsGridPage() {
         const { data: m, error: mErr } = await supabase
           .from("pool_members")
           .select(
-  "user_id, entry_no, screen_name, losses, is_eliminated, entry_fee_paid"
-)
+            "user_id, entry_no, screen_name, losses, is_eliminated, entry_fee_paid"
+          )
           .eq("pool_id", poolId)
           .order("entry_no", { ascending: true });
 
@@ -113,10 +113,12 @@ export default function PoolStandingsGridPage() {
         if (ids.length > 0) {
           const { data: p, error: pErr } = await supabase
             .from("profiles")
-.select("user_id, full_name")            .in("user_id", ids);
+            .select("user_id, full_name")
+            .in("user_id", ids);
 
           if (!pErr && p) {
-for (const row of p as ProfileRow[]) profMap[row.user_id] = row;          }
+            for (const row of p as ProfileRow[]) profMap[row.user_id] = row;
+          }
         }
 
         const { data: pk, error: pkErr } = await supabase
@@ -146,24 +148,33 @@ for (const row of p as ProfileRow[]) profMap[row.user_id] = row;          }
       phase: "regular" | "playoffs";
       week: number;
     }[] = [];
+
     for (let w = 1; w <= 17; w++) {
       cols.push({ key: `REG_${w}`, label: `W${w}`, phase: "regular", week: w });
     }
+
     for (let w = 1; w <= 4; w++) {
       cols.push({ key: `PO_${w}`, label: `P${w}`, phase: "playoffs", week: w });
     }
+
     return cols;
   }, []);
 
   const pickMap = useMemo(() => {
     const map: Record<string, PickRow> = {};
+
     for (const p of picks) {
       const phase = normalizePhase(p.phase) as "regular" | "playoffs";
       const week = Number(p.week_number);
       const entryNo = Number(p.entry_no ?? 1);
-      if (!p.user_id || !Number.isFinite(week) || !Number.isFinite(entryNo)) continue;
+
+      if (!p.user_id || !Number.isFinite(week) || !Number.isFinite(entryNo)) {
+        continue;
+      }
+
       map[`${p.user_id}|${entryNo}|${phase}|${week}`] = p;
     }
+
     return map;
   }, [picks]);
 
@@ -207,12 +218,15 @@ for (const row of p as ProfileRow[]) profMap[row.user_id] = row;          }
 
   const totalEntries = rows.length;
   const aliveEntries = rows.filter((r) => !r.eliminated).length;
-  const lastLifeEntries = rows.filter((r) => !r.eliminated && r.losses === 1).length;
+  const lastLifeEntries = rows.filter(
+    (r) => !r.eliminated && r.losses === 1
+  ).length;
   const eliminatedEntries = rows.filter((r) => r.eliminated).length;
   const paidEntries = rows.filter((r) => r.entry_fee_paid).length;
 
   const myEntries = rows.filter((r) => r.user_id === myUserId);
   const myPaidCount = myEntries.filter((r) => r.entry_fee_paid).length;
+  const canAddEntry = Boolean(myUserId) && myEntries.length < 3;
 
   const headerStyle: React.CSSProperties = {
     position: "sticky",
@@ -276,11 +290,46 @@ for (const row of p as ProfileRow[]) profMap[row.user_id] = row;          }
     }
   }
 
+  async function addEntry() {
+    if (!myUserId) return;
+    if (myEntries.length >= 3) return;
+
+    setAddingEntry(true);
+
+    try {
+      const supabase = createClient();
+      const nextEntryNo =
+        Math.max(...myEntries.map((e) => Number(e.entry_no ?? 1)), 0) + 1;
+
+      const baseMember = members.find((m) => m.user_id === myUserId);
+      const nextScreenName =
+        String(baseMember?.screen_name ?? "").trim() || "Player";
+
+      const { error } = await supabase.from("pool_members").insert({
+        pool_id: poolId,
+        user_id: myUserId,
+        entry_no: nextEntryNo,
+        screen_name: nextScreenName,
+        losses: 0,
+        is_eliminated: false,
+        entry_fee_paid: false,
+      });
+
+      if (error) throw error;
+
+      window.location.reload();
+    } catch (e: any) {
+      alert(e?.message ?? "Could not add entry.");
+    } finally {
+      setAddingEntry(false);
+    }
+  }
+
   if (loading) {
     return (
       <div style={{ padding: 16 }}>
-        <div style={{ fontSize: 20, fontWeight: 900, marginBottom: 10 }}>
-          Standings
+        <div style={{ fontSize: 22, fontWeight: 950, letterSpacing: 0.2 }}>
+          Dashboard
         </div>
         <div style={{ opacity: 0.8 }}>Loading…</div>
       </div>
@@ -291,7 +340,7 @@ for (const row of p as ProfileRow[]) profMap[row.user_id] = row;          }
     return (
       <div style={{ padding: 16 }}>
         <div style={{ fontSize: 20, fontWeight: 900, marginBottom: 10 }}>
-          Standings
+          Dashboard
         </div>
         <div
           style={{
@@ -321,7 +370,7 @@ for (const row of p as ProfileRow[]) profMap[row.user_id] = row;          }
       >
         <div>
           <div style={{ fontSize: 22, fontWeight: 950, letterSpacing: 0.2 }}>
-            Standings
+            Dashboard
           </div>
           <div style={{ opacity: 0.7, marginTop: 2, fontSize: 13 }}>
             Grid view • 17 Regular + 4 Playoffs • A = autopick • Strike-through =
@@ -427,14 +476,15 @@ for (const row of p as ProfileRow[]) profMap[row.user_id] = row;          }
                     border: "1px solid rgba(255,255,255,0.10)",
                   }}
                 >
-<div>
-<div style={{ fontWeight: 950 }}>
-  {entry.screen_name}
-</div>  {showNames && (
-    <div style={{ fontSize: 12, opacity: 0.7 }}>
-{entry.full_name_line || "—"}    </div>
-  )}
-</div>
+                  <div>
+                    <div style={{ fontWeight: 950 }}>{entry.screen_name}</div>
+                    {showNames && (
+                      <div style={{ fontSize: 12, opacity: 0.7 }}>
+                        {entry.full_name_line || "—"}
+                      </div>
+                    )}
+                  </div>
+
                   <div style={{ fontWeight: 900, opacity: 0.92 }}>{statusText}</div>
 
                   <div style={{ fontWeight: 900, opacity: 0.92 }}>
@@ -462,6 +512,28 @@ for (const row of p as ProfileRow[]) profMap[row.user_id] = row;          }
                 </div>
               );
             })}
+
+            {canAddEntry && (
+              <div style={{ marginTop: 6 }}>
+                <button
+                  type="button"
+                  onClick={addEntry}
+                  disabled={addingEntry}
+                  style={{
+                    padding: "8px 12px",
+                    borderRadius: 10,
+                    fontWeight: 900,
+                    border: "1px solid rgba(255,255,255,0.18)",
+                    background: "rgba(0,128,255,0.18)",
+                    color: "white",
+                    cursor: addingEntry ? "default" : "pointer",
+                    opacity: addingEntry ? 0.65 : 1,
+                  }}
+                >
+                  {addingEntry ? "Adding..." : "+ Add Entry"}
+                </button>
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -473,6 +545,7 @@ for (const row of p as ProfileRow[]) profMap[row.user_id] = row;          }
             border: "1px solid rgba(255,255,255,0.18)",
             background: "rgba(255,255,255,0.06)",
             padding: "14px 16px",
+            marginTop: 32,
             marginBottom: 14,
             display: "flex",
             justifyContent: "space-between",
@@ -503,7 +576,8 @@ for (const row of p as ProfileRow[]) profMap[row.user_id] = row;          }
               whiteSpace: "nowrap",
             }}
           >
-{myPaidCount >= myEntries.length ? "Paid" : "Pay Now"}          </Link>
+            {myPaidCount >= myEntries.length ? "Paid" : "Pay Now"}
+          </Link>
         </div>
       )}
 
@@ -514,6 +588,7 @@ for (const row of p as ProfileRow[]) profMap[row.user_id] = row;          }
             border: "1px solid rgba(255,255,255,0.18)",
             background: "rgba(255,255,255,0.06)",
             padding: "14px 16px",
+            marginTop: 32,
             marginBottom: 14,
           }}
         >
@@ -540,6 +615,17 @@ for (const row of p as ProfileRow[]) profMap[row.user_id] = row;          }
           </div>
         </div>
       )}
+
+      <h2
+        style={{
+          fontSize: 22,
+          fontWeight: 900,
+          marginTop: 32,
+          marginBottom: 12,
+        }}
+      >
+        Overall Standings
+      </h2>
 
       <div
         style={{
@@ -577,6 +663,7 @@ for (const row of p as ProfileRow[]) profMap[row.user_id] = row;          }
 
       <div
         style={{
+          marginTop: 32,
           borderRadius: 16,
           border: "1px solid rgba(255,255,255,0.18)",
           overflow: "auto",
@@ -786,7 +873,7 @@ for (const row of p as ProfileRow[]) profMap[row.user_id] = row;          }
         </table>
       </div>
 
-      <div style={{ marginTop: 10, opacity: 0.65, fontSize: 12 }}>
+      <div style={{ marginTop: 32, opacity: 0.65, fontSize: 12 }}>
         Sorting: 0-loss section → 1-loss section → Eliminated, and within each
         section by user name + entry number.
       </div>

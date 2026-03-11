@@ -23,42 +23,46 @@ export default function NavBar() {
   const base = `/pool/${poolId}`;
 
   const items: NavItem[] = [
-    {
-      label: "Standings",
-      href: base,
-      active: (p, b) =>
-        p === b || p === `${b}/standings` || p === `${b}/standings2`,
-    },
-    {
-      label: "Pick",
-      href: `${base}/pick`,
-      active: (p, b) =>
-        p === `${b}/pick` ||
-        p.startsWith(`${b}/pick/`) ||
-        p === `${b}/my-picks`,
-    },
-    {
-      label: "Message Board",
-      href: `${base}/board`,
-      active: (p, b) => p === `${b}/board`,
-    },
-    {
-      label: "Game Day",
-      href: `${base}/gameday`,
-      active: (p, b) =>
-        p === `${b}/gameday` ||
-        p === `${b}/sweat` ||
-        p === `${b}/danger`,
-    },
-  ];
+  {
+    label: "🏆 Standings",
+    href: base,
+    active: (p, b) =>
+      p === b || p === `${b}/standings` || p === `${b}/standings2`,
+  },
+  {
+    label: "✏️ Pick",
+    href: `${base}/pick`,
+    active: (p, b) =>
+      p === `${b}/pick` ||
+      p.startsWith(`${b}/pick/`) ||
+      p === `${b}/my-picks`,
+  },
+  {
+    label: "💬 Message Board",
+    href: `${base}/board`,
+    active: (p, b) => p === `${b}/board`,
+  },
+  {
+    label: "🏈 Game Day",
+    href: `${base}/gameday`,
+    active: (p, b) =>
+      p === `${b}/gameday` ||
+      p === `${b}/sweat` ||
+      p === `${b}/danger`,
+  },
+];
 
-  const moreActive =
-    pathname === `${base}/rules` ||
-    pathname === `${base}/invite` ||
-    pathname === `${base}/payment` ||
-    pathname === `${base}/admin` ||
-    pathname === `${base}/profile` ||
-    pathname === "/profile";
+  const moreItems = [
+  { label: "Rules", href: `${base}/rules` },
+  { label: "Invite", href: `${base}/invite` },
+  { label: "Profile", href: "/profile" },
+  { label: "Payments", href: `${base}/payment` },
+  { label: "Admin", href: `${base}/admin` },
+];
+
+const moreActive = moreItems.some((item) =>
+  pathname.startsWith(item.href)
+);
 
   useEffect(() => {
     setOpen(false);
@@ -87,22 +91,30 @@ export default function NavBar() {
 
   return (
     <nav
-      style={{
-        display: "flex",
-        gap: 10,
-        flexWrap: "wrap",
-        alignItems: "center",
-        justifyContent: "space-between",
-        marginBottom: 16,
-      }}
-    >
+  style={{
+    position: "sticky",
+    top: 0,
+    zIndex: 40,
+    display: "flex",
+    gap: 10,
+    flexWrap: "wrap",
+    alignItems: "center",
+    justifyContent: "space-between",
+    padding: "8px 0",
+    marginBottom: 16,
+    background: "#020617",
+    borderBottom: "1px solid rgba(255,255,255,0.08)",
+  }}
+>
       <div
         style={{
-          display: "flex",
-          gap: 10,
-          flexWrap: "wrap",
-          alignItems: "center",
-        }}
+  display: "flex",
+  gap: 8,
+  flexWrap: "wrap",
+  alignItems: "center",
+  flex: 1,
+  minWidth: 0,
+}}
       >
         {items.map((item) => {
           const active = item.active(pathname, base);
@@ -112,11 +124,11 @@ export default function NavBar() {
               key={item.label}
               href={item.href}
               style={{
-                padding: "8px 14px",
-                borderRadius: 999,
+                padding: "7px 12px",
+                borderRadius: 10,
                 textDecoration: "none",
                 fontWeight: 800,
-                fontSize: 14,
+                fontSize: 13,
                 border: active
                   ? "1px solid #f59e0b"
                   : "1px solid rgba(255,255,255,0.14)",
@@ -142,8 +154,7 @@ export default function NavBar() {
             display: "inline-flex",
             alignItems: "center",
             justifyContent: "center",
-            width: 38,
-            height: 38,
+            padding: "0 14px",            height: 38,
             borderRadius: 999,
             border: moreActive
               ? "1px solid #f59e0b"
@@ -152,13 +163,13 @@ export default function NavBar() {
               ? "rgba(245,158,11,0.16)"
               : "rgba(255,255,255,0.04)",
             color: moreActive ? "#fde68a" : "rgba(255,255,255,0.92)",
-            fontSize: 22,
+            fontSize: 14,
             fontWeight: 900,
           }}
           aria-label="More navigation"
           aria-expanded={open}
         >
-          ⋯
+          More
         </button>
 
         {open ? (
@@ -176,74 +187,29 @@ export default function NavBar() {
               zIndex: 50,
             }}
           >
-            <a
-              href={`${base}/rules`}
-              style={{
-                display: "block",
-                padding: "12px 14px",
-                textDecoration: "none",
-                color: "white",
-                fontWeight: 700,
-                borderBottom: "1px solid rgba(255,255,255,0.08)",
-              }}
-            >
-              Rules
-            </a>
+                        {moreItems.map((item, index) => {
+              const isAdmin = item.label === "Admin";
 
-            <a
-              href={`${base}/invite`}
-              style={{
-                display: "block",
-                padding: "12px 14px",
-                textDecoration: "none",
-                color: "white",
-                fontWeight: 700,
-                borderBottom: "1px solid rgba(255,255,255,0.08)",
-              }}
-            >
-              Invite
-            </a>
-
-            <a
-              href="/profile"
-              style={{
-                display: "block",
-                padding: "12px 14px",
-                textDecoration: "none",
-                color: "white",
-                fontWeight: 700,
-                borderBottom: "1px solid rgba(255,255,255,0.08)",
-              }}
-            >
-              Profile
-            </a>
-
-            <a
-              href={`${base}/payment`}
-              style={{
-                display: "block",
-                padding: "12px 14px",
-                textDecoration: "none",
-                color: "white",
-                fontWeight: 700,
-                borderBottom: "1px solid rgba(255,255,255,0.08)",
-              }}
-            >
-              Payments
-            </a>
-
-            <a
-              href={`${base}/admin`}
-              style={{
-                display: "block",
-                padding: "12px 14px",
-                textDecoration: "none",
-                color: "#fbbf24",
-                fontWeight: 800,
-              }}
-            >
-              Admin
-            </a>
+              return (
+                <a
+                  key={item.label}
+                  href={item.href}
+                  style={{
+                    display: "block",
+                    padding: "12px 14px",
+                    textDecoration: "none",
+                    color: isAdmin ? "#fbbf24" : "white",
+                    fontWeight: isAdmin ? 800 : 700,
+                    borderBottom:
+                      index === moreItems.length - 1
+                        ? "none"
+                        : "1px solid rgba(255,255,255,0.08)",
+                  }}
+                >
+                  {item.label}
+                </a>
+              );
+            })}
           </div>
         ) : null}
       </div>

@@ -83,7 +83,6 @@ export default async function MyPicksPage({
           <p style={{ marginTop: 8, opacity: 0.85 }}>
             Signed in as: <strong>{auth.user.email ?? "user"}</strong>
             <br />
-            PoolId (from URL): <strong>{poolId}</strong>
           </p>
         </div>
 
@@ -104,7 +103,7 @@ export default async function MyPicksPage({
           </Link>
           <div style={{ marginTop: 10 }}>
             <Link href={`/pool/${poolId}`} style={{ textDecoration: "none" }}>
-              ← Back to Pool Dashboard
+              ← Back to Standings
             </Link>
           </div>
         </div>
