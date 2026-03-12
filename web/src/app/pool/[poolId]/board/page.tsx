@@ -25,6 +25,8 @@ export default function BoardPage() {
   const [commissionerNote, setCommissionerNote] = useState<string | null>(null);
   const [editingNote, setEditingNote] = useState(false);
   const [noteDraft, setNoteDraft] = useState("");
+  const [isCommissioner, setIsCommissioner] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   const loadingRef = useRef(false);
   const editingNoteRef = useRef(false);
@@ -39,6 +41,29 @@ export default function BoardPage() {
     loadingRef.current = true;
 
     try {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
+      if (user) {
+                const { data: memberRows, error: memberError } = await supabase
+          .from("pool_members")
+          .select("is_commissioner")
+          .eq("pool_id", poolId)
+          .eq("user_id", user.id);
+
+        if (memberError) {
+          console.error("Load commissioner status error:", memberError);
+        }
+
+        setIsCommissioner(
+          Array.isArray(memberRows) &&
+            memberRows.some((row) => !!row.is_commissioner)
+        );
+      } else {
+        setIsCommissioner(false);
+      }
+
       const { data: noteData, error: noteError } = await supabase
         .from("pool_notes")
         .select("note")
@@ -126,6 +151,33 @@ export default function BoardPage() {
     }
   }
 
+  async function deleteMessage(messageId: string) {
+    const ok = window.confirm("Delete this message?");
+    if (!ok) return;
+
+    setDeletingId(messageId);
+
+    try {
+      const res = await fetch(`/api/pool/${poolId}/messages`, {
+        method: "DELETE",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ messageId }),
+      });
+
+      if (!res.ok) {
+        const text = await res.text();
+        alert(`Delete failed: ${text}`);
+        return;
+      }
+
+      await loadBoard();
+    } finally {
+      setDeletingId(null);
+    }
+  }
+
   async function saveNote() {
     const { error } = await supabase.from("pool_notes").upsert(
       {
@@ -162,13 +214,10 @@ export default function BoardPage() {
           private: true,
         },
       })
-      .on("broadcast", { event: "*" }, (payload) => {
-        console.log("📡 board broadcast received:", payload);
+      .on("broadcast", { event: "*" }, () => {
         loadBoard();
       })
-      .subscribe((status) => {
-        console.log("board broadcast status:", status);
-      });
+      .subscribe();
 
     return () => {
       supabase.removeChannel(boardChannel);
@@ -246,21 +295,23 @@ export default function BoardPage() {
               {commissionerNote || "No commissioner note yet."}
             </div>
 
-            <button
-              onClick={() => {
-                setNoteDraft(commissionerNote ?? "");
-                setEditingNote(true);
-              }}
-              style={{
-                marginTop: 8,
-                padding: "4px 10px",
-                borderRadius: 8,
-                border: "1px solid rgba(255,255,255,0.3)",
-                fontSize: 12,
-              }}
-            >
-              Edit
-            </button>
+            {isCommissioner ? (
+              <button
+                onClick={() => {
+                  setNoteDraft(commissionerNote ?? "");
+                  setEditingNote(true);
+                }}
+                style={{
+                  marginTop: 8,
+                  padding: "4px 10px",
+                  borderRadius: 8,
+                  border: "1px solid rgba(255,255,255,0.3)",
+                  fontSize: 12,
+                }}
+              >
+                Edit
+              </button>
+            ) : null}
           </>
         )}
       </div>
@@ -334,10 +385,36 @@ export default function BoardPage() {
                   background: "rgba(255,255,255,0.04)",
                 }}
               >
-                <div style={{ fontWeight: 900 }}>{msg.screen_name}</div>
+                <div
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "flex-start",
+                    gap: 12,
+                  }}
+                >
+                  <div>
+                    <div style={{ fontWeight: 900 }}>{msg.screen_name}</div>
 
-                <div style={{ fontSize: 12, opacity: 0.65 }}>
-                  {new Date(msg.created_at).toLocaleString()}
+                    <div style={{ fontSize: 12, opacity: 0.65 }}>
+                      {new Date(msg.created_at).toLocaleString()}
+                    </div>
+                  </div>
+
+                  {isCommissioner ? (
+                    <button
+                      onClick={() => deleteMessage(msg.id)}
+                      disabled={deletingId === msg.id}
+                      style={{
+                        padding: "4px 10px",
+                        borderRadius: 8,
+                        border: "1px solid rgba(255,255,255,0.3)",
+                        fontSize: 12,
+                      }}
+                    >
+                      {deletingId === msg.id ? "Deleting..." : "Delete"}
+                    </button>
+                  ) : null}
                 </div>
 
                 <div style={{ marginTop: 6 }}>{msg.message}</div>

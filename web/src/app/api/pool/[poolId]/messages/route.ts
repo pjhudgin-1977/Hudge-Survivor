@@ -44,3 +44,57 @@ export async function POST(
 
   return NextResponse.json({ success: true });
 }
+
+export async function DELETE(
+  req: Request,
+  context: { params: Promise<{ poolId: string }> }
+) {
+  const supabase = await createClient();
+
+  const { data: auth } = await supabase.auth.getUser();
+  if (!auth?.user) {
+    return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
+  }
+
+  const userId = auth.user.id;
+  const { poolId } = await context.params;
+
+  const body = await req.json();
+  const messageId = String(body?.messageId || "").trim();
+
+  if (!messageId) {
+    return NextResponse.json({ error: "messageId required" }, { status: 400 });
+  }
+
+  
+  const { data: memberRows, error: memberError } = await supabase
+    .from("pool_members")
+    .select("is_commissioner")
+    .eq("pool_id", poolId)
+    .eq("user_id", userId);
+
+  if (memberError) {
+    return NextResponse.json({ error: memberError.message }, { status: 500 });
+  }
+
+  const isCommissioner =
+    Array.isArray(memberRows) &&
+    memberRows.some((row) => !!row.is_commissioner);
+
+  if (!isCommissioner) {
+    return NextResponse.json({ error: "Not authorized" }, { status: 403 });
+  }
+
+
+  const { error: deleteError } = await supabase
+    .from("pool_messages")
+    .delete()
+    .eq("id", messageId)
+    .eq("pool_id", poolId);
+
+  if (deleteError) {
+    return NextResponse.json({ error: deleteError.message }, { status: 500 });
+  }
+
+  return NextResponse.json({ success: true });
+}
