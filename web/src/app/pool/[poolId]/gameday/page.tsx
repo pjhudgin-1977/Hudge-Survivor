@@ -1,654 +1,581 @@
 import Link from "next/link";
-import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-
-type PickRow = {
-  user_id: string;
-  entry_no: number | null;
-  picked_team: string | null;
-  was_autopick: boolean | null;
-  screen_name: string | null;
-  losses: number | null;
-  is_eliminated: boolean | null;
-};
 
 type GameRow = {
   id: string;
+  season_year: number | null;
+  week_number: number | null;
+  phase: string | null;
   kickoff_at: string | null;
   away_team: string | null;
   home_team: string | null;
   away_score: number | null;
   home_score: number | null;
   status: string | null;
-  week_number: number | null;
+  winner_team: string | null;
 };
 
-function normalizeTeam(team: string | null | undefined) {
-  return String(team || "").trim().toUpperCase();
+type PickRow = {
+  user_id: string;
+  entry_no: number | null;
+  week_number: number | null;
+  phase: string | null;
+  picked_team: string | null;
+  result: string | null;
+  was_autopick: boolean | null;
+};
+
+type MemberRow = {
+  user_id: string;
+  entry_no: number | null;
+  screen_name: string | null;
+  losses: number | null;
+  is_eliminated: boolean | null;
+};
+
+function normalizePhase(v: string | null | undefined) {
+  const s = String(v ?? "").toLowerCase();
+  if (s.includes("play")) return "playoffs";
+  return "regular";
 }
 
-function statusLabel(status: string | null | undefined) {
-  const s = String(status || "").toUpperCase();
-
-  if (s.includes("FINAL")) return "FINAL";
-  if (s.includes("HALF")) return "HALF";
-  if (
-    s.includes("IN_PROGRESS") ||
-    s.includes("LIVE") ||
-    s.includes("Q1") ||
-    s.includes("Q2") ||
-    s.includes("Q3") ||
-    s.includes("Q4") ||
-    s.includes("OT")
-  ) {
-    return "LIVE";
-  }
-  return "PRE";
+function phaseLabel(v: string | null | undefined) {
+  return normalizePhase(v) === "playoffs" ? "Playoffs" : "Regular Season";
 }
 
-function getTeamResult(game: GameRow, team: string) {
-  const t = normalizeTeam(team);
-  const away = normalizeTeam(game.away_team);
-  const home = normalizeTeam(game.home_team);
+function gameStatusText(game: GameRow) {
+  const status = String(game.status ?? "").trim();
+  if (status) return status;
 
-  if (!t || (t !== away && t !== home)) return null;
+  const away = game.away_score ?? null;
+  const home = game.home_score ?? null;
 
-  const awayScore = Number(game.away_score ?? 0);
-  const homeScore = Number(game.home_score ?? 0);
-  const isFinalish = ["LIVE", "HALF", "FINAL"].includes(statusLabel(game.status));
-
-  if (!isFinalish) return null;
-  if (awayScore === homeScore) return "TIED";
-
-  const teamWon =
-    (t === away && awayScore > homeScore) || (t === home && homeScore > awayScore);
-
-  return teamWon ? "WINNING" : "LOSING";
+  if (away != null || home != null) return "Live";
+  return "Scheduled";
 }
-
-function formatName(p: PickRow) {
-  const base = String(p.screen_name || "Player").trim() || "Player";
-  const entryNo = Number(p.entry_no || 1);
-  return entryNo > 1 ? `${base} #${entryNo}` : base;
-}
-
-function AutoPickBadge() {
-  return (
-    <span
-      style={{
-        display: "inline-block",
-        marginLeft: 6,
-        padding: "2px 7px",
-        borderRadius: 999,
-        fontSize: 11,
-        fontWeight: 800,
-        background: "rgba(245,158,11,0.18)",
-        color: "#fbbf24",
-        border: "1px solid rgba(251,191,36,0.35)",
-        verticalAlign: "middle",
-      }}
-    >
-      AUTO
-    </span>
-  );
-}
-
-function LastLifeBadge() {
-  return (
-    <span
-      style={{
-        display: "inline-block",
-        marginLeft: 6,
-        padding: "2px 7px",
-        borderRadius: 999,
-        fontSize: 11,
-        fontWeight: 800,
-        background: "rgba(239,68,68,0.16)",
-        color: "#fca5a5",
-        border: "1px solid rgba(248,113,113,0.35)",
-        verticalAlign: "middle",
-      }}
-    >
-      LAST LIFE
-    </span>
-  );
-}
-
-function GameStatusPill({ status }: { status: string | null }) {
-  const label = statusLabel(status);
-
-  const styles =
-    label === "FINAL"
-      ? {
-          background: "rgba(148,163,184,0.16)",
-          color: "#cbd5e1",
-          border: "1px solid rgba(203,213,225,0.20)",
-        }
-      : label === "HALF"
-      ? {
-          background: "rgba(245,158,11,0.18)",
-          color: "#fbbf24",
-          border: "1px solid rgba(251,191,36,0.30)",
-        }
-      : label === "LIVE"
-      ? {
-          background: "rgba(239,68,68,0.16)",
-          color: "#fca5a5",
-          border: "1px solid rgba(248,113,113,0.30)",
-        }
-      : {
-          background: "rgba(59,130,246,0.16)",
-          color: "#93c5fd",
-          border: "1px solid rgba(147,197,253,0.28)",
-        };
-
-  return (
-    <span
-      style={{
-        display: "inline-flex",
-        alignItems: "center",
-        justifyContent: "center",
-        minWidth: 52,
-        padding: "5px 10px",
-        borderRadius: 999,
-        fontSize: 11,
-        fontWeight: 900,
-        letterSpacing: 0.4,
-        ...styles,
-      }}
-    >
-      {label}
-    </span>
-  );
-}
-
-function ResultBadge({ result }: { result: "WINNING" | "LOSING" | "TIED" | null }) {
-  if (!result || result === "TIED") return null;
-
-  const styles =
-    result === "WINNING"
-      ? {
-          background: "rgba(34,197,94,0.16)",
-          color: "#86efac",
-          border: "1px solid rgba(134,239,172,0.28)",
-        }
-      : {
-          background: "rgba(239,68,68,0.16)",
-          color: "#fca5a5",
-          border: "1px solid rgba(248,113,113,0.28)",
-        };
-
-  return (
-    <span
-      style={{
-        display: "inline-flex",
-        alignItems: "center",
-        justifyContent: "center",
-        padding: "4px 8px",
-        borderRadius: 999,
-        fontSize: 10,
-        fontWeight: 900,
-        letterSpacing: 0.4,
-        ...styles,
-      }}
-    >
-      {result}
-    </span>
-  );
-}
-
-function TeamPanel({
-  team,
-  score,
-  picks,
-  game,
-}: {
-  team: string | null;
-  score: number | null;
-  picks: PickRow[];
-  game: GameRow;
-}) {
-  const teamCode = normalizeTeam(team);
-  const result = getTeamResult(game, teamCode);
-
-  const panelStyle =
-    result === "WINNING"
-      ? {
-          background: "rgba(34,197,94,0.12)",
-          border: "1px solid rgba(134,239,172,0.28)",
-        }
-      : result === "LOSING"
-      ? {
-          background: "rgba(239,68,68,0.12)",
-          border: "1px solid rgba(248,113,113,0.24)",
-        }
-      : {
-          background: "rgba(255,255,255,0.03)",
-          border: "1px solid rgba(255,255,255,0.10)",
-        };
-
-  return (
-    <div
-      style={{
-        borderRadius: 16,
-        padding: 14,
-        minHeight: 150,
-        ...panelStyle,
-      }}
-    >
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          gap: 10,
-          marginBottom: 8,
-        }}
-      >
-        <div style={{ fontSize: 20, fontWeight: 900 }}>{teamCode || "—"}</div>
-        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          <ResultBadge result={result} />
-          <div style={{ fontSize: 22, fontWeight: 900 }}>{score ?? "—"}</div>
-        </div>
-      </div>
-
-      <div style={{ fontSize: 12, opacity: 0.7, marginBottom: 8 }}>
-        {picks.length} pick{picks.length === 1 ? "" : "s"}
-      </div>
-
-      {picks.length === 0 ? (
-        <div style={{ fontSize: 13, opacity: 0.45 }}>No picks</div>
-      ) : (
-        <div style={{ display: "grid", gap: 8 }}>
-          {picks.map((p, idx) => (
-            <div
-              key={`${p.user_id}-${p.entry_no}-${idx}`}
-              style={{
-                fontSize: 13,
-                fontWeight: 700,
-                lineHeight: 1.35,
-              }}
-            >
-              {formatName(p)}
-              {p.was_autopick ? <AutoPickBadge /> : null}
-              {Number(p.losses || 0) >= 1 && !p.is_eliminated ? <LastLifeBadge /> : null}
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
 
 export default async function GameDayPage({
   params,
 }: {
   params: Promise<{ poolId: string }>;
 }) {
-  const { poolId } = await params;
   const supabase = await createClient();
+  const { poolId } = await params;
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) {
-    redirect(`/login?next=/pool/${poolId}/gameday`);
-  }
-
-  const { data: latestPoolPick } = await supabase
-    .from("picks")
-    .select("week_number")
-    .eq("pool_id", poolId)
-    .order("week_number", { ascending: false })
+  const { data: latestSeasonGame } = await supabase
+    .from("games")
+    .select("season_year")
+    .order("season_year", { ascending: false })
+    .order("kickoff_at", { ascending: false })
     .limit(1)
     .maybeSingle();
 
-  let displayWeekNumber = Number(latestPoolPick?.week_number || 1);
+  const displaySeasonYear = Number(
+    (latestSeasonGame as any)?.season_year ?? new Date().getUTCFullYear()
+  );
 
-  let { data: weekPicks } = await supabase
-    .from("picks")
-    .select(
-      `
-      user_id,
-      entry_no,
-      picked_team,
-      was_autopick,
-      pool_members!inner (
-        screen_name,
-        losses,
-        is_eliminated
-      )
-    `
-    )
-    .eq("pool_id", poolId)
-    .eq("week_number", displayWeekNumber);
+  const { data: nextGame } = await supabase
+    .from("games")
+    .select("season_year, week_number, phase, kickoff_at")
+    .eq("season_year", displaySeasonYear)
+    .gte("kickoff_at", new Date().toISOString())
+    .order("kickoff_at", { ascending: true })
+    .limit(1)
+    .maybeSingle();
 
-  if (!weekPicks || weekPicks.length === 0) {
-    const { data: allPickWeeks } = await supabase
-      .from("picks")
-      .select("week_number")
-      .eq("pool_id", poolId)
-      .order("week_number", { ascending: false });
+  let displayWeekNumber = Number((nextGame as any)?.week_number ?? 1);
+  let displayPhase = normalizePhase((nextGame as any)?.phase ?? "regular");
 
-    const fallbackWeek = allPickWeeks?.find((r) => Number(r.week_number) > 0)?.week_number;
+  if (!nextGame) {
+    const { data: latestGame } = await supabase
+      .from("games")
+      .select("season_year, week_number, phase, kickoff_at")
+      .eq("season_year", displaySeasonYear)
+      .order("kickoff_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
 
-    if (fallbackWeek) {
-      displayWeekNumber = Number(fallbackWeek);
-
-      const res = await supabase
-        .from("picks")
-        .select(
-          `
-          user_id,
-          entry_no,
-          picked_team,
-          was_autopick,
-          pool_members!inner (
-            screen_name,
-            losses,
-            is_eliminated
-          )
-        `
-        )
-        .eq("pool_id", poolId)
-        .eq("week_number", displayWeekNumber);
-
-      weekPicks = res.data || [];
-    }
+    displayWeekNumber = Number((latestGame as any)?.week_number ?? 1);
+    displayPhase = normalizePhase((latestGame as any)?.phase ?? "regular");
   }
-
-  const mappedPicks: PickRow[] = (weekPicks || []).map((p: any) => {
-    const member = Array.isArray(p.pool_members) ? p.pool_members[0] : p.pool_members;
-    return {
-      user_id: p.user_id,
-      entry_no: p.entry_no ?? 1,
-      picked_team: p.picked_team,
-      was_autopick: p.was_autopick,
-      screen_name: member?.screen_name ?? null,
-      losses: member?.losses ?? 0,
-      is_eliminated: member?.is_eliminated ?? false,
-    };
-  });
 
   const { data: gamesData } = await supabase
     .from("games")
     .select(
-      "id, kickoff_at, away_team, home_team, away_score, home_score, status, week_number"
+      "id, season_year, week_number, phase, kickoff_at, away_team, home_team, away_score, home_score, status, winner_team"
     )
+    .eq("season_year", displaySeasonYear)
     .eq("week_number", displayWeekNumber)
+    .eq("phase", displayPhase)
     .order("kickoff_at", { ascending: true });
 
-  const games: GameRow[] = gamesData || [];
+  const games = (gamesData ?? []) as GameRow[];
 
-  const picksByTeam = new Map<string, PickRow[]>();
-  for (const p of mappedPicks) {
-    const key = normalizeTeam(p.picked_team);
-    if (!key) continue;
-    if (!picksByTeam.has(key)) picksByTeam.set(key, []);
-    picksByTeam.get(key)!.push(p);
+  const { data: picksData } = await supabase
+    .from("picks")
+    .select(
+      "user_id, entry_no, week_number, phase, picked_team, result, was_autopick"
+    )
+    .eq("pool_id", poolId)
+    .eq("week_number", displayWeekNumber)
+    .eq("phase", displayPhase);
+
+  const picks = (picksData ?? []) as PickRow[];
+
+  const { data: membersData } = await supabase
+    .from("pool_members")
+    .select("user_id, entry_no, screen_name, losses, is_eliminated")
+    .eq("pool_id", poolId)
+    .order("entry_no", { ascending: true });
+
+  const members = (membersData ?? []) as MemberRow[];
+
+  const memberMap = new Map<string, MemberRow>();
+  for (const m of members) {
+    memberMap.set(`${m.user_id}|${Number(m.entry_no ?? 1)}`, m);
   }
 
-  const gamesWithMeta = games.map((g) => {
-    const away = normalizeTeam(g.away_team);
-    const home = normalizeTeam(g.home_team);
-    const awayPicks = picksByTeam.get(away) || [];
-    const homePicks = picksByTeam.get(home) || [];
-    const totalPicks = awayPicks.length + homePicks.length;
-
-    const dangerCount =
-      awayPicks.filter((p) => Number(p.losses || 0) >= 1 && !p.is_eliminated).length +
-      homePicks.filter((p) => Number(p.losses || 0) >= 1 && !p.is_eliminated).length;
+  const pickRows = picks.map((p) => {
+    const entryNo = Number(p.entry_no ?? 1);
+    const member = memberMap.get(`${p.user_id}|${entryNo}`);
+    const losses = Number(member?.losses ?? 0);
+    const eliminated = Boolean(member?.is_eliminated) || losses >= 2;
 
     return {
-      game: g,
-      awayPicks,
-      homePicks,
-      totalPicks,
-      dangerCount,
+      user_id: p.user_id,
+      entry_no: entryNo,
+      screen_name: `${
+        String(member?.screen_name ?? "Player").trim() || "Player"
+      } #${entryNo}`,
+      picked_team: String(p.picked_team ?? "").trim(),
+      result: String(p.result ?? "").trim(),
+      was_autopick: Boolean(p.was_autopick),
+      losses,
+      eliminated,
+      lastLife: !eliminated && losses === 1,
     };
   });
 
-  const sortedGames = [...gamesWithMeta].sort((a, b) => {
-    if (a.totalPicks > 0 && b.totalPicks === 0) return -1;
-    if (a.totalPicks === 0 && b.totalPicks > 0) return 1;
-    if (a.dangerCount !== b.dangerCount) return b.dangerCount - a.dangerCount;
-    if (a.totalPicks !== b.totalPicks) return b.totalPicks - a.totalPicks;
-
-    const aTime = a.game.kickoff_at ? new Date(a.game.kickoff_at).getTime() : 0;
-    const bTime = b.game.kickoff_at ? new Date(b.game.kickoff_at).getTime() : 0;
-    return aTime - bTime;
-  });
-
-  const dangerEntries = mappedPicks.filter(
-    (p) => Number(p.losses || 0) >= 1 && !p.is_eliminated
-  ).length;
-
-  const activeGames = sortedGames.filter((g) => g.totalPicks > 0).length;
-
-  let mostPickedTeam = "—";
-  let mostPickedCount = 0;
-  for (const [team, picks] of picksByTeam.entries()) {
-    if (picks.length > mostPickedCount) {
-      mostPickedTeam = team;
-      mostPickedCount = picks.length;
-    }
+  const picksByTeam = new Map<string, typeof pickRows>();
+  for (const row of pickRows) {
+    const team = row.picked_team;
+    if (!team) continue;
+    if (!picksByTeam.has(team)) picksByTeam.set(team, []);
+    picksByTeam.get(team)!.push(row);
   }
 
-  const sweatGames = sortedGames.filter((g) => g.totalPicks > 0).slice(0, 3);
+  const gameCards = games.map((game) => {
+    const away = String(game.away_team ?? "").trim();
+    const home = String(game.home_team ?? "").trim();
+    const awayPickers = picksByTeam.get(away) ?? [];
+    const homePickers = picksByTeam.get(home) ?? [];
+
+    const awayLastLife = awayPickers.filter((p) => p.lastLife).length;
+    const homeLastLife = homePickers.filter((p) => p.lastLife).length;
+
+    return {
+      ...game,
+      awayPickers,
+      homePickers,
+      awayLastLife,
+      homeLastLife,
+    };
+  });
+
+  const sweatEntries = gameCards
+    .flatMap((game) => {
+      const awayScore = game.away_score ?? null;
+      const homeScore = game.home_score ?? null;
+      const winnerTeam = String(game.winner_team ?? "").trim();
+      const status = String(game.status ?? "").toUpperCase();
+
+      const rows: Array<{
+        screen_name: string;
+        picked_team: string;
+        matchup: string;
+        note: string;
+        lastLife: boolean;
+        dangerRank: number;
+      }> = [];
+
+      if (awayScore != null && homeScore != null) {
+        if (status === "FINAL" && winnerTeam) {
+          for (const p of game.awayPickers) {
+            if (p.picked_team !== winnerTeam) {
+              rows.push({
+                screen_name: p.screen_name,
+                picked_team: p.picked_team,
+                matchup: `${game.away_team} @ ${game.home_team}`,
+                note: "Lost",
+                lastLife: p.lastLife,
+                dangerRank: p.lastLife ? 1 : 2,
+              });
+            }
+          }
+
+          for (const p of game.homePickers) {
+            if (p.picked_team !== winnerTeam) {
+              rows.push({
+                screen_name: p.screen_name,
+                picked_team: p.picked_team,
+                matchup: `${game.away_team} @ ${game.home_team}`,
+                note: "Lost",
+                lastLife: p.lastLife,
+                dangerRank: p.lastLife ? 1 : 2,
+              });
+            }
+          }
+        } else {
+          if (awayScore < homeScore) {
+            for (const p of game.awayPickers) {
+              rows.push({
+                screen_name: p.screen_name,
+                picked_team: p.picked_team,
+                matchup: `${game.away_team} @ ${game.home_team}`,
+                note: "Currently losing",
+                lastLife: p.lastLife,
+                dangerRank: p.lastLife ? 1 : 2,
+              });
+            }
+          } else if (awayScore === homeScore) {
+            for (const p of game.awayPickers) {
+              rows.push({
+                screen_name: p.screen_name,
+                picked_team: p.picked_team,
+                matchup: `${game.away_team} @ ${game.home_team}`,
+                note: "Tied game",
+                lastLife: p.lastLife,
+                dangerRank: p.lastLife ? 3 : 4,
+              });
+            }
+          }
+
+          if (homeScore < awayScore) {
+            for (const p of game.homePickers) {
+              rows.push({
+                screen_name: p.screen_name,
+                picked_team: p.picked_team,
+                matchup: `${game.away_team} @ ${game.home_team}`,
+                note: "Currently losing",
+                lastLife: p.lastLife,
+                dangerRank: p.lastLife ? 1 : 2,
+              });
+            }
+          } else if (homeScore === awayScore) {
+            for (const p of game.homePickers) {
+              rows.push({
+                screen_name: p.screen_name,
+                picked_team: p.picked_team,
+                matchup: `${game.away_team} @ ${game.home_team}`,
+                note: "Tied game",
+                lastLife: p.lastLife,
+                dangerRank: p.lastLife ? 3 : 4,
+              });
+            }
+          }
+        }
+      }
+
+      return rows;
+    })
+    .sort((a, b) => {
+      if (a.dangerRank !== b.dangerRank) return a.dangerRank - b.dangerRank;
+      return a.screen_name.localeCompare(b.screen_name);
+    });
+
+  const dangerRows = pickRows
+    .filter((p) => p.lastLife)
+    .sort((a, b) => a.screen_name.localeCompare(b.screen_name));
 
   return (
-    <main style={{ padding: 24, maxWidth: 1280, margin: "0 auto" }}>
+    <div style={{ padding: 16 }}>
       <div
         style={{
           display: "flex",
-          alignItems: "center",
           justifyContent: "space-between",
+          alignItems: "center",
           gap: 12,
-          marginBottom: 20,
+          marginBottom: 16,
         }}
       >
         <div>
-          <div style={{ fontSize: 32, fontWeight: 950, lineHeight: 1 }}>Game Day</div>
-          <div style={{ marginTop: 6, fontSize: 14, opacity: 0.75 }}>
-            Week {displayWeekNumber} live pool sweat
+          <div style={{ fontSize: 24, fontWeight: 950 }}>GameDay Dashboard</div>
+          <div style={{ opacity: 0.75, marginTop: 4 }}>
+            {displaySeasonYear} • Week {displayWeekNumber} •{" "}
+            {phaseLabel(displayPhase)}
           </div>
         </div>
 
+        <Link
+          href={`/pool/${poolId}`}
+          style={{
+            padding: "8px 12px",
+            borderRadius: 10,
+            textDecoration: "none",
+            fontWeight: 900,
+            border: "1px solid rgba(255,255,255,0.18)",
+            background: "rgba(255,255,255,0.08)",
+            color: "white",
+          }}
+        >
+          ← Back to Dashboard
+        </Link>
       </div>
 
-      <section
-        style={{
-          border: "1px solid rgba(255,255,255,0.12)",
-          borderRadius: 18,
-          padding: 18,
-          background: "rgba(255,255,255,0.03)",
-          marginBottom: 20,
-        }}
-      >
-        <div style={{ fontSize: 18, fontWeight: 900, marginBottom: 12 }}>Top Sweat Games</div>
-
-        {sweatGames.length === 0 ? (
-          <div style={{ opacity: 0.6 }}>No picked games yet.</div>
-        ) : (
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))",
-              gap: 12,
-            }}
-          >
-            {sweatGames.map(({ game, totalPicks, dangerCount }) => (
-              <div
-                key={game.id}
-                style={{
-                  border: "1px solid rgba(255,255,255,0.10)",
-                  borderRadius: 14,
-                  padding: 14,
-                  background: "rgba(255,255,255,0.025)",
-                }}
-              >
-                <div
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "space-between",
-                    gap: 10,
-                  }}
-                >
-                  <div style={{ fontWeight: 900, fontSize: 16 }}>
-                    {normalizeTeam(game.away_team)} @ {normalizeTeam(game.home_team)}
-                  </div>
-                  <GameStatusPill status={game.status} />
-                </div>
-
-                <div style={{ marginTop: 10, fontSize: 13, opacity: 0.8 }}>
-                  {totalPicks} total pick{totalPicks === 1 ? "" : "s"}
-                </div>
-
-                <div style={{ marginTop: 4, fontSize: 13, opacity: 0.8 }}>
-                  {dangerCount} danger entr{dangerCount === 1 ? "y" : "ies"}
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </section>
-
-      <section
+      <div
         style={{
           display: "grid",
-          gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
+          gridTemplateColumns: "repeat(4, minmax(180px, 1fr))",
           gap: 12,
-          marginBottom: 20,
+          marginBottom: 16,
         }}
       >
-        <div
-          style={{
-            border: "1px solid rgba(255,255,255,0.12)",
-            borderRadius: 16,
-            padding: 16,
-            background: "rgba(255,255,255,0.03)",
-          }}
-        >
-          <div style={{ fontSize: 12, opacity: 0.7 }}>Live Picks</div>
-          <div style={{ fontSize: 28, fontWeight: 950, marginTop: 6 }}>{mappedPicks.length}</div>
+        <div style={cardStyle}>
+          <div style={labelStyle}>Games</div>
+          <div style={valueStyle}>{games.length}</div>
         </div>
-
-        <div
-          style={{
-            border: "1px solid rgba(255,255,255,0.12)",
-            borderRadius: 16,
-            padding: 16,
-            background: "rgba(255,255,255,0.03)",
-          }}
-        >
-          <div style={{ fontSize: 12, opacity: 0.7 }}>Danger Entries</div>
-          <div style={{ fontSize: 28, fontWeight: 950, marginTop: 6 }}>{dangerEntries}</div>
+        <div style={cardStyle}>
+          <div style={labelStyle}>Picked Entries</div>
+          <div style={valueStyle}>{pickRows.length}</div>
         </div>
-
-        <div
-          style={{
-            border: "1px solid rgba(255,255,255,0.12)",
-            borderRadius: 16,
-            padding: 16,
-            background: "rgba(255,255,255,0.03)",
-          }}
-        >
-          <div style={{ fontSize: 12, opacity: 0.7 }}>Most Picked Team</div>
-          <div style={{ fontSize: 28, fontWeight: 950, marginTop: 6 }}>{mostPickedTeam}</div>
-          <div style={{ fontSize: 12, opacity: 0.7, marginTop: 4 }}>
-            {mostPickedCount} pick{mostPickedCount === 1 ? "" : "s"}
-          </div>
+        <div style={cardStyle}>
+          <div style={labelStyle}>Sweating</div>
+          <div style={valueStyle}>{sweatEntries.length}</div>
         </div>
-
-        <div
-          style={{
-            border: "1px solid rgba(255,255,255,0.12)",
-            borderRadius: 16,
-            padding: 16,
-            background: "rgba(255,255,255,0.03)",
-          }}
-        >
-          <div style={{ fontSize: 12, opacity: 0.7 }}>Active Games</div>
-          <div style={{ fontSize: 28, fontWeight: 950, marginTop: 6 }}>{activeGames}</div>
+        <div style={cardStyle}>
+          <div style={labelStyle}>Danger Zone</div>
+          <div style={valueStyle}>{dangerRows.length}</div>
         </div>
-      </section>
+      </div>
 
-      <section
-        style={{
-          border: "1px solid rgba(255,255,255,0.12)",
-          borderRadius: 18,
-          padding: 18,
-          background: "rgba(255,255,255,0.03)",
-        }}
-      >
-        <div style={{ fontSize: 18, fontWeight: 900, marginBottom: 14 }}>
-          Current Week Games
-        </div>
+      <section style={sectionStyle}>
+        <div style={sectionTitleStyle}>Current Week Games</div>
 
-        {sortedGames.length === 0 ? (
-          <div style={{ opacity: 0.6 }}>No games found for this week.</div>
-        ) : (
-          <div style={{ display: "grid", gap: 14 }}>
-            {sortedGames.map(({ game, awayPicks, homePicks, totalPicks, dangerCount }) => (
+        <div style={{ display: "grid", gap: 12 }}>
+          {gameCards.map((game) => (
+            <div
+              key={game.id}
+              style={{
+                borderRadius: 14,
+                border: "1px solid rgba(255,255,255,0.12)",
+                background: "rgba(255,255,255,0.04)",
+                padding: 14,
+              }}
+            >
               <div
-                key={game.id}
                 style={{
-                  border: "1px solid rgba(255,255,255,0.10)",
-                  borderRadius: 18,
-                  padding: 16,
-                  background: "rgba(255,255,255,0.025)",
+                  display: "flex",
+                  justifyContent: "space-between",
+                  gap: 12,
+                  marginBottom: 10,
+                  flexWrap: "wrap",
                 }}
               >
-                <div
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "space-between",
-                    gap: 12,
-                    marginBottom: 14,
-                    flexWrap: "wrap",
-                  }}
-                >
-                  <div>
-                    <div style={{ fontSize: 18, fontWeight: 900 }}>
-                      {normalizeTeam(game.away_team)} @ {normalizeTeam(game.home_team)}
-                    </div>
-                    <div style={{ fontSize: 13, opacity: 0.7, marginTop: 4 }}>
-                      {totalPicks} pick{totalPicks === 1 ? "" : "s"} • {dangerCount} danger
-                    </div>
-                  </div>
-
-                  <GameStatusPill status={game.status} />
+                <div style={{ fontWeight: 950 }}>
+                  {game.away_team} ({game.awayPickers.length}){" "}
+                  {game.away_score ?? "—"} @ {game.home_team} (
+                  {game.homePickers.length}) {game.home_score ?? "—"}
                 </div>
-
-                <div
-                  style={{
-                    display: "grid",
-                    gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))",
-                    gap: 12,
-                  }}
-                >
-                  <TeamPanel
-                    team={game.away_team}
-                    score={game.away_score}
-                    picks={awayPicks}
-                    game={game}
-                  />
-                  <TeamPanel
-                    team={game.home_team}
-                    score={game.home_score}
-                    picks={homePicks}
-                    game={game}
-                  />
+                <div style={{ opacity: 0.75, fontWeight: 800 }}>
+                  {gameStatusText(game)}
                 </div>
               </div>
-            ))}
-          </div>
-        )}
+
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "1fr 1fr",
+                  gap: 12,
+                }}
+              >
+                <div style={teamBoxStyle}>
+                  <div style={{ fontWeight: 900, marginBottom: 8 }}>
+                    {game.away_team} picks ({game.awayPickers.length})
+                  </div>
+
+                  <div style={{ fontSize: 12, opacity: 0.75, marginBottom: 8 }}>
+                    If {game.away_team} loses:{" "}
+                    {game.awayLastLife > 0
+                      ? `${game.awayLastLife} eliminated, ${
+                          game.awayPickers.length - game.awayLastLife
+                        } survive with a strike`
+                      : game.awayPickers.length > 0
+                      ? `${game.awayPickers.length} survive with a strike`
+                      : "No pool impact"}
+                  </div>
+
+                  {game.awayPickers.length === 0 ? (
+                    <div style={{ opacity: 0.6 }}>No picks</div>
+                  ) : (
+                    <div style={{ display: "grid", gap: 6 }}>
+                      {game.awayPickers.map((p) => (
+                        <div
+                          key={`${p.user_id}|${p.entry_no}|away`}
+                          style={{ fontWeight: 800 }}
+                        >
+                          {p.screen_name}
+                          {p.was_autopick ? " • A" : ""}
+                          {p.lastLife ? " • ⚠️" : ""}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                <div style={teamBoxStyle}>
+                  <div style={{ fontWeight: 900, marginBottom: 8 }}>
+                    {game.home_team} picks ({game.homePickers.length})
+                  </div>
+
+                  <div style={{ fontSize: 12, opacity: 0.75, marginBottom: 8 }}>
+                    If {game.home_team} loses:{" "}
+                    {game.homeLastLife > 0
+                      ? `${game.homeLastLife} eliminated, ${
+                          game.homePickers.length - game.homeLastLife
+                        } survive with a strike`
+                      : game.homePickers.length > 0
+                      ? `${game.homePickers.length} survive with a strike`
+                      : "No pool impact"}
+                  </div>
+
+                  {game.homePickers.length === 0 ? (
+                    <div style={{ opacity: 0.6 }}>No picks</div>
+                  ) : (
+                    <div style={{ display: "grid", gap: 6 }}>
+                      {game.homePickers.map((p) => (
+                        <div
+                          key={`${p.user_id}|${p.entry_no}|home`}
+                          style={{ fontWeight: 800 }}
+                        >
+                          {p.screen_name}
+                          {p.was_autopick ? " • A" : ""}
+                          {p.lastLife ? " • ⚠️" : ""}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          ))}
+
+          {gameCards.length === 0 && (
+            <div style={{ opacity: 0.7 }}>No games found for this week.</div>
+          )}
+        </div>
       </section>
-    </main>
+
+      <section style={sectionStyle}>
+        <div style={sectionTitleStyle}>Who Is Sweating</div>
+
+        <div style={{ display: "grid", gap: 8 }}>
+          {sweatEntries.length === 0 ? (
+            <div style={{ opacity: 0.7 }}>No sweat entries right now.</div>
+          ) : (
+            sweatEntries.map((row, idx) => (
+              <div
+                key={`${row.screen_name}|${idx}`}
+                style={{
+                  ...listRowStyle,
+                  border:
+                    row.note === "Currently losing" || row.note === "Lost"
+                      ? "1px solid rgba(255,120,120,0.35)"
+                      : "1px solid rgba(255,255,255,0.10)",
+                  background: row.lastLife
+                    ? "rgba(255,165,0,0.10)"
+                    : row.note === "Currently losing" || row.note === "Lost"
+                    ? "rgba(255,0,0,0.08)"
+                    : "rgba(0,0,0,0.14)",
+                }}
+              >
+                <div style={{ fontWeight: 900 }}>
+                  {row.screen_name}
+                  {row.lastLife ? " • ⚠️" : ""}
+                </div>
+                <div>{row.picked_team}</div>
+                <div>{row.matchup}</div>
+                <div>
+                  {row.note}
+                  {row.lastLife ? " • Last life" : ""}
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+      </section>
+
+      <section style={sectionStyle}>
+        <div style={sectionTitleStyle}>Danger Zone Entries</div>
+
+        <div style={{ display: "grid", gap: 8 }}>
+          {dangerRows.length === 0 ? (
+            <div style={{ opacity: 0.7 }}>No entries on last life.</div>
+          ) : (
+            dangerRows.map((row) => (
+              <div key={`${row.user_id}|${row.entry_no}`} style={listRowStyle}>
+                <div style={{ fontWeight: 900 }}>{row.screen_name}</div>
+                <div>{row.picked_team || "No pick yet"}</div>
+                <div>Losses: {row.losses}</div>
+                <div>⚠️ Last life</div>
+              </div>
+            ))
+          )}
+        </div>
+      </section>
+    </div>
   );
 }
+
+const cardStyle: React.CSSProperties = {
+  borderRadius: 14,
+  border: "1px solid rgba(255,255,255,0.16)",
+  background: "rgba(255,255,255,0.05)",
+  padding: "14px 16px",
+};
+
+const labelStyle: React.CSSProperties = {
+  fontSize: 12,
+  fontWeight: 900,
+  opacity: 0.72,
+  textTransform: "uppercase",
+  letterSpacing: 0.5,
+};
+
+const valueStyle: React.CSSProperties = {
+  marginTop: 8,
+  fontSize: 24,
+  fontWeight: 950,
+};
+
+const sectionStyle: React.CSSProperties = {
+  marginTop: 24,
+  borderRadius: 16,
+  border: "1px solid rgba(255,255,255,0.16)",
+  background: "rgba(255,255,255,0.04)",
+  padding: 16,
+};
+
+const sectionTitleStyle: React.CSSProperties = {
+  fontSize: 18,
+  fontWeight: 950,
+  marginBottom: 12,
+};
+
+const teamBoxStyle: React.CSSProperties = {
+  borderRadius: 12,
+  border: "1px solid rgba(255,255,255,0.10)",
+  background: "rgba(0,0,0,0.14)",
+  padding: 12,
+};
+
+const listRowStyle: React.CSSProperties = {
+  display: "grid",
+  gridTemplateColumns:
+    "minmax(180px, 1.2fr) minmax(120px, 1fr) minmax(140px, 1fr) minmax(140px, 1fr)",
+  gap: 10,
+  alignItems: "center",
+  padding: "10px 12px",
+  borderRadius: 12,
+  border: "1px solid rgba(255,255,255,0.10)",
+  background: "rgba(0,0,0,0.14)",
+};

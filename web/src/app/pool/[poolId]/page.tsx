@@ -65,6 +65,7 @@ export default function PoolStandingsGridPage() {
   const [savingKey, setSavingKey] = useState<string | null>(null);
   const [addingEntry, setAddingEntry] = useState(false);
   const [isCommissioner, setIsCommissioner] = useState(false);
+  const [seasonStarted, setSeasonStarted] = useState(false);
 
   useEffect(() => {
     try {
@@ -82,6 +83,18 @@ export default function PoolStandingsGridPage() {
       try {
         const { data: auth } = await supabase.auth.getUser();
         setMyUserId(auth?.user?.id ?? null);
+
+        const { data: firstGame } = await supabase
+          .from("games")
+          .select("kickoff_at")
+          .order("kickoff_at", { ascending: true })
+          .limit(1)
+          .maybeSingle();
+
+        const firstKickoff = String((firstGame as any)?.kickoff_at ?? "").trim();
+        setSeasonStarted(
+          Boolean(firstKickoff) && new Date(firstKickoff).getTime() <= Date.now()
+        );
 
         try {
           const { data: poolRow } = await supabase
@@ -226,7 +239,8 @@ export default function PoolStandingsGridPage() {
 
   const myEntries = rows.filter((r) => r.user_id === myUserId);
   const myPaidCount = myEntries.filter((r) => r.entry_fee_paid).length;
-  const canAddEntry = Boolean(myUserId) && myEntries.length < 3;
+  const canAddEntry =
+    Boolean(myUserId) && myEntries.length < 3 && !seasonStarted;
 
   const headerStyle: React.CSSProperties = {
     position: "sticky",
@@ -293,29 +307,42 @@ export default function PoolStandingsGridPage() {
   async function addEntry() {
     if (!myUserId) return;
     if (myEntries.length >= 3) return;
+    if (seasonStarted) {
+      alert("New entries can only be added before the season starts.");
+      return;
+    }
+    if (addingEntry) return;
+
+    const confirmed = window.confirm(
+      "Create a new entry for this pool?\n\nThis will add another paid/unpaid entry slot for you."
+    );
+    if (!confirmed) return;
 
     setAddingEntry(true);
 
     try {
       const supabase = createClient();
-      const nextEntryNo =
-        Math.max(...myEntries.map((e) => Number(e.entry_no ?? 1)), 0) + 1;
 
       const baseMember = members.find((m) => m.user_id === myUserId);
       const nextScreenName =
         String(baseMember?.screen_name ?? "").trim() || "Player";
 
-      const { error } = await supabase.from("pool_members").insert({
-        pool_id: poolId,
-        user_id: myUserId,
-        entry_no: nextEntryNo,
-        screen_name: nextScreenName,
-        losses: 0,
-        is_eliminated: false,
-        entry_fee_paid: false,
+      const { data, error } = await supabase.rpc("add_pool_entry", {
+        p_pool_id: poolId,
+        p_user_id: myUserId,
+        p_screen_name: nextScreenName,
       });
 
       if (error) throw error;
+
+      if (!data?.ok) {
+        if (data?.error === "MAX_ENTRIES_REACHED") {
+          alert("You already have the maximum of 3 entries.");
+        } else {
+          alert(data?.error ?? "Could not add entry.");
+        }
+        return;
+      }
 
       window.location.reload();
     } catch (e: any) {
