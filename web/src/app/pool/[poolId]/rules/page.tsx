@@ -61,7 +61,7 @@ export default async function RulesPage({
         <ul style={ul()}>
           <li style={li()}>
             Picks lock at the <strong>kickoff time</strong> of your selected
-            team’s game.
+team’s game, or <strong>1:00 PM ET Sunday</strong>, whichever comes first.
           </li>
           <li style={li()}>
             After lock, picks can’t be changed.
