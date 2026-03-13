@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 
@@ -73,6 +74,18 @@ export default async function ProfilePage({
 
   return (
     <main style={{ maxWidth: 720, margin: "0 auto", padding: 24 }}>
+      <Link
+        href="/"
+        style={{
+          textDecoration: "none",
+          fontWeight: 900,
+          display: "inline-block",
+          marginBottom: 12,
+        }}
+      >
+        ← Back to Dashboard
+      </Link>
+
       <h1 style={{ fontSize: 32, fontWeight: 900, marginBottom: 8 }}>
         Profile
       </h1>
