@@ -91,7 +91,7 @@ export default async function ProfilePage({
               opacity: 0.9,
             }}
           >
-            ← Back to Pool
+            ← Back to Dashboard
           </Link>
         </div>
       </div>
