@@ -68,6 +68,18 @@ team’s game, or <strong>1:00 PM ET Sunday</strong>, whichever comes first.
           </li>
         </ul>
       </section>
+<h3 style={{ marginTop: 20 }}>Autopick</h3>
+
+<p>
+If you do not submit a pick before the deadline, the system will
+automatically assign the largest point-spread favorite available that
+you have not used yet.
+</p>
+
+<p>
+Each entry may receive up to <strong>3 autopicks per season</strong>.
+After that, missing a pick will result in a loss for that week.
+</p>
 
       <section style={section()}>
         <h2 style={h2()}>Team Restrictions</h2>
