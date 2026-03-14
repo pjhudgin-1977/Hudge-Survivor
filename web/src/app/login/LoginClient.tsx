@@ -222,8 +222,7 @@ export default function LoginClient({ next }: { next: string | null }) {
               </div>
               <div style={{ fontSize: 13, opacity: 0.78, marginTop: 2 }}>
                 {mode === "login"
-                  ? "Sign in to make picks, sweat games, and survive 🐻"
-                  : "Create your account to join a pool 🐻"}
+? "Join the pool, make picks, sweat games, and survive 🐻"                  : "Create your account to join a pool 🐻"}
               </div>
             </div>
           </div>
@@ -494,40 +493,7 @@ export default function LoginClient({ next }: { next: string | null }) {
               {loading ? "Please wait…" : mode === "login" ? "Log in" : "Create account"}
             </button>
 
-            <div
-              style={{
-                marginTop: 14,
-                fontSize: 12,
-                opacity: 0.75,
-                lineHeight: 1.4,
-              }}
-            >
-              {mode === "login" ? (
-                <>
-                  Need a new account?{" "}
-                  <button
-                    type="button"
-                    onClick={switchToSignup}
-                    style={linkBtnStyle}
-                  >
-                    Create one here
-                  </button>
-                  .
-                </>
-              ) : (
-                <>
-                  Already have an account?{" "}
-                  <button
-                    type="button"
-                    onClick={switchToLogin}
-                    style={linkBtnStyle}
-                  >
-                    Log in
-                  </button>
-                  .
-                </>
-              )}
-            </div>
+            
           </form>
         </div>
       </div>
