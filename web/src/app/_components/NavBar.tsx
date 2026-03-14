@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 
 type NavItem = {
@@ -12,6 +12,7 @@ type NavItem = {
 
 export default function NavBar() {
   const pathname = usePathname();
+  const router = useRouter();
   const [open, setOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement | null>(null);
 
@@ -22,47 +23,52 @@ export default function NavBar() {
   const poolId = parts[1];
   const base = `/pool/${poolId}`;
 
+  async function handleLogout() {
+    const { createClient } = await import("@/lib/supabaseClient");
+    const supabase = createClient();
+    await supabase.auth.signOut();
+    router.push("/login");
+  }
+
   const items: NavItem[] = [
-  {
-    label: "🏆 Standings",
-    href: base,
-    active: (p, b) =>
-      p === b || p === `${b}/standings` || p === `${b}/standings2`,
-  },
-  {
-    label: "✏️ Pick",
-    href: `${base}/pick`,
-    active: (p, b) =>
-      p === `${b}/pick` ||
-      p.startsWith(`${b}/pick/`) ||
-      p === `${b}/my-picks`,
-  },
-  {
-    label: "💬 Message Board",
-    href: `${base}/board`,
-    active: (p, b) => p === `${b}/board`,
-  },
-  {
-    label: "🏈 Game Day",
-    href: `${base}/gameday`,
-    active: (p, b) =>
-      p === `${b}/gameday` ||
-      p === `${b}/sweat` ||
-      p === `${b}/danger`,
-  },
-];
+    {
+      label: "🏆 Standings",
+      href: base,
+      active: (p, b) =>
+        p === b || p === `${b}/standings` || p === `${b}/standings2`,
+    },
+    {
+      label: "✏️ Pick",
+      href: `${base}/pick`,
+      active: (p, b) =>
+        p === `${b}/pick` ||
+        p.startsWith(`${b}/pick/`) ||
+        p === `${b}/my-picks`,
+    },
+    {
+      label: "💬 Message Board",
+      href: `${base}/board`,
+      active: (p, b) => p === `${b}/board`,
+    },
+    {
+      label: "🏈 Game Day",
+      href: `${base}/gameday`,
+      active: (p, b) =>
+        p === `${b}/gameday` ||
+        p === `${b}/sweat` ||
+        p === `${b}/danger`,
+    },
+  ];
 
   const moreItems = [
-  { label: "Rules", href: `${base}/rules` },
-  { label: "Invite", href: `${base}/invite` },
-  { label: "Profile", href: "/profile" },
-  { label: "Payments", href: `${base}/payment` },
-  { label: "Admin", href: `${base}/admin` },
-];
+    { label: "Rules", href: `${base}/rules` },
+    { label: "Invite", href: `${base}/invite` },
+    { label: "Profile", href: "/profile" },
+    { label: "Payments", href: `${base}/payment` },
+    { label: "Admin", href: `${base}/admin` },
+  ];
 
-const moreActive = moreItems.some((item) =>
-  pathname.startsWith(item.href)
-);
+  const moreActive = moreItems.some((item) => pathname.startsWith(item.href));
 
   useEffect(() => {
     setOpen(false);
@@ -91,30 +97,30 @@ const moreActive = moreItems.some((item) =>
 
   return (
     <nav
-  style={{
-    position: "sticky",
-    top: 0,
-    zIndex: 40,
-    display: "flex",
-    gap: 10,
-    flexWrap: "wrap",
-    alignItems: "center",
-    justifyContent: "space-between",
-    padding: "8px 0",
-    marginBottom: 16,
-    background: "#020617",
-    borderBottom: "1px solid rgba(255,255,255,0.08)",
-  }}
->
+      style={{
+        position: "sticky",
+        top: 0,
+        zIndex: 40,
+        display: "flex",
+        gap: 10,
+        flexWrap: "wrap",
+        alignItems: "center",
+        justifyContent: "space-between",
+        padding: "8px 0",
+        marginBottom: 16,
+        background: "#020617",
+        borderBottom: "1px solid rgba(255,255,255,0.08)",
+      }}
+    >
       <div
         style={{
-  display: "flex",
-  gap: 8,
-  flexWrap: "wrap",
-  alignItems: "center",
-  flex: 1,
-  minWidth: 0,
-}}
+          display: "flex",
+          gap: 8,
+          flexWrap: "wrap",
+          alignItems: "center",
+          flex: 1,
+          minWidth: 0,
+        }}
       >
         {items.map((item) => {
           const active = item.active(pathname, base);
@@ -154,7 +160,8 @@ const moreActive = moreItems.some((item) =>
             display: "inline-flex",
             alignItems: "center",
             justifyContent: "center",
-            padding: "0 14px",            height: 38,
+            padding: "0 14px",
+            height: 38,
             borderRadius: 999,
             border: moreActive
               ? "1px solid #f59e0b"
@@ -187,7 +194,7 @@ const moreActive = moreItems.some((item) =>
               zIndex: 50,
             }}
           >
-                        {moreItems.map((item, index) => {
+            {moreItems.map((item, index) => {
               const isAdmin = item.label === "Admin";
 
               return (
@@ -200,16 +207,33 @@ const moreActive = moreItems.some((item) =>
                     textDecoration: "none",
                     color: isAdmin ? "#fbbf24" : "white",
                     fontWeight: isAdmin ? 800 : 700,
-                    borderBottom:
-                      index === moreItems.length - 1
-                        ? "none"
-                        : "1px solid rgba(255,255,255,0.08)",
+                    borderBottom: "1px solid rgba(255,255,255,0.08)",
                   }}
                 >
                   {item.label}
                 </a>
               );
             })}
+
+            <button
+              type="button"
+              onClick={handleLogout}
+              style={{
+                display: "block",
+                width: "100%",
+                padding: "12px 14px",
+                textDecoration: "none",
+                color: "#fca5a5",
+                fontWeight: 800,
+                border: "none",
+                borderTop: "1px solid rgba(255,255,255,0.08)",
+                background: "transparent",
+                textAlign: "left",
+                cursor: "pointer",
+              }}
+            >
+              🚪 Logout
+            </button>
           </div>
         ) : null}
       </div>
