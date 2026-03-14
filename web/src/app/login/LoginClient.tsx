@@ -20,7 +20,6 @@ export default function LoginClient({ next }: { next: string | null }) {
   const [msg, setMsg] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
-  // ✅ Supabase client created only in the browser (prevents prerender crash)
   const [supabase, setSupabase] = useState<any>(null);
 
   useEffect(() => {
@@ -69,7 +68,6 @@ export default function LoginClient({ next }: { next: string | null }) {
       return;
     }
 
-    // SIGN UP
     if (mode === "signup") {
       const nick = nickname.trim();
       if (!nick) {
@@ -91,7 +89,6 @@ export default function LoginClient({ next }: { next: string | null }) {
         return;
       }
 
-      // Email confirmations ON → no session yet
       if (!data.session) {
         setMsg(
           "Account created! Check your email to confirm, then come back to log in."
@@ -100,7 +97,6 @@ export default function LoginClient({ next }: { next: string | null }) {
         return;
       }
 
-      // If session exists, route just like login
       if (next) {
         router.push(next);
         return;
@@ -117,7 +113,6 @@ export default function LoginClient({ next }: { next: string | null }) {
       return;
     }
 
-    // LOGIN
     const { error } = await supabase.auth.signInWithPassword({
       email: email.trim(),
       password,
@@ -147,7 +142,18 @@ export default function LoginClient({ next }: { next: string | null }) {
     else router.push("/dashboard?onboarding=joinonly");
   }
 
-  // tiny shell while supabase loads
+  function switchToSignup() {
+    setErr(null);
+    setMsg(null);
+    setMode("signup");
+  }
+
+  function switchToLogin() {
+    setErr(null);
+    setMsg(null);
+    setMode("login");
+  }
+
   if (!supabase && !err) {
     return (
       <main
@@ -223,190 +229,307 @@ export default function LoginClient({ next }: { next: string | null }) {
           </div>
         </div>
 
-        <form onSubmit={onSubmit} style={{ padding: 18 }}>
-          <div style={{ fontSize: 18, fontWeight: 950, marginBottom: 12 }}>
-            {title}
-          </div>
-
-          <label style={labelStyle}>Email</label>
-          <input
-            style={inputStyle}
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            placeholder="you@example.com"
-            autoComplete="email"
-            inputMode="email"
-          />
-
-          <div style={{ height: 12 }} />
-
-          {mode === "signup" ? (
-            <>
-              <label style={labelStyle}>Nickname</label>
-              <input
-                style={inputStyle}
-                value={nickname}
-                onChange={(e) => setNickname(e.target.value)}
-                placeholder="What should we call you?"
-                autoComplete="nickname"
-              />
-              <div style={{ height: 12 }} />
-            </>
-          ) : null}
-
-          <label style={labelStyle}>Password</label>
-
-          <div style={{ position: "relative" }}>
-            <input
-              style={{ ...inputStyle, paddingRight: 44 }}
-              type={showPw ? "text" : "password"}
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder="••••••••"
-              autoComplete={mode === "login" ? "current-password" : "new-password"}
-            />
-
-            <button
-              type="button"
-              onMouseDown={(e) => e.preventDefault()}
-              onClick={() => setShowPw((v) => !v)}
-              aria-label={showPw ? "Hide password" : "Show password"}
-              title={showPw ? "Hide password" : "Show password"}
+        <div style={{ padding: 18 }}>
+          {mode === "login" ? (
+            <div
               style={{
-                position: "absolute",
-                right: 10,
-                top: "50%",
-                transform: "translateY(-50%)",
-                width: 32,
-                height: 32,
-                borderRadius: 10,
-                border: "1px solid rgba(255,255,255,0.14)",
-                background: "rgba(0,0,0,0.20)",
-                color: "rgba(255,255,255,0.92)",
-                cursor: "pointer",
-                display: "inline-flex",
-                alignItems: "center",
-                justifyContent: "center",
-                fontSize: 16,
-                lineHeight: 1,
+                marginBottom: 18,
+                padding: "14px 14px 15px",
+                borderRadius: 16,
+                border: "1px solid rgba(255,92,0,0.34)",
+                background:
+                  "linear-gradient(180deg, rgba(255,92,0,0.18), rgba(255,92,0,0.07))",
+                boxShadow: "0 12px 28px rgba(255,92,0,0.12)",
               }}
             >
-              {showPw ? "🙈" : "👁️"}
-            </button>
-          </div>
-
-          {mode === "login" ? (
-            <div style={{ marginTop: 10, display: "flex", justifyContent: "flex-end" }}>
-              <button
-                type="button"
-                onClick={() => router.push("/reset-password")}
+              <div
                 style={{
-                  background: "transparent",
-                  border: "none",
-                  color: "rgba(255,255,255,0.78)",
-                  textDecoration: "underline",
-                  fontWeight: 800,
-                  cursor: "pointer",
-                  padding: 0,
+                  fontSize: 12,
+                  fontWeight: 900,
+                  letterSpacing: 0.3,
+                  opacity: 0.82,
+                  textTransform: "uppercase",
                 }}
               >
-                Forgot password?
+                New here?
+              </div>
+
+              <div
+                style={{
+                  marginTop: 6,
+                  fontSize: 18,
+                  fontWeight: 950,
+                  lineHeight: 1.25,
+                }}
+              >
+                Create your account first
+              </div>
+
+              <div
+                style={{
+                  marginTop: 6,
+                  fontSize: 13,
+                  lineHeight: 1.45,
+                  opacity: 0.82,
+                }}
+              >
+                New players need to create an account before joining a pool and
+                making picks.
+              </div>
+
+              <button
+                type="button"
+                onClick={switchToSignup}
+                style={{
+                  marginTop: 12,
+                  width: "100%",
+                  padding: "12px 14px",
+                  borderRadius: 14,
+                  border: "1px solid rgba(255,255,255,0.18)",
+                  background:
+                    "linear-gradient(180deg, rgba(255,92,0,1), rgba(255,92,0,0.78))",
+                  color: "white",
+                  fontWeight: 950,
+                  letterSpacing: 0.2,
+                  cursor: "pointer",
+                  boxShadow: "0 12px 30px rgba(255,92,0,0.22)",
+                }}
+              >
+                Create Account
               </button>
-            </div>
-          ) : null}
 
-          {err ? (
+              <div
+                style={{
+                  marginTop: 8,
+                  textAlign: "center",
+                  fontSize: 12,
+                  opacity: 0.76,
+                }}
+              >
+                Already signed up? Use the sign in form below.
+              </div>
+            </div>
+          ) : (
             <div
               style={{
-                marginTop: 12,
-                padding: "10px 12px",
-                borderRadius: 12,
-                border: "1px solid rgba(255,70,70,0.35)",
-                background: "rgba(255,70,70,0.10)",
-                color: "rgba(255,210,210,0.95)",
-                fontSize: 13,
-                fontWeight: 800,
+                marginBottom: 18,
+                padding: "12px 14px",
+                borderRadius: 14,
+                border: "1px solid rgba(255,255,255,0.10)",
+                background: "rgba(255,255,255,0.04)",
               }}
             >
-              {err}
-            </div>
-          ) : null}
-
-          {msg ? (
-            <div
-              style={{
-                marginTop: 12,
-                padding: "10px 12px",
-                borderRadius: 12,
-                border: "1px solid rgba(0,255,140,0.35)",
-                background: "rgba(0,255,140,0.10)",
-                color: "rgba(220,255,235,0.95)",
-                fontSize: 13,
-                fontWeight: 800,
-              }}
-            >
-              {msg}
-            </div>
-          ) : null}
-
-          <button
-            type="submit"
-            disabled={loading}
-            style={{
-              marginTop: 14,
-              width: "100%",
-              padding: "12px 14px",
-              borderRadius: 14,
-              border: "1px solid rgba(255,255,255,0.18)",
-              background: loading
-                ? "rgba(255,255,255,0.12)"
-                : "linear-gradient(180deg, rgba(255,92,0,0.95), rgba(255,92,0,0.72))",
-              color: "white",
-              fontWeight: 950,
-              letterSpacing: 0.2,
-              cursor: loading ? "not-allowed" : "pointer",
-              boxShadow: loading ? "none" : "0 12px 30px rgba(255,92,0,0.22)",
-            }}
-          >
-            {loading ? "Please wait…" : mode === "login" ? "Log in" : "Create account"}
-          </button>
-
-          <div style={{ marginTop: 14, fontSize: 12, opacity: 0.75, lineHeight: 1.4 }}>
-            {mode === "login" ? (
-              <>
-                New here?{" "}
-                <button
-                  type="button"
-                  onClick={() => {
-                    setErr(null);
-                    setMsg(null);
-                    setMode("signup");
-                  }}
-                  style={linkBtnStyle}
-                >
-                  Create an account
-                </button>
-                .
-              </>
-            ) : (
-              <>
+              <div style={{ fontSize: 13, lineHeight: 1.45, opacity: 0.84 }}>
                 Already have an account?{" "}
                 <button
                   type="button"
-                  onClick={() => {
-                    setErr(null);
-                    setMsg(null);
-                    setMode("login");
-                  }}
+                  onClick={switchToLogin}
                   style={linkBtnStyle}
                 >
-                  Log in
+                  Log in here
                 </button>
                 .
+              </div>
+            </div>
+          )}
+
+          <form onSubmit={onSubmit}>
+            <div style={{ fontSize: 18, fontWeight: 950, marginBottom: 12 }}>
+              {title}
+            </div>
+
+            <label style={labelStyle}>Email</label>
+            <input
+              style={inputStyle}
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="you@example.com"
+              autoComplete="email"
+              inputMode="email"
+            />
+
+            <div style={{ height: 12 }} />
+
+            {mode === "signup" ? (
+              <>
+                <label style={labelStyle}>Nickname</label>
+                <input
+                  style={inputStyle}
+                  value={nickname}
+                  onChange={(e) => setNickname(e.target.value)}
+                  placeholder="What should we call you?"
+                  autoComplete="nickname"
+                />
+                <div style={{ height: 12 }} />
               </>
-            )}
-          </div>
-        </form>
+            ) : null}
+
+            <label style={labelStyle}>Password</label>
+
+            <div style={{ position: "relative" }}>
+              <input
+                style={{ ...inputStyle, paddingRight: 44 }}
+                type={showPw ? "text" : "password"}
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="••••••••"
+                autoComplete={
+                  mode === "login" ? "current-password" : "new-password"
+                }
+              />
+
+              <button
+                type="button"
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={() => setShowPw((v) => !v)}
+                aria-label={showPw ? "Hide password" : "Show password"}
+                title={showPw ? "Hide password" : "Show password"}
+                style={{
+                  position: "absolute",
+                  right: 10,
+                  top: "50%",
+                  transform: "translateY(-50%)",
+                  width: 32,
+                  height: 32,
+                  borderRadius: 10,
+                  border: "1px solid rgba(255,255,255,0.14)",
+                  background: "rgba(0,0,0,0.20)",
+                  color: "rgba(255,255,255,0.92)",
+                  cursor: "pointer",
+                  display: "inline-flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  fontSize: 16,
+                  lineHeight: 1,
+                }}
+              >
+                {showPw ? "🙈" : "👁️"}
+              </button>
+            </div>
+
+            {mode === "login" ? (
+              <div
+                style={{
+                  marginTop: 10,
+                  display: "flex",
+                  justifyContent: "flex-end",
+                }}
+              >
+                <button
+                  type="button"
+                  onClick={() => router.push("/reset-password")}
+                  style={{
+                    background: "transparent",
+                    border: "none",
+                    color: "rgba(255,255,255,0.78)",
+                    textDecoration: "underline",
+                    fontWeight: 800,
+                    cursor: "pointer",
+                    padding: 0,
+                  }}
+                >
+                  Forgot password?
+                </button>
+              </div>
+            ) : null}
+
+            {err ? (
+              <div
+                style={{
+                  marginTop: 12,
+                  padding: "10px 12px",
+                  borderRadius: 12,
+                  border: "1px solid rgba(255,70,70,0.35)",
+                  background: "rgba(255,70,70,0.10)",
+                  color: "rgba(255,210,210,0.95)",
+                  fontSize: 13,
+                  fontWeight: 800,
+                }}
+              >
+                {err}
+              </div>
+            ) : null}
+
+            {msg ? (
+              <div
+                style={{
+                  marginTop: 12,
+                  padding: "10px 12px",
+                  borderRadius: 12,
+                  border: "1px solid rgba(0,255,140,0.35)",
+                  background: "rgba(0,255,140,0.10)",
+                  color: "rgba(220,255,235,0.95)",
+                  fontSize: 13,
+                  fontWeight: 800,
+                }}
+              >
+                {msg}
+              </div>
+            ) : null}
+
+            <button
+              type="submit"
+              disabled={loading}
+              style={{
+                marginTop: 14,
+                width: "100%",
+                padding: "12px 14px",
+                borderRadius: 14,
+                border: "1px solid rgba(255,255,255,0.18)",
+                background: loading
+                  ? "rgba(255,255,255,0.12)"
+                  : mode === "login"
+                    ? "rgba(255,255,255,0.08)"
+                    : "linear-gradient(180deg, rgba(255,92,0,0.95), rgba(255,92,0,0.72))",
+                color: "white",
+                fontWeight: 950,
+                letterSpacing: 0.2,
+                cursor: loading ? "not-allowed" : "pointer",
+                boxShadow:
+                  loading || mode === "login"
+                    ? "none"
+                    : "0 12px 30px rgba(255,92,0,0.22)",
+              }}
+            >
+              {loading ? "Please wait…" : mode === "login" ? "Log in" : "Create account"}
+            </button>
+
+            <div
+              style={{
+                marginTop: 14,
+                fontSize: 12,
+                opacity: 0.75,
+                lineHeight: 1.4,
+              }}
+            >
+              {mode === "login" ? (
+                <>
+                  Need a new account?{" "}
+                  <button
+                    type="button"
+                    onClick={switchToSignup}
+                    style={linkBtnStyle}
+                  >
+                    Create one here
+                  </button>
+                  .
+                </>
+              ) : (
+                <>
+                  Already have an account?{" "}
+                  <button
+                    type="button"
+                    onClick={switchToLogin}
+                    style={linkBtnStyle}
+                  >
+                    Log in
+                  </button>
+                  .
+                </>
+              )}
+            </div>
+          </form>
+        </div>
       </div>
     </main>
   );
