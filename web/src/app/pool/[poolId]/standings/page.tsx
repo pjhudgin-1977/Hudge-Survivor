@@ -246,7 +246,6 @@ const full_name =
                   <td>{idx + 1}</td>
 <td style={{ fontWeight: 800 }}>
   {r.screen_name}
-  <div style={{ color: "yellow", fontSize: 12 }}>TEST NAME LINE</div>
 </td>                 <td>{statusBadge(r)}</td>
 
                   <td style={{ fontWeight: 800 }}>
