@@ -6,23 +6,31 @@ import SweatIntensityMeter from "@/app/_components/SweatIntensityMeter";
 type PickRow = {
   user_id?: string | null;
   screen_name?: string | null;
+  entry_no?: number | null;
 
   game_id?: string | null;
   kickoff_at?: string | null;
   status?: string | null;
+  game_status?: string | null;
 
   home_team?: string | null;
   away_team?: string | null;
   home_score?: number | null;
   away_score?: number | null;
+  winner_team?: string | null;
+  was_tie?: boolean | null;
 
-  // these exist on v_sweat_game_board
   season_year?: number | null;
   week_number?: number | null;
   phase?: string | null;
 
   pick_team?: string | null;
   picked_team?: string | null;
+  pick_result?: string | null;
+
+  losses?: number | null;
+  is_eliminated?: boolean | null;
+  still_alive?: boolean | null;
 };
 
 type GameGroup = {
@@ -33,6 +41,8 @@ type GameGroup = {
   away_team: string | null;
   home_score: number | null;
   away_score: number | null;
+  winner_team: string | null;
+  was_tie: boolean | null;
 
   season_year: number | null;
   week_number: number | null;
@@ -41,7 +51,12 @@ type GameGroup = {
   picks: {
     user_id: string | null;
     screen_name: string;
+    entry_no: number | null;
     pick_team: string | null;
+    pick_result: string | null;
+    losses: number | null;
+    is_eliminated: boolean;
+    still_alive: boolean;
   }[];
 };
 
@@ -57,18 +72,11 @@ function fmtKickoff(d?: string | null) {
   return dt.toLocaleString();
 }
 
-function kickoffIsPast(kickoffAt?: string | null) {
-  if (!kickoffAt) return false;
-  const dt = new Date(kickoffAt);
-  if (isNaN(dt.getTime())) return false;
-  return Date.now() >= dt.getTime();
-}
-
 function isFinalStatus(status?: string | null) {
   const s = String(status ?? "").toLowerCase();
   return (
     s.includes("final") ||
-    s.includes("post") || // postgame / postseason-like labels
+    s.includes("post") ||
     s === "finished" ||
     s === "complete" ||
     s === "completed"
@@ -79,25 +87,24 @@ function haveScores(g: GameGroup) {
   return typeof g.home_score === "number" && typeof g.away_score === "number";
 }
 
-// ✅ Stronger completion rule: status says final OR we have scores and kickoff is in the past
 function isComplete(g: GameGroup) {
-  return isFinalStatus(g.status) || (haveScores(g) && kickoffIsPast(g.kickoff_at));
+  return isFinalStatus(g.status) || g.winner_team !== null || g.was_tie === true;
 }
 
 function winnerTeam(g: GameGroup): string | null {
+  if (g.winner_team) return g.winner_team;
   if (!haveScores(g)) return null;
+
   const h = g.home_score as number;
   const a = g.away_score as number;
-  if (h === a) return null; // tie
+
+  if (h === a) return null;
   return h > a ? (g.home_team ?? null) : (g.away_team ?? null);
 }
 
-// 0..100 “risk score”
-function riskScoreForPick(g: GameGroup, pickTeam: string | null) {
-  // If complete, no sweat
+function riskScoreForPick(g: GameGroup, pickTeam: string | null, stillAlive: boolean) {
+  if (!stillAlive) return 0;
   if (isComplete(g)) return 0;
-
-  // Pre-game: default moderate “anticipation”
   if (!haveScores(g)) return 50;
 
   const home = String(g.home_team ?? "");
@@ -120,7 +127,6 @@ function riskScoreForPick(g: GameGroup, pickTeam: string | null) {
 
   const margin = (pickScore ?? 0) - (oppScore ?? 0);
 
-  // Tie counts as loss -> Panic
   if (margin <= 0) return 95;
   if (margin <= 7) return 65;
   return 30;
@@ -132,24 +138,14 @@ function riskLabel(score: number) {
   return { icon: "😌", label: "Chill" };
 }
 
-function pickResult(
-  g: GameGroup,
-  pickTeam: string | null
-): { text: string; title: string } | null {
-  // ✅ show result when game is “complete enough”
-  if (!isComplete(g)) return null;
-  if (!haveScores(g)) return null;
+function pickResultBadge(pickResult: string | null, stillAlive: boolean) {
+  const r = String(pickResult ?? "").toLowerCase();
 
-  const win = winnerTeam(g);
-  if (!win) {
-    // tie => loss per rules
-    return { text: "T (L)", title: "Tie game (counts as loss)" };
-  }
+  if (r === "win") return { text: "✅ WIN", title: "Win" };
+  if (r === "loss" && !stillAlive) return { text: "☠️ OUT", title: "Loss / eliminated" };
+  if (r === "loss") return { text: "❌ LOSS", title: "Loss" };
 
-  if (!pickTeam) return { text: "—", title: "No pick" };
-
-  if (String(pickTeam) === String(win)) return { text: "W", title: "Win" };
-  return { text: "L", title: "Loss" };
+  return null;
 }
 
 export default async function SweatPage({
@@ -181,7 +177,6 @@ export default async function SweatPage({
   }
 
   const list = (rows ?? []) as PickRow[];
-
   const gamesMap = new Map<string, GameGroup>();
 
   for (const r of list) {
@@ -189,19 +184,22 @@ export default async function SweatPage({
     if (!gameId) continue;
 
     const pickTeam = (r.pick_team ?? r.picked_team ?? null) as string | null;
+    const status = (r.game_status ?? r.status ?? null) as string | null;
 
     if (!gamesMap.has(gameId)) {
       gamesMap.set(gameId, {
         game_id: gameId,
         kickoff_at: (r.kickoff_at ?? null) as string | null,
-        status: (r.status ?? null) as string | null,
+        status,
         home_team: (r.home_team ?? null) as string | null,
         away_team: (r.away_team ?? null) as string | null,
-        home_score: typeof r.home_score === "number" ? (r.home_score as number) : null,
-        away_score: typeof r.away_score === "number" ? (r.away_score as number) : null,
+        home_score: typeof r.home_score === "number" ? r.home_score : null,
+        away_score: typeof r.away_score === "number" ? r.away_score : null,
+        winner_team: (r.winner_team ?? null) as string | null,
+        was_tie: typeof r.was_tie === "boolean" ? r.was_tie : null,
 
-        season_year: typeof r.season_year === "number" ? (r.season_year as number) : null,
-        week_number: typeof r.week_number === "number" ? (r.week_number as number) : null,
+        season_year: typeof r.season_year === "number" ? r.season_year : null,
+        week_number: typeof r.week_number === "number" ? r.week_number : null,
         phase: (r.phase ?? null) as string | null,
 
         picks: [],
@@ -217,22 +215,29 @@ export default async function SweatPage({
     g.picks.push({
       user_id: (r.user_id ?? null) as string | null,
       screen_name: screen,
+      entry_no: typeof r.entry_no === "number" ? r.entry_no : null,
       pick_team: pickTeam,
+      pick_result: (r.pick_result ?? null) as string | null,
+      losses: typeof r.losses === "number" ? r.losses : null,
+      is_eliminated: r.is_eliminated === true,
+      still_alive: r.still_alive !== false,
     });
   }
 
   const games = Array.from(gamesMap.values());
 
-  // Next relevant game (first not complete, otherwise first game)
-  const nextGame = games.find((g) => !isComplete(g)) ?? games[0] ?? null;
+  const nextGame =
+    games.find((g) => !isComplete(g) && g.picks.some((p) => p.still_alive)) ??
+    games.find((g) => !isComplete(g)) ??
+    games[0] ??
+    null;
 
-  // Decide “current” week/phase for popularity: use next game if present, else first game
   const popularityContext = nextGame ?? games[0] ?? null;
   const popWeek = popularityContext?.week_number ?? null;
   const popPhase = popularityContext?.phase ?? null;
 
-  // Fetch popularity (counts per team) for that week/phase
   let popularity: { team: string; count: number }[] = [];
+
   if (popWeek != null && popPhase) {
     const { data: popRows } = await supabase
       .from("v_pick_popularity")
@@ -265,8 +270,10 @@ export default async function SweatPage({
   }[] = [];
 
   if (nextGame) {
-    const scores = nextGame.picks.map((p) => {
-      const score = riskScoreForPick(nextGame, p.pick_team);
+    const activePicks = nextGame.picks.filter((p) => p.still_alive);
+
+    const scores = activePicks.map((p) => {
+      const score = riskScoreForPick(nextGame, p.pick_team, p.still_alive);
       return {
         score,
         screen_name: p.screen_name,
@@ -305,11 +312,10 @@ export default async function SweatPage({
         </div>
 
         <div style={{ opacity: 0.75, fontSize: 13 }}>
-          <strong>Intensity legend:</strong> 😌 Chill · 😅 Sweat · 😱 Panic · ✅ Done
+          <strong>Intensity legend:</strong> 😌 Chill · 😅 Sweat · 😱 Panic · ✅ Done · ☠️ Out
         </div>
       </div>
 
-      {/* 🔥 Pick Popularity Panel */}
       <div
         style={{
           marginTop: 16,
@@ -335,13 +341,7 @@ export default async function SweatPage({
           </div>
 
           <div style={{ opacity: 0.75, fontSize: 13 }}>
-            {popularityTotal > 0 ? (
-              <>
-                {popularityTotal} picks counted
-              </>
-            ) : (
-              <>No picks yet</>
-            )}
+            {popularityTotal > 0 ? <>{popularityTotal} picks counted</> : <>No picks yet</>}
           </div>
         </div>
 
@@ -351,7 +351,6 @@ export default async function SweatPage({
           <div style={{ display: "grid", gap: 8 }}>
             {popularity.slice(0, 10).map((r) => {
               const pct = popularityTotal ? Math.round((r.count / popularityTotal) * 100) : 0;
-              const barPct = popularityTotal ? Math.round((r.count / popularityTotal) * 100) : 0;
 
               return (
                 <div
@@ -378,8 +377,8 @@ export default async function SweatPage({
                     <div
                       style={{
                         height: "100%",
-                        width: `${barPct}%`,
-                        background: "rgba(255,95,0,0.75)", // Bears-ish orange pop
+                        width: `${pct}%`,
+                        background: "rgba(255,95,0,0.75)",
                       }}
                     />
                   </div>
@@ -416,12 +415,12 @@ export default async function SweatPage({
           >
             <div>
               <div style={{ fontSize: 14, opacity: 0.75 }}>
-                Pool Sweat Intensity (next game)
+                Pool Sweat Intensity (next active game)
               </div>
               <div style={{ marginTop: 4, fontSize: 16, fontWeight: 800 }}>
                 {poolMeta.icon} {poolMeta.label}{" "}
                 <span style={{ opacity: 0.7, fontWeight: 600 }}>
-                  · Avg {poolAvg} / 100 · {poolCount} picks
+                  · Avg {poolAvg} / 100 · {poolCount} active picks
                 </span>
               </div>
               <div style={{ marginTop: 4, fontSize: 13, opacity: 0.75 }}>
@@ -431,7 +430,7 @@ export default async function SweatPage({
             </div>
 
             <SweatIntensityMeter
-              status={nextGame.status}
+              status={isComplete(nextGame) ? "final" : nextGame.status}
               kickoffAt={nextGame.kickoff_at}
               homeTeam={nextGame.home_team}
               awayTeam={nextGame.away_team}
@@ -450,11 +449,11 @@ export default async function SweatPage({
             }}
           >
             <div style={{ fontSize: 13, opacity: 0.75 }}>
-              <strong>Top 3 sweats</strong> (highest risk right now)
+              <strong>Top 3 sweats</strong> highest risk among active entries
             </div>
 
             {topSweats.length === 0 ? (
-              <div style={{ opacity: 0.75, fontSize: 13 }}>No picks yet.</div>
+              <div style={{ opacity: 0.75, fontSize: 13 }}>No active picks yet.</div>
             ) : (
               topSweats.map((p, idx) => {
                 const meta = riskLabel(p.score);
@@ -502,8 +501,8 @@ export default async function SweatPage({
                 : `${g.away_team ?? "AWAY"} @ ${g.home_team ?? "HOME"}`;
 
             const picksSorted = [...g.picks].sort((a, b) => {
-              const ra = riskScoreForPick(g, a.pick_team);
-              const rb = riskScoreForPick(g, b.pick_team);
+              const ra = riskScoreForPick(g, a.pick_team, a.still_alive);
+              const rb = riskScoreForPick(g, b.pick_team, b.still_alive);
               return rb - ra;
             });
 
@@ -536,17 +535,19 @@ export default async function SweatPage({
                   >
                     {picksSorted.map((p) => {
                       const isMe = p.user_id && me.id && p.user_id === me.id;
-                      const res = pickResult(g, p.pick_team);
+                      const badge = pickResultBadge(p.pick_result, p.still_alive);
 
                       return (
                         <div
-                          key={`${g.game_id}:${p.user_id ?? p.screen_name}`}
+                          key={`${g.game_id}:${p.user_id ?? p.screen_name}:${p.entry_no ?? "entry"}`}
                           style={{
                             display: "flex",
                             alignItems: "center",
                             justifyContent: "space-between",
                             gap: 12,
                             flexWrap: "wrap",
+                            opacity: p.still_alive ? 1 : 0.6,
+                            textDecoration: p.still_alive ? "none" : "line-through",
                           }}
                         >
                           <div style={{ display: "flex", gap: 10, alignItems: "baseline" }}>
@@ -559,9 +560,9 @@ export default async function SweatPage({
                               Pick: <strong>{p.pick_team ?? "—"}</strong>
                             </span>
 
-                            {res ? (
+                            {badge ? (
                               <span
-                                title={res.title}
+                                title={badge.title}
                                 style={{
                                   fontSize: 12,
                                   padding: "2px 8px",
@@ -570,20 +571,26 @@ export default async function SweatPage({
                                   opacity: 0.9,
                                 }}
                               >
-                                {res.text}
+                                {badge.text}
                               </span>
                             ) : null}
                           </div>
 
-                          <SweatIntensityMeter
-                            status={isComplete(g) ? "final" : g.status}
-                            kickoffAt={g.kickoff_at}
-                            homeTeam={g.home_team}
-                            awayTeam={g.away_team}
-                            pickTeam={p.pick_team}
-                            homeScore={g.home_score}
-                            awayScore={g.away_score}
-                          />
+                          {p.still_alive ? (
+                            <SweatIntensityMeter
+                              status={isComplete(g) ? "final" : g.status}
+                              kickoffAt={g.kickoff_at}
+                              homeTeam={g.home_team}
+                              awayTeam={g.away_team}
+                              pickTeam={p.pick_team}
+                              homeScore={g.home_score}
+                              awayScore={g.away_score}
+                            />
+                          ) : (
+                            <div style={{ fontSize: 13, fontWeight: 800, opacity: 0.85 }}>
+                              ☠️ OUT
+                            </div>
+                          )}
                         </div>
                       );
                     })}
