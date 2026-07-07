@@ -323,7 +323,7 @@ export default function PoolPickPage() {
         </div>
 
         {isLocked && (
-          <div style={{ marginTop: 8, color: "#b00", fontWeight: 600 }}>
+          <div style={{ marginTop: 8, color: "#fca5a5", fontWeight: 800 }}>
             🔒 Picks are locked for this week.
           </div>
         )}
@@ -374,6 +374,12 @@ export default function PoolPickPage() {
               Eligible teams
             </div>
 
+            {isLocked && (
+              <div style={{ marginBottom: 12, opacity: 0.8 }}>
+                Picks are locked. Your existing pick is shown below and cannot be changed.
+              </div>
+            )}
+
             <div
               style={{
                 display: "grid",
@@ -396,7 +402,11 @@ export default function PoolPickPage() {
                       <button
                         key={`${team}-${g.home_team}-${g.away_team}-${g.kickoff_at}`}
                         type="button"
-                        onClick={() => setSelectedTeam(team)}
+                        disabled={isLocked}
+                        onClick={() => {
+                          if (isLocked) return;
+                          setSelectedTeam(team);
+                        }}
                         style={{
                           padding: "14px",
                           borderRadius: 12,
@@ -406,9 +416,10 @@ export default function PoolPickPage() {
                           background: isSelected ? "#f97316" : "#111827",
                           color: isSelected ? "#000" : "#fff",
                           fontWeight: 800,
-                          cursor: "pointer",
+                          cursor: isLocked ? "not-allowed" : "pointer",
                           textAlign: "left",
                           lineHeight: 1.4,
+                          opacity: isLocked && !isSelected ? 0.55 : 1,
                           boxShadow: isSelected
                             ? "0 0 0 2px #fb923c, 0 4px 14px rgba(0,0,0,0.35)"
                             : "0 2px 6px rgba(0,0,0,0.35)",
@@ -452,9 +463,10 @@ export default function PoolPickPage() {
                   color: "#000",
                   border: "none",
                   cursor: isLocked || !selectedTeam ? "not-allowed" : "pointer",
+                  opacity: isLocked || !selectedTeam ? 0.75 : 1,
                 }}
               >
-                Submit Pick
+                {isLocked ? "Picks Locked" : "Submit Pick"}
               </button>
             </div>
 
