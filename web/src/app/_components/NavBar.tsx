@@ -46,6 +46,11 @@ export default function NavBar() {
         p === `${b}/my-picks`,
     },
     {
+      label: "📅 Schedule",
+      href: `${base}/schedule`,
+      active: (p, b) => p === `${b}/schedule`,
+    },
+    {
       label: "💬 Message Board",
       href: `${base}/board`,
       active: (p, b) => p === `${b}/board`,
@@ -194,7 +199,7 @@ export default function NavBar() {
               zIndex: 50,
             }}
           >
-            {moreItems.map((item, index) => {
+            {moreItems.map((item) => {
               const isAdmin = item.label === "Admin";
 
               return (
