@@ -3,6 +3,10 @@
     {
       "path": "/api/cron/autolock",
       "schedule": "0 10 * * *"
+    },
+    {
+      "path": "/api/cron/update-spreads",
+      "schedule": "0 12 * * *"
     }
   ]
 }

@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
+
 type PageProps = {
   params: Promise<{
     poolId: string;
@@ -21,7 +22,8 @@ type Game = {
   winner_team: string | null;
   was_tie: boolean | null;
   favorite_team: string | null;
-  spread_points: number | null;
+  point_spread: number | null;
+  spread_last_updated: string | null;
 };
 
 function formatKickoff(kickoffAt: string) {
@@ -36,11 +38,15 @@ function formatKickoff(kickoffAt: string) {
 }
 
 function formatSpread(game: Game) {
-  if (!game.favorite_team || game.spread_points === null) {
+  if (game.point_spread === null) {
     return "Spread: TBD";
   }
 
-  return `${game.favorite_team} -${Math.abs(game.spread_points)}`;
+  if (game.point_spread === 0 || !game.favorite_team) {
+    return "Spread: Pick'em";
+  }
+
+  return `Spread: ${game.favorite_team} ${game.point_spread}`;
 }
 
 function formatResult(game: Game) {
@@ -55,16 +61,41 @@ function formatResult(game: Game) {
   return null;
 }
 
-export default async function SchedulePage({ params, searchParams }: PageProps) {
+export default async function SchedulePage({
+  params,
+  searchParams,
+}: PageProps) {
   const { poolId } = await params;
   const resolvedSearchParams = searchParams ? await searchParams : {};
-  const selectedWeek = Number(resolvedSearchParams.week ?? "1");
 
-const supabase = await createClient();
+  const requestedWeek = Number(resolvedSearchParams.week ?? "1");
+  const selectedWeek =
+    Number.isInteger(requestedWeek) &&
+    requestedWeek >= 1 &&
+    requestedWeek <= 18
+      ? requestedWeek
+      : 1;
+
+  const supabase = await createClient();
+
   const { data: games, error } = await supabase
     .from("games")
     .select(
-      "id, week_number, kickoff_at, away_team, home_team, status, home_score, away_score, winner_team, was_tie, favorite_team, spread_points"
+      `
+        id,
+        week_number,
+        kickoff_at,
+        away_team,
+        home_team,
+        status,
+        home_score,
+        away_score,
+        winner_team,
+        was_tie,
+        favorite_team,
+        point_spread,
+        spread_last_updated
+      `
     )
     .eq("season_year", 2026)
     .eq("phase", "regular")
@@ -74,7 +105,9 @@ const supabase = await createClient();
 
   if (error) {
     return (
-<main className="mx-auto max-w-5xl p-6 text-slate-900">        <h1 className="text-2xl font-bold">NFL Schedule</h1>
+      <main className="mx-auto max-w-5xl p-6 text-slate-900">
+        <h1 className="text-2xl font-bold">NFL Schedule</h1>
+
         <p className="mt-4 rounded-lg border border-red-300 bg-red-50 p-4 text-red-800">
           Could not load schedule: {error.message}
         </p>
@@ -88,8 +121,10 @@ const supabase = await createClient();
     <main className="mx-auto max-w-5xl p-6">
       <div className="mb-6">
         <h1 className="text-3xl font-bold">NFL Schedule</h1>
+
         <p className="mt-2 text-sm text-gray-600">
-          Full 2026 regular-season schedule. Point spreads are informational only and do not affect survivor results.
+          Full 2026 regular-season schedule. Point spreads are informational
+          only and do not affect survivor results.
         </p>
       </div>
 
@@ -106,7 +141,8 @@ const supabase = await createClient();
                 "rounded-full border px-3 py-1 text-sm font-medium",
                 isActive
                   ? "border-[#c83803] bg-[#c83803] text-white"
-: "border-slate-300 bg-white text-slate-800 hover:bg-slate-100",              ].join(" ")}
+                  : "border-slate-300 bg-white text-slate-800 hover:bg-slate-100",
+              ].join(" ")}
             >
               Week {week}
             </Link>
@@ -114,20 +150,28 @@ const supabase = await createClient();
         })}
       </div>
 
-<section className="rounded-xl border border-slate-200 bg-white text-slate-900 shadow-sm">        <div className="border-b p-4">
+      <section className="rounded-xl border border-slate-200 bg-white text-slate-900 shadow-sm">
+        <div className="border-b p-4">
           <h2 className="text-xl font-semibold">Week {selectedWeek}</h2>
-          <p className="text-sm text-gray-600">{safeGames.length} games</p>
+          <p className="text-sm text-gray-600">
+            {safeGames.length} games
+          </p>
         </div>
 
         {safeGames.length === 0 ? (
-          <p className="p-4 text-gray-600">No games found for this week.</p>
+          <p className="p-4 text-gray-600">
+            No games found for this week.
+          </p>
         ) : (
           <div className="divide-y">
             {safeGames.map((game) => {
               const result = formatResult(game);
 
               return (
-                <div key={game.id} className="grid gap-3 p-4 md:grid-cols-[1fr_auto] md:items-center">
+                <div
+                  key={game.id}
+                  className="grid gap-3 p-4 md:grid-cols-[1fr_auto] md:items-center"
+                >
                   <div>
                     <div className="text-lg font-semibold">
                       {game.away_team} at {game.home_team}
@@ -137,7 +181,7 @@ const supabase = await createClient();
                       {formatKickoff(game.kickoff_at)}
                     </div>
 
-                    <div className="mt-1 text-sm text-gray-600">
+                    <div className="mt-1 text-sm font-medium text-slate-700">
                       {formatSpread(game)}
                     </div>
                   </div>
@@ -147,14 +191,18 @@ const supabase = await createClient();
                       {game.status ?? "scheduled"}
                     </div>
 
-                    {game.home_score !== null && game.away_score !== null ? (
+                    {game.home_score !== null &&
+                    game.away_score !== null ? (
                       <div className="mt-1 text-sm">
-                        {game.away_team} {game.away_score} — {game.home_team} {game.home_score}
+                        {game.away_team} {game.away_score} —{" "}
+                        {game.home_team} {game.home_score}
                       </div>
                     ) : null}
 
                     {result ? (
-                      <div className="mt-1 text-sm font-semibold text-gray-800">{result}</div>
+                      <div className="mt-1 text-sm font-semibold text-gray-800">
+                        {result}
+                      </div>
                     ) : null}
                   </div>
                 </div>
