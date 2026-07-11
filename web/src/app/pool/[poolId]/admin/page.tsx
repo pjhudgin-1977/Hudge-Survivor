@@ -15,6 +15,12 @@ type ToolCardProps = {
   href: string;
 };
 
+type StatusItemProps = {
+  label: string;
+  value: string;
+  status?: "good" | "warning" | "neutral";
+};
+
 function SummaryCard({ label, value, detail }: SummaryCardProps) {
   return (
     <div className="rounded-xl border border-slate-200 bg-white p-5 text-slate-900 shadow-sm">
@@ -41,6 +47,43 @@ function ToolCard({ title, desc, href }: ToolCardProps) {
       <div className="text-sm text-slate-600">{desc}</div>
       <div className="mt-2 font-semibold text-[#c83803]">Open →</div>
     </Link>
+  );
+}
+
+function StatusItem({
+  label,
+  value,
+  status = "neutral",
+}: StatusItemProps) {
+  const statusClasses = {
+    good: "border-emerald-200 bg-emerald-50 text-emerald-950",
+    warning: "border-amber-200 bg-amber-50 text-amber-950",
+    neutral: "border-slate-200 bg-slate-50 text-slate-900",
+  };
+
+  const dotClasses = {
+    good: "bg-emerald-500",
+    warning: "bg-amber-500",
+    neutral: "bg-slate-400",
+  };
+
+  return (
+    <div
+      className={`rounded-lg border p-4 ${statusClasses[status]}`}
+    >
+      <div className="flex items-center gap-2">
+        <span
+          className={`h-2.5 w-2.5 rounded-full ${dotClasses[status]}`}
+          aria-hidden="true"
+        />
+
+        <div className="text-sm font-semibold uppercase tracking-wide opacity-70">
+          {label}
+        </div>
+      </div>
+
+      <div className="mt-2 font-semibold">{value}</div>
+    </div>
   );
 }
 
@@ -92,7 +135,9 @@ export default async function AdminHomePage({
 
   const seasonYear = Number(poolState?.season_year ?? 2026);
   const weekNumber = Number(poolState?.week_number ?? 1);
-  const rawWeekType = String(poolState?.week_type ?? "REG").toUpperCase();
+  const rawWeekType = String(
+    poolState?.week_type ?? "REG"
+  ).toUpperCase();
   const picksLocked = Boolean(poolState?.picks_locked);
 
   const pickWeekType =
@@ -105,37 +150,59 @@ export default async function AdminHomePage({
       ? "playoffs"
       : "regular";
 
-  const [membersResult, picksResult, gamesResult, spreadResult] =
-    await Promise.all([
-      supabase
-        .from("pool_members")
-        .select(
-          "user_id, screen_name, losses, eliminated, is_eliminated, entry_fee_paid"
-        )
-        .eq("pool_id", poolId),
+  const [
+    membersResult,
+    picksResult,
+    gamesResult,
+    spreadResult,
+    autolockResult,
+    gradingResult,
+  ] = await Promise.all([
+    supabase
+      .from("pool_members")
+      .select(
+        "user_id, screen_name, losses, eliminated, is_eliminated, entry_fee_paid"
+      )
+      .eq("pool_id", poolId),
 
-      supabase
-        .from("picks")
-        .select("user_id, picked_team, locked")
-        .eq("pool_id", poolId)
-        .eq("week_number", weekNumber)
-        .eq("week_type", pickWeekType),
+    supabase
+      .from("picks")
+      .select("user_id, picked_team, locked")
+      .eq("pool_id", poolId)
+      .eq("week_number", weekNumber)
+      .eq("week_type", pickWeekType),
 
-      supabase
-        .from("games")
-        .select("id")
-        .eq("season_year", seasonYear)
-        .eq("week_number", weekNumber)
-        .eq("phase", gamePhase),
+    supabase
+      .from("games")
+      .select("id")
+      .eq("season_year", seasonYear)
+      .eq("week_number", weekNumber)
+      .eq("phase", gamePhase),
 
-      supabase
-        .from("games")
-        .select("spread_last_updated")
-        .not("spread_last_updated", "is", null)
-        .order("spread_last_updated", { ascending: false })
-        .limit(1)
-        .maybeSingle(),
-    ]);
+    supabase
+      .from("games")
+      .select("spread_last_updated")
+      .not("spread_last_updated", "is", null)
+      .order("spread_last_updated", { ascending: false })
+      .limit(1)
+      .maybeSingle(),
+
+    supabase
+      .from("autolock_runs")
+      .select("ran_at")
+      .eq("status", "ok")
+      .order("ran_at", { ascending: false })
+      .limit(1)
+      .maybeSingle(),
+
+    supabase
+      .from("grade_runs")
+      .select("ran_at")
+      .eq("status", "ok")
+      .order("ran_at", { ascending: false })
+      .limit(1)
+      .maybeSingle(),
+  ]);
 
   const members = membersResult.data ?? [];
   const picks = picksResult.data ?? [];
@@ -163,10 +230,18 @@ export default async function AdminHomePage({
     (member) => member.entry_fee_paid
   ).length;
 
-  const lockedPickCount = picks.filter((pick) => pick.locked).length;
+  const lockedPickCount = picks.filter(
+    (pick) => pick.locked
+  ).length;
 
   const latestSpreadUpdate =
     spreadResult.data?.spread_last_updated ?? null;
+
+  const latestAutolockRun =
+    autolockResult.data?.ran_at ?? null;
+
+  const latestGradingRun =
+    gradingResult.data?.ran_at ?? null;
 
   const weekLabel =
     gamePhase === "playoffs"
@@ -175,7 +250,9 @@ export default async function AdminHomePage({
 
   const submittedPercentage =
     activeMembers.length > 0
-      ? Math.round((submittedCount / activeMembers.length) * 100)
+      ? Math.round(
+          (submittedCount / activeMembers.length) * 100
+        )
       : 0;
 
   return (
@@ -221,7 +298,9 @@ export default async function AdminHomePage({
                 : "bg-emerald-100 text-emerald-900",
             ].join(" ")}
           >
-            {picksLocked ? "🔒 PICKS LOCKED" : "✓ PICKS OPEN"}
+            {picksLocked
+              ? "🔒 PICKS LOCKED"
+              : "✓ PICKS OPEN"}
           </div>
         </div>
 
@@ -259,7 +338,8 @@ export default async function AdminHomePage({
               </div>
 
               <div className="mt-1 text-lg font-bold text-slate-900">
-                {submittedCount} of {activeMembers.length} active entries
+                {submittedCount} of {activeMembers.length} active
+                entries
               </div>
             </div>
 
@@ -278,7 +358,9 @@ export default async function AdminHomePage({
           >
             <div
               className="h-full rounded-full bg-[#c83803] transition-all"
-              style={{ width: `${submittedPercentage}%` }}
+              style={{
+                width: `${submittedPercentage}%`,
+              }}
             />
           </div>
 
@@ -286,7 +368,9 @@ export default async function AdminHomePage({
             {missingMembers.length === 0
               ? "All active entries have submitted."
               : `${missingMembers.length} active ${
-                  missingMembers.length === 1 ? "entry is" : "entries are"
+                  missingMembers.length === 1
+                    ? "entry is"
+                    : "entries are"
                 } still missing a pick.`}
           </div>
         </div>
@@ -297,26 +381,34 @@ export default async function AdminHomePage({
       <section className="rounded-xl border border-slate-200 bg-white p-5 text-slate-900 shadow-sm">
         <h2 className="text-xl font-bold">System Status</h2>
 
-        <div className="mt-4 grid gap-4 sm:grid-cols-2">
-          <div>
-            <div className="text-sm font-semibold uppercase text-slate-500">
-              Latest Spread Update
-            </div>
+        <p className="mt-1 text-sm text-slate-600">
+          Latest successful system activity.
+        </p>
 
-            <div className="mt-1 font-semibold">
-              {formatUpdatedAt(latestSpreadUpdate)}
-            </div>
-          </div>
+        <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <StatusItem
+            label="Spread Update"
+            value={formatUpdatedAt(latestSpreadUpdate)}
+            status={latestSpreadUpdate ? "good" : "warning"}
+          />
 
-          <div>
-            <div className="text-sm font-semibold uppercase text-slate-500">
-              Current Pick Status
-            </div>
+          <StatusItem
+            label="Autolock Run"
+            value={formatUpdatedAt(latestAutolockRun)}
+            status={latestAutolockRun ? "good" : "warning"}
+          />
 
-            <div className="mt-1 font-semibold">
-              {picksLocked ? "Locked" : "Open"}
-            </div>
-          </div>
+          <StatusItem
+            label="Grading Run"
+            value={formatUpdatedAt(latestGradingRun)}
+            status={latestGradingRun ? "good" : "warning"}
+          />
+
+          <StatusItem
+            label="Pick Status"
+            value={picksLocked ? "Locked" : "Open"}
+            status={picksLocked ? "neutral" : "good"}
+          />
         </div>
       </section>
 
