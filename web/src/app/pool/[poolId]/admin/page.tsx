@@ -2,7 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import CommissionerActions from "./CommissionerActions";
-
+import LaunchChecklist from "./LaunchChecklist";
 type SummaryCardProps = {
   label: string;
   value: string | number;
@@ -375,7 +375,16 @@ export default async function AdminHomePage({
       </section>
 
       <CommissionerActions poolId={poolId} />
-
+<LaunchChecklist
+  activeEntries={activeMembers.length}
+  submittedPicks={submittedCount}
+  paidEntries={paidCount}
+  totalEntries={members.length}
+  gamesThisWeek={games.length}
+  hasSpreadUpdate={Boolean(latestSpreadUpdate)}
+  hasAutolockRun={Boolean(latestAutolockRun)}
+  hasGradingRun={Boolean(latestGradingRun)}
+/>
       <section className="rounded-xl border border-slate-200 bg-white p-5 text-slate-900 shadow-sm">
         <h2 className="text-xl font-bold">System Status</h2>
 
