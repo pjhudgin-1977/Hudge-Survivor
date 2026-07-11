@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import CommissionerActions from "./CommissionerActions";
 import LaunchChecklist from "./LaunchChecklist";
+
 type SummaryCardProps = {
   label: string;
   value: string | number;
@@ -98,6 +99,10 @@ function formatUpdatedAt(value: string | null) {
   }).format(new Date(value));
 }
 
+function entryKey(userId: string, entryNo: number) {
+  return `${userId}:${entryNo}`;
+}
+
 export default async function AdminHomePage({
   params,
 }: {
@@ -166,7 +171,7 @@ export default async function AdminHomePage({
 
     supabase
       .from("picks")
-      .select("user_id, picked_team, locked")
+      .select("user_id, entry_no, picked_team, locked")
       .eq("pool_id", poolId)
       .eq("week_number", weekNumber)
       .eq("week_type", pickWeekType),
@@ -211,18 +216,30 @@ export default async function AdminHomePage({
     (member) => !member.eliminated && !member.is_eliminated
   );
 
-  const submittedUserIds = new Set(
+  const submittedEntryKeys = new Set(
     picks
-      .filter((pick) => Boolean(pick.picked_team))
-      .map((pick) => pick.user_id)
+      .filter(
+        (pick) =>
+          Boolean(pick.picked_team) &&
+          pick.user_id &&
+          pick.entry_no !== null
+      )
+      .map((pick) =>
+        entryKey(pick.user_id, Number(pick.entry_no))
+      )
   );
 
   const submittedCount = activeMembers.filter((member) =>
-    submittedUserIds.has(member.user_id)
+    submittedEntryKeys.has(
+      entryKey(member.user_id, Number(member.entry_no))
+    )
   ).length;
 
   const missingMembers = activeMembers.filter(
-    (member) => !submittedUserIds.has(member.user_id)
+    (member) =>
+      !submittedEntryKeys.has(
+        entryKey(member.user_id, Number(member.entry_no))
+      )
   );
 
   const paidCount = members.filter(
@@ -375,16 +392,18 @@ export default async function AdminHomePage({
       </section>
 
       <CommissionerActions poolId={poolId} />
-<LaunchChecklist
-  activeEntries={activeMembers.length}
-  submittedPicks={submittedCount}
-  paidEntries={paidCount}
-  totalEntries={members.length}
-  gamesThisWeek={games.length}
-  hasSpreadUpdate={Boolean(latestSpreadUpdate)}
-  hasAutolockRun={Boolean(latestAutolockRun)}
-  hasGradingRun={Boolean(latestGradingRun)}
-/>
+
+      <LaunchChecklist
+        activeEntries={activeMembers.length}
+        submittedPicks={submittedCount}
+        paidEntries={paidCount}
+        totalEntries={members.length}
+        gamesThisWeek={games.length}
+        hasSpreadUpdate={Boolean(latestSpreadUpdate)}
+        hasAutolockRun={Boolean(latestAutolockRun)}
+        hasGradingRun={Boolean(latestGradingRun)}
+      />
+
       <section className="rounded-xl border border-slate-200 bg-white p-5 text-slate-900 shadow-sm">
         <h2 className="text-xl font-bold">System Status</h2>
 
