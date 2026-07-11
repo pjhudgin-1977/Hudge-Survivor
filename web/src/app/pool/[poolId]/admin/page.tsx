@@ -92,8 +92,12 @@ export default async function AdminHomePage({
 
   const seasonYear = Number(poolState?.season_year ?? 2026);
   const weekNumber = Number(poolState?.week_number ?? 1);
-  const weekType = String(poolState?.week_type ?? "regular");
-  const picksLocked = Boolean(poolState?.picks_locked);
+const rawWeekType = String(poolState?.week_type ?? "REG").toUpperCase();
+
+const weekType =
+  rawWeekType === "POST" || rawWeekType === "PLAYOFFS"
+    ? "playoffs"
+    : "regular";  const picksLocked = Boolean(poolState?.picks_locked);
 
   const [membersResult, picksResult, gamesResult, spreadResult] =
     await Promise.all([
@@ -149,9 +153,7 @@ export default async function AdminHomePage({
     (member) => !submittedUserIds.has(member.user_id)
   );
 
-  const paidCount = members.filter(
-    (member) => member.entry_fee_paid
-  ).length;
+  const paidCount = members.filter((member) => member.entry_fee_paid).length;
 
   const lockedPickCount = picks.filter((pick) => pick.locked).length;
 
@@ -162,6 +164,11 @@ export default async function AdminHomePage({
     weekType === "playoffs"
       ? `Playoff Week ${weekNumber}`
       : `Week ${weekNumber}`;
+
+  const submittedPercentage =
+    activeMembers.length > 0
+      ? Math.round((submittedCount / activeMembers.length) * 100)
+      : 0;
 
   return (
     <main className="mx-auto grid max-w-6xl gap-8 p-6">
@@ -234,6 +241,46 @@ export default async function AdminHomePage({
             value={games.length}
             detail={`${lockedPickCount} picks currently locked`}
           />
+        </div>
+
+        <div className="mt-4 rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+          <div className="flex items-center justify-between gap-4">
+            <div>
+              <div className="text-sm font-semibold uppercase tracking-wide text-slate-500">
+                Pick Submission Progress
+              </div>
+
+              <div className="mt-1 text-lg font-bold text-slate-900">
+                {submittedCount} of {activeMembers.length} active entries
+              </div>
+            </div>
+
+            <div className="text-2xl font-bold text-slate-900">
+              {submittedPercentage}%
+            </div>
+          </div>
+
+          <div
+            className="mt-4 h-4 overflow-hidden rounded-full bg-slate-200"
+            role="progressbar"
+            aria-label="Submitted picks"
+            aria-valuemin={0}
+            aria-valuemax={100}
+            aria-valuenow={submittedPercentage}
+          >
+            <div
+              className="h-full rounded-full bg-[#c83803] transition-all"
+              style={{ width: `${submittedPercentage}%` }}
+            />
+          </div>
+
+          <div className="mt-2 text-sm text-slate-600">
+            {missingMembers.length === 0
+              ? "All active entries have submitted."
+              : `${missingMembers.length} active ${
+                  missingMembers.length === 1 ? "entry is" : "entries are"
+                } still missing a pick.`}
+          </div>
         </div>
       </section>
 
