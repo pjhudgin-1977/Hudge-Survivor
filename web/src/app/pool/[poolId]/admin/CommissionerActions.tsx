@@ -13,6 +13,12 @@ type ActionConfig = {
   confirmMessage?: string;
 };
 
+type ActionResult = {
+  message: string;
+  completedAt: string;
+  isError: boolean;
+};
+
 const ACTIONS: ActionConfig[] = [
   {
     action: "update-spreads",
@@ -38,6 +44,41 @@ const ACTIONS: ActionConfig[] = [
   },
 ];
 
+function formatCompletedTime() {
+  return new Intl.DateTimeFormat("en-US", {
+    hour: "numeric",
+    minute: "2-digit",
+    second: "2-digit",
+    timeZone: "America/New_York",
+    timeZoneName: "short",
+  }).format(new Date());
+}
+
+function getSuccessMessage(action: ActionName, result: any) {
+  if (action === "update-spreads") {
+    const updated = Number(result?.result?.games_updated ?? 0);
+    const unmatched = Number(result?.result?.games_unmatched ?? 0);
+
+    return `Updated ${updated} games${
+      unmatched > 0 ? `; ${unmatched} unmatched` : ""
+    }.`;
+  }
+
+  if (action === "autolock") {
+    return "Autolock completed successfully.";
+  }
+
+  const graded = Number(
+    result?.result?.graded_updated_count ?? 0
+  );
+
+  const losses = Number(
+    result?.result?.total_updated_members ?? 0
+  );
+
+  return `Graded ${graded} picks and updated ${losses} member loss records.`;
+}
+
 export default function CommissionerActions({
   poolId,
 }: {
@@ -48,8 +89,9 @@ export default function CommissionerActions({
   const [runningAction, setRunningAction] =
     useState<ActionName | null>(null);
 
-  const [message, setMessage] = useState("");
-  const [isError, setIsError] = useState(false);
+  const [results, setResults] = useState<
+    Partial<Record<ActionName, ActionResult>>
+  >({});
 
   async function runAction(config: ActionConfig) {
     if (runningAction) return;
@@ -62,8 +104,6 @@ export default function CommissionerActions({
     }
 
     setRunningAction(config.action);
-    setMessage("");
-    setIsError(false);
 
     try {
       const response = await fetch(
@@ -101,33 +141,33 @@ export default function CommissionerActions({
         );
       }
 
-      if (config.action === "update-spreads") {
-        const updated =
-          result?.result?.games_updated ?? 0;
-
-        setMessage(
-          `Spreads updated successfully. ${updated} games updated.`
-        );
-      } else if (config.action === "autolock") {
-        setMessage("Autolock completed successfully.");
-      } else {
-        const graded =
-          result?.result?.graded_updated_count ?? 0;
-
-        setMessage(
-          `Grading completed successfully. ${graded} picks graded.`
-        );
-      }
+      setResults((current) => ({
+        ...current,
+        [config.action]: {
+          message: getSuccessMessage(
+            config.action,
+            result
+          ),
+          completedAt: formatCompletedTime(),
+          isError: false,
+        },
+      }));
 
       router.refresh();
     } catch (error: unknown) {
-      const errorMessage =
+      const message =
         error instanceof Error
           ? error.message
           : String(error);
 
-      setIsError(true);
-      setMessage(errorMessage);
+      setResults((current) => ({
+        ...current,
+        [config.action]: {
+          message,
+          completedAt: formatCompletedTime(),
+          isError: true,
+        },
+      }));
     } finally {
       setRunningAction(null);
     }
@@ -145,45 +185,65 @@ export default function CommissionerActions({
         </p>
       </div>
 
-      <div className="mt-5 grid gap-3 md:grid-cols-3">
+      <div className="mt-5 grid gap-4 md:grid-cols-3">
         {ACTIONS.map((config) => {
           const isRunning =
             runningAction === config.action;
 
-          return (
-            <button
-              key={config.action}
-              type="button"
-              onClick={() => runAction(config)}
-              disabled={runningAction !== null}
-              className="rounded-xl border border-slate-300 bg-slate-50 p-4 text-left transition hover:border-[#c83803] hover:bg-white disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              <div className="font-bold text-[#c83803]">
-                {isRunning
-                  ? config.workingLabel
-                  : config.label}
-              </div>
+          const result = results[config.action];
 
-              <div className="mt-2 text-sm text-slate-600">
-                {config.description}
-              </div>
-            </button>
+          return (
+            <div
+              key={config.action}
+              className="rounded-xl border border-slate-300 bg-slate-50 p-4"
+            >
+              <button
+                type="button"
+                onClick={() => runAction(config)}
+                disabled={runningAction !== null}
+                className="w-full rounded-lg border border-slate-300 bg-white px-4 py-3 text-left transition hover:border-[#c83803] disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                <div className="font-bold text-[#c83803]">
+                  {isRunning
+                    ? config.workingLabel
+                    : config.label}
+                </div>
+
+                <div className="mt-2 text-sm text-slate-600">
+                  {config.description}
+                </div>
+              </button>
+
+              {result ? (
+                <div
+                  className={[
+                    "mt-3 rounded-lg border p-3 text-sm",
+                    result.isError
+                      ? "border-red-300 bg-red-50 text-red-800"
+                      : "border-emerald-300 bg-emerald-50 text-emerald-900",
+                  ].join(" ")}
+                >
+                  <div className="font-semibold">
+                    {result.isError ? "✕ Failed" : "✓ Success"}
+                  </div>
+
+                  <div className="mt-1">
+                    {result.message}
+                  </div>
+
+                  <div className="mt-2 text-xs opacity-75">
+                    Completed {result.completedAt}
+                  </div>
+                </div>
+              ) : (
+                <div className="mt-3 text-xs text-slate-500">
+                  Not run during this visit.
+                </div>
+              )}
+            </div>
           );
         })}
       </div>
-
-      {message ? (
-        <div
-          className={[
-            "mt-4 rounded-lg border p-3 text-sm font-semibold",
-            isError
-              ? "border-red-300 bg-red-50 text-red-800"
-              : "border-emerald-300 bg-emerald-50 text-emerald-900",
-          ].join(" ")}
-        >
-          {message}
-        </div>
-      ) : null}
     </section>
   );
 }
