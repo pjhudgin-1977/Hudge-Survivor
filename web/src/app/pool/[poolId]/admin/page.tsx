@@ -68,9 +68,7 @@ function StatusItem({
   };
 
   return (
-    <div
-      className={`rounded-lg border p-4 ${statusClasses[status]}`}
-    >
+    <div className={`rounded-lg border p-4 ${statusClasses[status]}`}>
       <div className="flex items-center gap-2">
         <span
           className={`h-2.5 w-2.5 rounded-full ${dotClasses[status]}`}
@@ -161,9 +159,10 @@ export default async function AdminHomePage({
     supabase
       .from("pool_members")
       .select(
-        "user_id, screen_name, losses, eliminated, is_eliminated, entry_fee_paid"
+        "user_id, screen_name, entry_no, losses, eliminated, is_eliminated, entry_fee_paid"
       )
-      .eq("pool_id", poolId),
+      .eq("pool_id", poolId)
+      .order("entry_no", { ascending: true }),
 
     supabase
       .from("picks")
@@ -338,8 +337,7 @@ export default async function AdminHomePage({
               </div>
 
               <div className="mt-1 text-lg font-bold text-slate-900">
-                {submittedCount} of {activeMembers.length} active
-                entries
+                {submittedCount} of {activeMembers.length} active entries
               </div>
             </div>
 
@@ -413,23 +411,60 @@ export default async function AdminHomePage({
       </section>
 
       <section className="rounded-xl border border-amber-300 bg-amber-50 p-5 text-amber-950">
-        <h2 className="text-xl font-bold">
-          Missing Picks ({missingMembers.length})
-        </h2>
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <h2 className="text-xl font-bold">
+              Missing Picks ({missingMembers.length})
+            </h2>
+
+            <p className="mt-1 text-sm">
+              Active entries that have not submitted a pick for {weekLabel}.
+            </p>
+          </div>
+
+          <Link
+            href={`/pool/${poolId}/admin/players`}
+            className="rounded-lg border border-amber-400 bg-white px-3 py-2 text-sm font-bold text-amber-950 transition hover:bg-amber-100"
+          >
+            Manage Players →
+          </Link>
+        </div>
 
         {missingMembers.length === 0 ? (
-          <p className="mt-2 text-sm font-medium">
-            Everyone still active has submitted a pick.
-          </p>
+          <div className="mt-4 rounded-lg border border-emerald-200 bg-emerald-50 p-4 text-emerald-950">
+            <div className="font-bold">✓ Everyone has submitted</div>
+            <div className="mt-1 text-sm">
+              All active entries have a pick for {weekLabel}.
+            </div>
+          </div>
         ) : (
-          <div className="mt-3 flex flex-wrap gap-2">
+          <div className="mt-4 grid gap-3">
             {missingMembers.map((member) => (
-              <span
-                key={`${member.user_id}-${member.screen_name}`}
-                className="rounded-full border border-amber-300 bg-white px-3 py-1 text-sm font-semibold"
+              <div
+                key={`${member.user_id}-${member.entry_no}`}
+                className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-amber-300 bg-white p-4"
               >
-                {member.screen_name}
-              </span>
+                <div>
+                  <div className="font-bold text-slate-900">
+                    Entry {member.entry_no ?? "—"} · {member.screen_name}
+                  </div>
+
+                  <div className="mt-1 text-sm text-slate-600">
+                    No pick submitted for {weekLabel}
+                  </div>
+                </div>
+
+                <div
+                  className={[
+                    "rounded-full px-3 py-1 text-xs font-bold",
+                    member.entry_fee_paid
+                      ? "bg-emerald-100 text-emerald-900"
+                      : "bg-amber-100 text-amber-950",
+                  ].join(" ")}
+                >
+                  {member.entry_fee_paid ? "✓ PAID" : "PAYMENT DUE"}
+                </div>
+              </div>
             ))}
           </div>
         )}
