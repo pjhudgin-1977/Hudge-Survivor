@@ -92,12 +92,18 @@ export default async function AdminHomePage({
 
   const seasonYear = Number(poolState?.season_year ?? 2026);
   const weekNumber = Number(poolState?.week_number ?? 1);
-const rawWeekType = String(poolState?.week_type ?? "REG").toUpperCase();
+  const rawWeekType = String(poolState?.week_type ?? "REG").toUpperCase();
+  const picksLocked = Boolean(poolState?.picks_locked);
 
-const weekType =
-  rawWeekType === "POST" || rawWeekType === "PLAYOFFS"
-    ? "playoffs"
-    : "regular";  const picksLocked = Boolean(poolState?.picks_locked);
+  const pickWeekType =
+    rawWeekType === "POST" || rawWeekType === "PLAYOFFS"
+      ? "POST"
+      : "REG";
+
+  const gamePhase =
+    rawWeekType === "POST" || rawWeekType === "PLAYOFFS"
+      ? "playoffs"
+      : "regular";
 
   const [membersResult, picksResult, gamesResult, spreadResult] =
     await Promise.all([
@@ -113,14 +119,14 @@ const weekType =
         .select("user_id, picked_team, locked")
         .eq("pool_id", poolId)
         .eq("week_number", weekNumber)
-        .eq("week_type", weekType),
+        .eq("week_type", pickWeekType),
 
       supabase
         .from("games")
         .select("id")
         .eq("season_year", seasonYear)
         .eq("week_number", weekNumber)
-        .eq("phase", weekType),
+        .eq("phase", gamePhase),
 
       supabase
         .from("games")
@@ -153,7 +159,9 @@ const weekType =
     (member) => !submittedUserIds.has(member.user_id)
   );
 
-  const paidCount = members.filter((member) => member.entry_fee_paid).length;
+  const paidCount = members.filter(
+    (member) => member.entry_fee_paid
+  ).length;
 
   const lockedPickCount = picks.filter((pick) => pick.locked).length;
 
@@ -161,7 +169,7 @@ const weekType =
     spreadResult.data?.spread_last_updated ?? null;
 
   const weekLabel =
-    weekType === "playoffs"
+    gamePhase === "playoffs"
       ? `Playoff Week ${weekNumber}`
       : `Week ${weekNumber}`;
 
