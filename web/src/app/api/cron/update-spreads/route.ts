@@ -300,10 +300,10 @@ export async function GET(req: Request) {
       const { error: updateError } = await supabase
         .from("games")
         .update({
-          favorite_team: favoriteTeam,
-          point_spread: spread.pointSpread,
-          spread_last_updated: new Date().toISOString(),
-        })
+  favorite_team: favoriteTeam,
+  spread_points: spread.pointSpread,
+  spread_last_updated: new Date().toISOString(),
+})
         .eq("id", game.id);
 
       if (updateError) {
