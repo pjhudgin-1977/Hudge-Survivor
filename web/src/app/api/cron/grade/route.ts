@@ -32,38 +32,81 @@ export async function GET(req: Request) {
   const start = Date.now();
 
   if (!isAuthorized(req)) {
-    return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
+    return NextResponse.json(
+      { ok: false, error: "Unauthorized" },
+      { status: 401 }
+    );
   }
 
   const supabase = getAdminSupabase();
 
   try {
-    // ---- determine week context ----
-    const { data: g } = await supabase
-      .from("games")
-      .select("season_year, week_number, phase, kickoff_at")
-      .order("kickoff_at", { ascending: true })
-      .limit(1)
-      .maybeSingle();
+    const url = new URL(req.url);
 
-    if (!g) throw new Error("No games found");
+    const requestedSeason = url.searchParams.get("season");
+    const requestedWeek = url.searchParams.get("week");
+    const requestedPhase = url.searchParams.get("phase");
 
-    const season_year = Number(g.season_year);
-    const week_number = Number(g.week_number);
-    const phase = String(g.phase);
+    let season_year: number;
+    let week_number: number;
+    let phase: string;
+    let kickoff_at: string | null = null;
 
-    // ---- grade picks ----
-    const { data: gradeRes } = await supabase.rpc("grade_picks_for_week", {
-      p_season_year: season_year,
-      p_phase: phase,
-      p_week_number: week_number,
-    });
+    // Manual test mode:
+    // /api/cron/grade?season=2026&week=2&phase=regular&secret=...
+    if (requestedSeason && requestedWeek) {
+      season_year = Number(requestedSeason);
+      week_number = Number(requestedWeek);
+      phase = requestedPhase || "regular";
 
-    const graded_updated_count =
-      Array.isArray(gradeRes) ? Number(gradeRes[0]?.updated_count ?? 0) : 0;
+      if (
+        !Number.isFinite(season_year) ||
+        !Number.isFinite(week_number) ||
+        week_number < 1
+      ) {
+        return NextResponse.json(
+          { ok: false, error: "Invalid season or week" },
+          { status: 400 }
+        );
+      }
+    } else {
+      // Normal cron mode:
+      // Find the most recent week containing at least one final game.
+      const { data: g, error: gameErr } = await supabase
+        .from("games")
+        .select("season_year, week_number, phase, kickoff_at")
+        .eq("status", "final")
+        .order("kickoff_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
 
-    // ---- apply losses across all pools ----
-    const { data: pools, error: poolsErr } = await supabase.from("pools").select("id");
+      if (gameErr) throw gameErr;
+      if (!g) throw new Error("No completed games found");
+
+      season_year = Number(g.season_year);
+      week_number = Number(g.week_number);
+      phase = String(g.phase);
+      kickoff_at = g.kickoff_at;
+    }
+
+    const { data: gradeRes, error: gradeErr } = await supabase.rpc(
+      "grade_picks_for_week",
+      {
+        p_season_year: season_year,
+        p_phase: phase,
+        p_week_number: week_number,
+      }
+    );
+
+    if (gradeErr) throw gradeErr;
+
+    const gradeRow = Array.isArray(gradeRes) ? gradeRes[0] : gradeRes;
+    const graded_updated_count = Number(gradeRow?.updated_count ?? 0);
+
+    const { data: pools, error: poolsErr } = await supabase
+      .from("pools")
+      .select("id");
+
     if (poolsErr) throw poolsErr;
 
     let pools_processed = 0;
@@ -72,30 +115,33 @@ export async function GET(req: Request) {
     let total_resynced_members = 0;
 
     for (const pool of pools ?? []) {
-      // 1) mark counted_in_losses / etc (your existing logic)
-      const { data: lossRes, error: lossErr } = await supabase.rpc("apply_losses_for_week", {
-        p_pool_id: pool.id,
-        p_season_year: season_year,
-        p_phase: phase,
-        p_week_number: week_number,
-      });
+      const { data: lossRes, error: lossErr } = await supabase.rpc(
+        "apply_losses_for_week",
+        {
+          p_pool_id: pool.id,
+          p_season_year: season_year,
+          p_phase: phase,
+          p_week_number: week_number,
+        }
+      );
 
       if (lossErr) throw lossErr;
 
-      const r = lossRes?.[0] ?? {};
-      pools_processed++;
-      total_marked_picks += Number(r.marked_picks ?? 0);
-      total_updated_members += Number(r.updated_members ?? 0);
+      const lossRow = Array.isArray(lossRes) ? lossRes[0] : lossRes;
 
-      // 2) ✅ NEW: resync pool_members.losses from picks.counted_in_losses
+      pools_processed++;
+      total_marked_picks += Number(lossRow?.marked_picks ?? 0);
+      total_updated_members += Number(lossRow?.updated_members ?? 0);
+
       const { data: syncRes, error: syncErr } = await supabase.rpc(
         "resync_pool_member_losses",
-        { p_pool_id: pool.id }
+        {
+          p_pool_id: pool.id,
+        }
       );
 
       if (syncErr) throw syncErr;
 
-      // returns [{ updated_members: N }] or { updated_members: N } depending on RPC return
       const syncRow = Array.isArray(syncRes) ? syncRes[0] : syncRes;
       total_resynced_members += Number(syncRow?.updated_members ?? 0);
     }
@@ -106,7 +152,7 @@ export async function GET(req: Request) {
       season_year,
       phase,
       week_number,
-      kickoff_at: g.kickoff_at,
+      kickoff_at,
       graded_updated_count,
       pools_processed,
       total_marked_picks,
@@ -121,19 +167,27 @@ export async function GET(req: Request) {
       details,
     });
 
-    return NextResponse.json({ ok: true, ...details, duration_ms });
+    return NextResponse.json({
+      ok: true,
+      ...details,
+      duration_ms,
+    });
   } catch (e: any) {
     const duration_ms = Date.now() - start;
+    const message = e?.message ?? "Server error";
 
     try {
       await supabase.from("grade_runs").insert({
         status: "error",
-        message: e.message,
+        message,
         duration_ms,
         details: { error: String(e) },
       });
     } catch {}
 
-    return NextResponse.json({ ok: false, error: e.message }, { status: 500 });
+    return NextResponse.json(
+      { ok: false, error: message },
+      { status: 500 }
+    );
   }
 }
