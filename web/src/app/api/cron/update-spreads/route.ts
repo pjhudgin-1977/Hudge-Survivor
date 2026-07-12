@@ -301,7 +301,7 @@ export async function GET(req: Request) {
         .from("games")
         .update({
   favorite_team: favoriteTeam,
-  spread_points: spread.pointSpread,
+point_spread: spread.pointSpread,
   spread_last_updated: new Date().toISOString(),
 })
         .eq("id", game.id);
