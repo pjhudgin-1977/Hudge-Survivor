@@ -139,3 +139,122 @@ export async function POST(
 
   return NextResponse.json({ ok: true });
 }
+
+export async function DELETE(
+  req: Request,
+  { params }: { params: Promise<{ poolId: string }> }
+) {
+  const supabase = await createClient();
+  const { poolId } = await params;
+
+  const { data: userRes } = await supabase.auth.getUser();
+
+  if (!userRes?.user) {
+    return NextResponse.json({ error: "Not logged in" }, { status: 401 });
+  }
+
+  const body = await req.json();
+
+  const targetUserId = String(body.user_id || "");
+  const targetEntryNo = Number(body.entry_no);
+
+  if (!targetUserId) {
+    return NextResponse.json({ error: "Missing user_id" }, { status: 400 });
+  }
+
+  if (!Number.isInteger(targetEntryNo) || targetEntryNo < 1) {
+    return NextResponse.json({ error: "Invalid entry_no" }, { status: 400 });
+  }
+
+  const { data: meRows, error: meError } = await supabase
+    .from("pool_members")
+    .select("is_commissioner, role")
+    .eq("pool_id", poolId)
+    .eq("user_id", userRes.user.id);
+
+  if (meError) {
+    return NextResponse.json({ error: meError.message }, { status: 400 });
+  }
+
+  const isCommissioner = (meRows || []).some(
+    (row) =>
+      Boolean(row?.is_commissioner) ||
+      String(row?.role ?? "").toLowerCase() === "commissioner" ||
+      String(row?.role ?? "").toLowerCase() === "admin"
+  );
+
+  if (!isCommissioner) {
+    return NextResponse.json(
+      { error: "Only commissioners can remove entries" },
+      { status: 403 }
+    );
+  }
+
+  const { data: targetRow, error: targetError } = await supabase
+    .from("pool_members")
+    .select("user_id, entry_no, screen_name, is_commissioner, role")
+    .eq("pool_id", poolId)
+    .eq("user_id", targetUserId)
+    .eq("entry_no", targetEntryNo)
+    .maybeSingle();
+
+  if (targetError) {
+    return NextResponse.json({ error: targetError.message }, { status: 400 });
+  }
+
+  if (!targetRow) {
+    return NextResponse.json({ error: "Entry not found" }, { status: 404 });
+  }
+
+  const targetIsCommissioner =
+    Boolean(targetRow.is_commissioner) ||
+    String(targetRow.role ?? "").toLowerCase() === "commissioner";
+
+  if (targetIsCommissioner) {
+    return NextResponse.json(
+      { error: "The commissioner entry cannot be removed" },
+      { status: 400 }
+    );
+  }
+
+  const { error: picksError } = await supabase
+    .from("picks")
+    .delete()
+    .eq("pool_id", poolId)
+    .eq("user_id", targetUserId)
+    .eq("entry_no", targetEntryNo);
+
+  if (picksError) {
+    return NextResponse.json({ error: picksError.message }, { status: 400 });
+  }
+
+  const { error: usedTeamsError } = await supabase
+    .from("used_teams")
+    .delete()
+    .eq("pool_id", poolId)
+    .eq("user_id", targetUserId)
+    .eq("entry_no", targetEntryNo);
+
+  if (usedTeamsError) {
+    return NextResponse.json({ error: usedTeamsError.message }, { status: 400 });
+  }
+
+  const { error: memberError } = await supabase
+    .from("pool_members")
+    .delete()
+    .eq("pool_id", poolId)
+    .eq("user_id", targetUserId)
+    .eq("entry_no", targetEntryNo);
+
+  if (memberError) {
+    return NextResponse.json({ error: memberError.message }, { status: 400 });
+  }
+
+  return NextResponse.json({
+    ok: true,
+    removed: {
+      screen_name: targetRow.screen_name,
+      entry_no: targetEntryNo,
+    },
+  });
+}

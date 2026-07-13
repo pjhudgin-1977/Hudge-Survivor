@@ -92,6 +92,7 @@ export default function PlayersTable({
             ? ""
             : String(m.entry_fee_amount),
         saving: false,
+        removing: false,
         savedMsg: "",
         errMsg: "",
       };
@@ -130,6 +131,66 @@ export default function PlayersTable({
 
   const allVisibleSelected =
     sortedRows.length > 0 && sortedRows.every((r) => !!r.selected);
+
+  async function removeRow(rowKey: string) {
+    const row = rows.find((r) => r.rowKey === rowKey);
+    if (!row) return;
+
+    const isCommissioner =
+      Boolean(row.is_commissioner) ||
+      String(row.role ?? "").toLowerCase() === "commissioner";
+
+    if (isCommissioner) {
+      alert("The commissioner entry cannot be removed.");
+      return;
+    }
+
+    const confirmed = window.confirm(
+      `Remove ${row.screen_name || "this player"} — Entry #${row.entry_no ?? 1}?\n\nThis will delete this entry's picks and used-team history. The user's login account will remain active.`
+    );
+
+    if (!confirmed) return;
+
+    setRows((prev) =>
+      prev.map((r) =>
+        r.rowKey === rowKey
+          ? { ...r, removing: true, savedMsg: "", errMsg: "" }
+          : r
+      )
+    );
+
+    try {
+      const res = await fetch(`/api/pool/${poolId}/admin/players`, {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          user_id: row.user_id,
+          entry_no: row.entry_no ?? 1,
+        }),
+      });
+
+      const json = await res.json();
+
+      if (!res.ok) {
+        throw new Error(json?.error || "Remove failed");
+      }
+
+      setRows((prev) => prev.filter((r) => r.rowKey !== rowKey));
+    } catch (e: any) {
+      setRows((prev) =>
+        prev.map((r) =>
+          r.rowKey === rowKey
+            ? {
+                ...r,
+                removing: false,
+                savedMsg: "",
+                errMsg: e?.message || "Remove failed",
+              }
+            : r
+        )
+      );
+    }
+  }
 
   async function saveRow(rowKey: string) {
     setRows((prev) =>
@@ -602,23 +663,47 @@ export default function PlayersTable({
                     whiteSpace: "nowrap",
                   }}
                 >
-                  <button
-                    onClick={() => saveRow(r.rowKey)}
-                    disabled={r.saving}
-                    style={{
-                      padding: "8px 12px",
-                      borderRadius: 10,
-                      border: "1px solid rgba(255,255,255,0.25)",
-                      background: r.saving
-                        ? "rgba(255,255,255,0.12)"
-                        : "rgba(255,255,255,0.18)",
-                      color: "white",
-                      fontWeight: 800,
-                      cursor: r.saving ? "not-allowed" : "pointer",
-                    }}
-                  >
-                    {r.saving ? "Saving..." : "Save"}
-                  </button>
+                  <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                    <button
+                      onClick={() => saveRow(r.rowKey)}
+                      disabled={r.saving || r.removing}
+                      style={{
+                        padding: "8px 12px",
+                        borderRadius: 10,
+                        border: "1px solid rgba(255,255,255,0.25)",
+                        background:
+                          r.saving || r.removing
+                            ? "rgba(255,255,255,0.12)"
+                            : "rgba(255,255,255,0.18)",
+                        color: "white",
+                        fontWeight: 800,
+                        cursor:
+                          r.saving || r.removing ? "not-allowed" : "pointer",
+                      }}
+                    >
+                      {r.saving ? "Saving..." : "Save"}
+                    </button>
+
+                    {!r.is_commissioner &&
+                    String(r.role ?? "").toLowerCase() !== "commissioner" ? (
+                      <button
+                        onClick={() => removeRow(r.rowKey)}
+                        disabled={r.removing || r.saving}
+                        style={{
+                          padding: "8px 12px",
+                          borderRadius: 10,
+                          border: "1px solid rgba(248,113,113,0.6)",
+                          background: "rgba(127,29,29,0.35)",
+                          color: "#fecaca",
+                          fontWeight: 800,
+                          cursor:
+                            r.removing || r.saving ? "not-allowed" : "pointer",
+                        }}
+                      >
+                        {r.removing ? "Removing..." : "Remove Entry"}
+                      </button>
+                    ) : null}
+                  </div>
 
                   {r.savedMsg ? (
                     <span style={{ marginLeft: 10, color: "#9f9", fontWeight: 700 }}>
