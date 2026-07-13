@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
+import JoinEntryForm from "./JoinEntryForm";
 
 function isUuid(v: string) {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
@@ -37,7 +38,6 @@ export default async function JoinPoolPage({
   const token = String(tokenRaw || "").trim();
   const tokenUpper = token.toUpperCase();
 
-  // 1) Resolve token -> real pool UUID
   let poolId: string | null = null;
 
   if (isUuid(token)) {
@@ -53,27 +53,10 @@ export default async function JoinPoolPage({
       return (
         <main style={{ padding: 24, maxWidth: 720 }}>
           <h1 style={{ fontSize: 26, fontWeight: 950 }}>Join Pool</h1>
-          <p style={{ marginTop: 10, opacity: 0.85 }}>
-            Could not validate invite link.
-          </p>
-          <pre
-            style={{
-              marginTop: 12,
-              padding: 12,
-              borderRadius: 12,
-              background: "rgba(0,0,0,0.35)",
-              border: "1px solid rgba(255,255,255,0.18)",
-              overflowX: "auto",
-              whiteSpace: "pre-wrap",
-            }}
-          >
+          <p style={{ marginTop: 10 }}>Could not validate invite link.</p>
+          <pre style={{ marginTop: 12, whiteSpace: "pre-wrap" }}>
             {inviteError.message}
           </pre>
-          <div style={{ marginTop: 14 }}>
-            <Link href="/login" style={{ textDecoration: "underline" }}>
-              Go to login
-            </Link>
-          </div>
         </main>
       );
     }
@@ -91,17 +74,10 @@ export default async function JoinPoolPage({
       return (
         <main style={{ padding: 24, maxWidth: 720 }}>
           <h1 style={{ fontSize: 26, fontWeight: 950 }}>Join Pool</h1>
-          <p style={{ marginTop: 10, opacity: 0.85 }}>
-            Invalid or expired invite link.
-          </p>
-          <p style={{ marginTop: 10, opacity: 0.8 }}>
+          <p style={{ marginTop: 10 }}>Invalid or expired invite link.</p>
+          <p style={{ marginTop: 10 }}>
             Ask the commissioner for a fresh invite link.
           </p>
-          <div style={{ marginTop: 14 }}>
-            <Link href="/login" style={{ textDecoration: "underline" }}>
-              Go to login
-            </Link>
-          </div>
         </main>
       );
     }
@@ -111,10 +87,7 @@ export default async function JoinPoolPage({
     return (
       <main style={{ padding: 24, maxWidth: 720 }}>
         <h1 style={{ fontSize: 26, fontWeight: 950 }}>Join Pool</h1>
-        <p style={{ marginTop: 10, opacity: 0.85 }}>Invalid invite link.</p>
-        <p style={{ marginTop: 10, opacity: 0.8 }}>
-          Paste a HUDGE-XXXX invite code or a pool id (UUID).
-        </p>
+        <p style={{ marginTop: 10 }}>Invalid invite link.</p>
         <div style={{ marginTop: 14 }}>
           <Link href="/login" style={{ textDecoration: "underline" }}>
             Go to login
@@ -124,62 +97,40 @@ export default async function JoinPoolPage({
     );
   }
 
-  // 2) Require login (preserve next so they come right back here)
   const { data: auth } = await supabase.auth.getUser();
-  if (!auth?.user) redirect(`/login?next=/join/${tokenUpper}`);
 
-  const userId = auth.user.id;
+  if (!auth?.user) {
+    redirect(`/login?next=/join/${tokenUpper}`);
+  }
 
-  // 3) Check existing entries for this pool/user
   const { data: existingRows, error: existingError } = await supabase
     .from("pool_members")
     .select("entry_no")
     .eq("pool_id", poolId)
-    .eq("user_id", userId)
+    .eq("user_id", auth.user.id)
     .order("entry_no", { ascending: true });
 
   if (existingError) {
     return (
       <main style={{ padding: 24, maxWidth: 720 }}>
         <h1 style={{ fontSize: 26, fontWeight: 950 }}>Join Pool</h1>
-        <p style={{ marginTop: 10, opacity: 0.85 }}>
-          Could not check membership.
-        </p>
-        <pre
-          style={{
-            marginTop: 12,
-            padding: 12,
-            borderRadius: 12,
-            background: "rgba(0,0,0,0.35)",
-            border: "1px solid rgba(255,255,255,0.18)",
-            overflowX: "auto",
-            whiteSpace: "pre-wrap",
-          }}
-        >
+        <p style={{ marginTop: 10 }}>Could not check membership.</p>
+        <pre style={{ marginTop: 12, whiteSpace: "pre-wrap" }}>
           {existingError.message}
         </pre>
-        <div style={{ marginTop: 14 }}>
-          <Link href={`/pool/${poolId}`} style={{ textDecoration: "underline" }}>
-            Go to pool
-          </Link>
-        </div>
       </main>
     );
   }
 
-  const entries = (existingRows ?? []) as Array<{ entry_no: number | null }>;
-  const newEntryNo = nextEntryNo(entries);
+  const newEntryNo = nextEntryNo(existingRows ?? []);
 
   if (newEntryNo == null) {
     return (
       <main style={{ padding: 24, maxWidth: 720 }}>
         <h1 style={{ fontSize: 26, fontWeight: 950 }}>Join Pool</h1>
-        <p style={{ marginTop: 10, opacity: 0.85 }}>
+        <p style={{ marginTop: 10 }}>
           You already have the maximum of 3 entries in this pool.
         </p>
-        <p style={{ marginTop: 10, opacity: 0.8 }}>
-          No additional entry was created.
-        </p>
         <div style={{ marginTop: 14 }}>
           <Link href={`/pool/${poolId}`} style={{ textDecoration: "underline" }}>
             Go to pool
@@ -189,63 +140,15 @@ export default async function JoinPoolPage({
     );
   }
 
-  // 4) Create the next entry
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("nickname, full_name")
-    .eq("user_id", userId)
-    .maybeSingle();
+  return (
+    <main style={{ padding: 24, maxWidth: 720 }}>
+      <h1 style={{ fontSize: 26, fontWeight: 950 }}>Join Pool</h1>
 
-  const emailPrefix = auth.user.email?.split("@")[0]?.trim() || null;
+      <p style={{ marginTop: 10, opacity: 0.85 }}>
+        Choose the name other players will see.
+      </p>
 
-  const baseScreenName =
-    profile?.nickname?.trim() ||
-    profile?.full_name?.trim() ||
-    emailPrefix ||
-    "Player";
-
-  const screenName =
-    newEntryNo === 1 ? baseScreenName : `${baseScreenName} (Entry ${newEntryNo})`;
-
-  const { error: joinError } = await supabase.from("pool_members").insert({
-    pool_id: poolId,
-    user_id: userId,
-    entry_no: newEntryNo,
-    screen_name: screenName,
-    role: "member",
-    is_commissioner: false,
-    losses: 0,
-    is_eliminated: false,
-  });
-
-  if (joinError) {
-    return (
-      <main style={{ padding: 24, maxWidth: 720 }}>
-        <h1 style={{ fontSize: 26, fontWeight: 950 }}>Join Pool</h1>
-        <p style={{ marginTop: 10, opacity: 0.85 }}>
-          Could not join this pool.
-        </p>
-        <pre
-          style={{
-            marginTop: 12,
-            padding: 12,
-            borderRadius: 12,
-            background: "rgba(0,0,0,0.35)",
-            border: "1px solid rgba(255,255,255,0.18)",
-            overflowX: "auto",
-            whiteSpace: "pre-wrap",
-          }}
-        >
-          {joinError.message}
-        </pre>
-        <div style={{ marginTop: 14 }}>
-          <Link href={`/pool/${poolId}`} style={{ textDecoration: "underline" }}>
-            Go to pool
-          </Link>
-        </div>
-      </main>
-    );
-  }
-
-  redirect(`/pool/${poolId}`);
+      <JoinEntryForm poolId={poolId!} entryNo={newEntryNo} />
+    </main>
+  );
 }
