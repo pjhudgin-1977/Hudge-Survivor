@@ -56,11 +56,15 @@ export default function NavBar() {
       active: (p, b) => p === `${b}/board`,
     },
     {
+      label: "😅 Sweat",
+      href: `${base}/sweat`,
+      active: (p, b) => p === `${b}/sweat`,
+    },
+    {
       label: "🏈 Game Day",
       href: `${base}/gameday`,
       active: (p, b) =>
         p === `${b}/gameday` ||
-        p === `${b}/sweat` ||
         p === `${b}/danger`,
     },
   ];
