@@ -45,6 +45,7 @@ export default function PoolPickPage() {
   const [games, setGames] = useState<GameRow[]>([]);
   const [usedTeams, setUsedTeams] = useState<string[]>([]);
   const [existingPick, setExistingPick] = useState<string | null>(null);
+  const [existingPickWasAutopick, setExistingPickWasAutopick] = useState(false);
   const [selectedTeam, setSelectedTeam] = useState("");
 
   const [isLocked, setIsLocked] = useState(false);
@@ -175,7 +176,7 @@ export default function PoolPickPage() {
 
         const { data: pickRow, error: pickErr } = await supabase
           .from("picks")
-          .select("picked_team")
+          .select("picked_team, was_autopick")
           .eq("pool_id", poolId)
           .eq("user_id", member.user_id)
           .eq("entry_no", entryNo)
@@ -188,9 +189,11 @@ export default function PoolPickPage() {
         if (pickErr) {
           setStatusMsg(`Warning: could not load existing pick: ${pickErr.message}`);
           setExistingPick(null);
+          setExistingPickWasAutopick(false);
           setSelectedTeam("");
         } else {
           setExistingPick(pickRow?.picked_team ?? null);
+          setExistingPickWasAutopick(!!pickRow?.was_autopick);
           setSelectedTeam(pickRow?.picked_team ?? "");
         }
       } catch (e: any) {
@@ -258,6 +261,7 @@ export default function PoolPickPage() {
     }
 
     setExistingPick(selectedTeam);
+    setExistingPickWasAutopick(false);
     setStatusMsg("✅ Pick saved.");
   }
 
@@ -365,6 +369,9 @@ export default function PoolPickPage() {
                       }}
                     >
                       {team}
+                      {existingPickWasAutopick && existingPick === team
+                        ? " · AUTO"
+                        : ""}
                     </span>
                   ))}
               </div>
@@ -427,7 +434,31 @@ export default function PoolPickPage() {
                           transition: "all .12s ease",
                         }}
                       >
-                        <div style={{ fontSize: 18 }}>{team}</div>
+                        <div
+                          style={{
+                            display: "flex",
+                            justifyContent: "space-between",
+                            alignItems: "center",
+                            gap: 8,
+                          }}
+                        >
+                          <span style={{ fontSize: 18 }}>{team}</span>
+
+                          {isSelected && existingPickWasAutopick ? (
+                            <span
+                              style={{
+                                padding: "3px 7px",
+                                borderRadius: 999,
+                                background: "rgba(0,0,0,0.22)",
+                                fontSize: 10,
+                                fontWeight: 900,
+                                letterSpacing: 0.5,
+                              }}
+                            >
+                              AUTO PICK
+                            </span>
+                          ) : null}
+                        </div>
                         <div style={{ opacity: 0.75 }}>
                           {isHome ? "vs" : "@"} {opponent}
                         </div>
@@ -473,7 +504,11 @@ export default function PoolPickPage() {
             <div style={{ marginTop: 10, opacity: 0.85 }}>
               {existingPick ? (
                 <div>
-                  Existing pick: <strong>{existingPick}</strong>
+                  Existing pick:{" "}
+                  <strong>
+                    {existingPick}
+                    {existingPickWasAutopick ? " · AUTO" : ""}
+                  </strong>
                 </div>
               ) : (
                 <div>No pick submitted yet.</div>
