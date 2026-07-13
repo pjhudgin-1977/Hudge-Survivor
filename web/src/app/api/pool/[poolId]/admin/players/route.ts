@@ -1,5 +1,29 @@
 import { NextResponse } from "next/server";
+import { createClient as createAdminClient } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/server";
+
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+
+function getAdminSupabase() {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+  if (!url) {
+    throw new Error("Missing NEXT_PUBLIC_SUPABASE_URL");
+  }
+
+  if (!key) {
+    throw new Error("Missing SUPABASE_SERVICE_ROLE_KEY");
+  }
+
+  return createAdminClient(url, key, {
+    auth: {
+      persistSession: false,
+      autoRefreshToken: false,
+    },
+  });
+}
 
 export async function POST(
   req: Request,
@@ -145,6 +169,7 @@ export async function DELETE(
   { params }: { params: Promise<{ poolId: string }> }
 ) {
   const supabase = await createClient();
+  const adminSupabase = getAdminSupabase();
   const { poolId } = await params;
 
   const { data: userRes } = await supabase.auth.getUser();
@@ -166,7 +191,7 @@ export async function DELETE(
     return NextResponse.json({ error: "Invalid entry_no" }, { status: 400 });
   }
 
-  const { data: meRows, error: meError } = await supabase
+  const { data: meRows, error: meError } = await adminSupabase
     .from("pool_members")
     .select("is_commissioner, role")
     .eq("pool_id", poolId)
@@ -190,7 +215,7 @@ export async function DELETE(
     );
   }
 
-  const { data: targetRow, error: targetError } = await supabase
+  const { data: targetRow, error: targetError } = await adminSupabase
     .from("pool_members")
     .select("user_id, entry_no, screen_name, is_commissioner, role")
     .eq("pool_id", poolId)
@@ -217,7 +242,7 @@ export async function DELETE(
     );
   }
 
-  const { error: picksError } = await supabase
+  const { error: picksError } = await adminSupabase
     .from("picks")
     .delete()
     .eq("pool_id", poolId)
@@ -228,7 +253,7 @@ export async function DELETE(
     return NextResponse.json({ error: picksError.message }, { status: 400 });
   }
 
-  const { error: usedTeamsError } = await supabase
+  const { error: usedTeamsError } = await adminSupabase
     .from("used_teams")
     .delete()
     .eq("pool_id", poolId)
@@ -239,7 +264,7 @@ export async function DELETE(
     return NextResponse.json({ error: usedTeamsError.message }, { status: 400 });
   }
 
-  const { error: memberError } = await supabase
+  const { error: memberError } = await adminSupabase
     .from("pool_members")
     .delete()
     .eq("pool_id", poolId)
