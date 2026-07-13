@@ -501,7 +501,21 @@ export default async function SweatPage({
 
       <div style={{ marginTop: 18, display: "grid", gap: 12 }}>
         {games.length === 0 ? (
-          <div style={{ opacity: 0.75 }}>No games found.</div>
+          <div
+            style={{
+              padding: 18,
+              borderRadius: 12,
+              border: "1px solid rgba(255,255,255,0.12)",
+              background: "rgba(255,255,255,0.04)",
+            }}
+          >
+            <div style={{ fontSize: 18, fontWeight: 900 }}>
+              No picks yet for the current week
+            </div>
+            <div style={{ marginTop: 6, opacity: 0.78 }}>
+              Sweat data, pick popularity, and game risk will appear after players submit their picks.
+            </div>
+          </div>
         ) : (
           games.map((g) => {
             const scoreLine =
