@@ -31,6 +31,7 @@ type PickRow = {
   losses?: number | null;
   is_eliminated?: boolean | null;
   still_alive?: boolean | null;
+  is_auto?: boolean | null;
 };
 
 type GameGroup = {
@@ -57,6 +58,7 @@ type GameGroup = {
     losses: number | null;
     is_eliminated: boolean;
     still_alive: boolean;
+    is_auto: boolean;
   }[];
 };
 
@@ -221,6 +223,7 @@ export default async function SweatPage({
       losses: typeof r.losses === "number" ? r.losses : null,
       is_eliminated: r.is_eliminated === true,
       still_alive: r.still_alive !== false,
+      is_auto: r.is_auto === true,
     });
   }
 
@@ -267,6 +270,7 @@ export default async function SweatPage({
     screen_name: string;
     pick_team: string | null;
     isMe: boolean;
+    isAuto: boolean;
   }[] = [];
 
   if (nextGame) {
@@ -279,6 +283,7 @@ export default async function SweatPage({
         screen_name: p.screen_name,
         pick_team: p.pick_team,
         isMe: !!(p.user_id && me.id && p.user_id === me.id),
+        isAuto: p.is_auto,
       };
     });
 
@@ -475,7 +480,11 @@ export default async function SweatPage({
                         {p.isMe ? " (You)" : ""}
                       </strong>{" "}
                       <span style={{ opacity: 0.8 }}>
-                        · Pick: <strong>{p.pick_team ?? "—"}</strong>
+                        · Pick:{" "}
+                        <strong>
+                          {p.pick_team ?? "—"}
+                          {p.isAuto ? " · AUTO" : ""}
+                        </strong>
                       </span>
                     </div>
 
@@ -557,7 +566,11 @@ export default async function SweatPage({
                             </strong>
 
                             <span style={{ opacity: 0.8 }}>
-                              Pick: <strong>{p.pick_team ?? "—"}</strong>
+                              Pick:{" "}
+                              <strong>
+                                {p.pick_team ?? "—"}
+                                {p.is_auto ? " · AUTO" : ""}
+                              </strong>
                             </span>
 
                             {badge ? (
