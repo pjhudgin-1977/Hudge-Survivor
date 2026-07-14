@@ -12,6 +12,7 @@ export default function JoinEntryForm({
 }) {
   const router = useRouter();
 
+  const [fullName, setFullName] = useState("");
   const [screenName, setScreenName] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
@@ -20,14 +21,25 @@ export default function JoinEntryForm({
     e.preventDefault();
     setError("");
 
-    const trimmed = screenName.trim();
+    const trimmedFullName = fullName.trim();
+    const trimmedScreenName = screenName.trim();
 
-    if (trimmed.length < 2) {
+    if (trimmedFullName.length < 2) {
+      setError("Full name must be at least 2 characters.");
+      return;
+    }
+
+    if (trimmedFullName.length > 100) {
+      setError("Full name must be 100 characters or fewer.");
+      return;
+    }
+
+    if (trimmedScreenName.length < 2) {
       setError("Screen name must be at least 2 characters.");
       return;
     }
 
-    if (trimmed.length > 30) {
+    if (trimmedScreenName.length > 30) {
       setError("Screen name must be 30 characters or fewer.");
       return;
     }
@@ -41,8 +53,8 @@ export default function JoinEntryForm({
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          screen_name: trimmed,
-          entry_no: entryNo,
+          full_name: trimmedFullName,
+          screen_name: trimmedScreenName,
         }),
       });
 
@@ -60,11 +72,49 @@ export default function JoinEntryForm({
     }
   }
 
+  const canSubmit =
+    fullName.trim().length >= 2 &&
+    screenName.trim().length >= 2 &&
+    !submitting;
+
   return (
     <form onSubmit={handleSubmit} style={{ marginTop: 18, maxWidth: 420 }}>
       <label
-        htmlFor="screen-name"
+        htmlFor="full-name"
         style={{ display: "block", fontWeight: 800, marginBottom: 8 }}
+      >
+        Full name
+      </label>
+
+      <input
+        id="full-name"
+        type="text"
+        value={fullName}
+        onChange={(e) => setFullName(e.target.value)}
+        placeholder="Example: Ryan Hudgin"
+        maxLength={100}
+        autoFocus
+        disabled={submitting}
+        autoComplete="name"
+        style={{
+          width: "100%",
+          padding: "11px 12px",
+          borderRadius: 10,
+          border: "1px solid rgba(255,255,255,0.25)",
+          background: "rgba(0,0,0,0.2)",
+          color: "white",
+          fontSize: 16,
+        }}
+      />
+
+      <label
+        htmlFor="screen-name"
+        style={{
+          display: "block",
+          fontWeight: 800,
+          marginTop: 16,
+          marginBottom: 8,
+        }}
       >
         Choose your screen name
       </label>
@@ -76,7 +126,6 @@ export default function JoinEntryForm({
         onChange={(e) => setScreenName(e.target.value)}
         placeholder="Example: RyanH"
         maxLength={30}
-        autoFocus
         disabled={submitting}
         style={{
           width: "100%",
@@ -90,7 +139,7 @@ export default function JoinEntryForm({
       />
 
       <div style={{ marginTop: 6, fontSize: 12, opacity: 0.7 }}>
-        This name will appear in standings and pool activity.
+        Your screen name will appear in standings and pool activity.
       </div>
 
       {error ? (
@@ -101,20 +150,16 @@ export default function JoinEntryForm({
 
       <button
         type="submit"
-        disabled={submitting || screenName.trim().length < 2}
+        disabled={!canSubmit}
         style={{
           marginTop: 14,
           padding: "10px 16px",
           borderRadius: 10,
           border: "none",
-          background:
-            submitting || screenName.trim().length < 2 ? "#666" : "#f97316",
+          background: canSubmit ? "#f97316" : "#666",
           color: "#000",
           fontWeight: 900,
-          cursor:
-            submitting || screenName.trim().length < 2
-              ? "not-allowed"
-              : "pointer",
+          cursor: canSubmit ? "pointer" : "not-allowed",
         }}
       >
         {submitting ? "Joining..." : `Join Pool as Entry ${entryNo}`}
