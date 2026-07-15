@@ -10,8 +10,11 @@ type NavItem = {
   active: (pathname: string, base: string) => boolean;
 };
 
-export default function NavBar() {
-  const pathname = usePathname();
+export default function NavBar({
+  isCommissioner,
+}: {
+  isCommissioner: boolean;
+}) {  const pathname = usePathname();
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement | null>(null);
@@ -70,12 +73,14 @@ export default function NavBar() {
   ];
 
   const moreItems = [
-    { label: "Rules", href: `${base}/rules` },
-    { label: "Invite", href: `${base}/invite` },
-    { label: "Profile", href: "/profile" },
-    { label: "Payments", href: `${base}/payment` },
-    { label: "Admin", href: `${base}/admin` },
-  ];
+  { label: "Rules", href: `${base}/rules` },
+  { label: "Invite", href: `${base}/invite` },
+  { label: "Profile", href: "/profile" },
+  { label: "Payments", href: `${base}/payment` },
+  ...(isCommissioner
+    ? [{ label: "Admin", href: `${base}/admin` }]
+    : []),
+];
 
   const moreActive = moreItems.some((item) => pathname.startsWith(item.href));
 
