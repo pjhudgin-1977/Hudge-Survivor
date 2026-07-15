@@ -266,8 +266,13 @@ export default function PoolPickPage() {
   }
 
   return (
-    <main style={{ padding: 24, maxWidth: 560 }}>
-      <h1 style={{ fontSize: 26, fontWeight: 800 }}>
+<main
+  style={{
+    width: "100%",
+    padding: 24,
+    boxSizing: "border-box",
+  }}
+>      <h1 style={{ fontSize: 26, fontWeight: 800 }}>
         Week {weekNumber ?? "—"} Pick
       </h1>
 
