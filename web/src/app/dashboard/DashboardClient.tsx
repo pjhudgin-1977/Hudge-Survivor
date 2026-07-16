@@ -1,8 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabaseClient";
 
 type Membership = {
@@ -23,12 +23,7 @@ function extractPoolId(input: string): string | null {
 
 export default function DashboardClient() {
   const router = useRouter();
-  const searchParams = useSearchParams();
-
-  const onboardingJoinOnly = useMemo(
-    () => searchParams.get("onboarding") === "joinonly",
-    [searchParams]
-  );
+  
 
   const [loading, setLoading] = useState(true);
   const [email, setEmail] = useState("");
@@ -141,18 +136,7 @@ const list = (memberRows ?? []).map((row) => ({
           </p>
         </section>
 
-        {onboardingJoinOnly ? (
-          <section className="rounded-2xl border border-amber-400/40 bg-slate-900 p-5 shadow-lg">
-            <div className="font-bold text-amber-300">
-              Pool creation is disabled
-            </div>
-
-            <div className="mt-1 text-sm text-slate-300">
-              To get started, you’ll need an invite link from a commissioner.
-            </div>
-          </section>
-        ) : null}
-
+        
         <section className="space-y-4 rounded-2xl border border-slate-700 bg-slate-900 p-5 shadow-lg">
           <div>
             <h2 className="text-xl font-bold text-white">Join a Pool</h2>
@@ -182,12 +166,7 @@ const list = (memberRows ?? []).map((row) => ({
               Join
             </button>
 
-            <Link
-              className="rounded-lg border border-slate-500 bg-slate-700 px-5 py-2 font-bold text-white transition hover:bg-slate-600"
-              href="/join"
-            >
-              Open Join Page
-            </Link>
+            
           </div>
 
           {joinErr ? (
