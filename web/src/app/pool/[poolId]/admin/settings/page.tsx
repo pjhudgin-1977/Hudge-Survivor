@@ -2,11 +2,12 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 
 type PoolRow = {
   id: string;
+  name: string | null;
   pool_name: string | null;
   season_year: number | null;
   entry_fee_cents: number | null;
@@ -16,73 +17,104 @@ type PoolRow = {
 
 export default function PoolSettingsPage() {
   const params = useParams();
+  const router = useRouter();
   const poolId = params.poolId as string;
 
   const supabase = useMemo(() => createClient(), []);
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+
   const [err, setErr] = useState("");
   const [okMsg, setOkMsg] = useState("");
+  const [deleteError, setDeleteError] = useState("");
 
   const [poolName, setPoolName] = useState("");
-  const [seasonYear, setSeasonYear] = useState<number>(2025);
-  const [entryFeeDollars, setEntryFeeDollars] = useState<string>("0");
-  const [isPublic, setIsPublic] = useState<boolean>(false);
-  const [maxLosses, setMaxLosses] = useState<number>(2);
+  const [deletePoolName, setDeletePoolName] = useState("");
+  const [seasonYear, setSeasonYear] = useState<number>(2026);
+  const [entryFeeDollars, setEntryFeeDollars] = useState("0");
+  const [isPublic, setIsPublic] = useState(false);
+  const [maxLosses, setMaxLosses] = useState(2);
+
+  const [deleteNameConfirmation, setDeleteNameConfirmation] = useState("");
+  const [deleteWordConfirmation, setDeleteWordConfirmation] = useState("");
 
   async function load() {
     setLoading(true);
     setErr("");
     setOkMsg("");
+    setDeleteError("");
 
     try {
       const { data: auth } = await supabase.auth.getUser();
+
       if (!auth?.user) {
         window.location.href = "/login";
         return;
       }
 
-      // Commissioner gate
-      const { data: gate, error: gateErr } = await supabase
+      const { data: memberRows, error: gateErr } = await supabase
         .from("pool_members")
-        .select("is_commissioner")
+        .select("is_commissioner, role")
         .eq("pool_id", poolId)
-        .eq("user_id", auth.user.id)
-        .maybeSingle();
+        .eq("user_id", auth.user.id);
 
-      if (gateErr || !gate?.is_commissioner) {
-        window.location.href = `/pool/${poolId}/admin`;
+      const isCommissioner = (memberRows ?? []).some(
+        (row) =>
+          Boolean(row?.is_commissioner) ||
+          String(row?.role ?? "").toLowerCase() === "commissioner" ||
+          String(row?.role ?? "").toLowerCase() === "admin"
+      );
+
+      if (gateErr || !isCommissioner) {
+        window.location.href = `/pool/${poolId}`;
         return;
       }
 
-      // Load pool settings
       const { data: pool, error: poolErr } = await supabase
         .from("pools")
-        .select("id, pool_name, season_year, entry_fee_cents, is_public, max_losses")
+        .select(
+          "id, name, pool_name, season_year, entry_fee_cents, is_public, max_losses"
+        )
         .eq("id", poolId)
         .maybeSingle();
 
-      if (poolErr) throw new Error(poolErr.message);
-      const p = pool as PoolRow | null;
-      if (!p) throw new Error("Pool not found");
+      if (poolErr) {
+        throw new Error(poolErr.message);
+      }
 
-      setPoolName(p.pool_name ?? "My Survivor Pool");
-      setSeasonYear(Number(p.season_year ?? 2025));
-      setEntryFeeDollars(String(((p.entry_fee_cents ?? 0) / 100).toFixed(0)));
-      setIsPublic(Boolean(p.is_public ?? false));
-      setMaxLosses(Number(p.max_losses ?? 2));
+      const loadedPool = pool as PoolRow | null;
 
-      setLoading(false);
-    } catch (e: any) {
-      setErr(e?.message ?? "Unknown error");
+      if (!loadedPool) {
+        throw new Error("Pool not found");
+      }
+
+      const readableName =
+        loadedPool.name?.trim() ||
+        loadedPool.pool_name?.trim() ||
+        "My Survivor Pool";
+
+      setPoolName(readableName);
+      setDeletePoolName(loadedPool.name?.trim() || readableName);
+      setSeasonYear(Number(loadedPool.season_year ?? 2026));
+      setEntryFeeDollars(
+        String(((loadedPool.entry_fee_cents ?? 0) / 100).toFixed(0))
+      );
+      setIsPublic(Boolean(loadedPool.is_public ?? false));
+      setMaxLosses(Number(loadedPool.max_losses ?? 2));
+    } catch (error: any) {
+      setErr(error?.message ?? "Unknown error");
+    } finally {
       setLoading(false);
     }
   }
 
   useEffect(() => {
     if (!poolId) return;
+
     load();
+
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [poolId]);
 
@@ -92,167 +124,351 @@ export default function PoolSettingsPage() {
     setSaving(true);
 
     try {
-      const feeDollarsNum = Number(entryFeeDollars);
-      const entry_fee_cents = Math.max(0, Math.floor((Number.isFinite(feeDollarsNum) ? feeDollarsNum : 0) * 100));
+      const cleanPoolName = poolName.trim();
 
-      const res = await fetch(`${window.location.origin}/api/pool/update-settings`, {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          poolId,
-          pool_name: poolName,
-          season_year: Number(seasonYear),
-          entry_fee_cents,
-          is_public: Boolean(isPublic),
-          max_losses: Number(maxLosses),
-        }),
-      });
-
-      const contentType = res.headers.get("content-type") || "";
-      if (!contentType.includes("application/json")) {
-        const text = await res.text();
-        throw new Error(`API returned non-JSON (${res.status}). First chars: ${text.slice(0, 60)}`);
+      if (cleanPoolName.length < 3 || cleanPoolName.length > 60) {
+        throw new Error("Pool name must be between 3 and 60 characters.");
       }
 
-      const json = await res.json();
-      if (!res.ok || !json.ok) throw new Error(json?.error ?? "Save failed");
+      const feeDollarsNumber = Number(entryFeeDollars);
 
-      setOkMsg("✅ Saved!");
-      setTimeout(() => setOkMsg(""), 2000);
-      setSaving(false);
-    } catch (e: any) {
-      setErr(e?.message ?? "Save failed");
+      const entryFeeCents = Math.max(
+        0,
+        Math.floor(
+          (Number.isFinite(feeDollarsNumber) ? feeDollarsNumber : 0) * 100
+        )
+      );
+
+      const response = await fetch(
+        `${window.location.origin}/api/pool/update-settings`,
+        {
+          method: "POST",
+          headers: {
+            "content-type": "application/json",
+          },
+          body: JSON.stringify({
+            poolId,
+            name: cleanPoolName,
+            pool_name: cleanPoolName,
+            season_year: Number(seasonYear),
+            entry_fee_cents: entryFeeCents,
+            is_public: Boolean(isPublic),
+            max_losses: Number(maxLosses),
+          }),
+        }
+      );
+
+      const contentType = response.headers.get("content-type") || "";
+
+      if (!contentType.includes("application/json")) {
+        const text = await response.text();
+
+        throw new Error(
+          `API returned non-JSON (${response.status}). First characters: ${text.slice(
+            0,
+            60
+          )}`
+        );
+      }
+
+      const json = await response.json();
+
+      if (!response.ok || !json.ok) {
+        throw new Error(json?.error ?? "Save failed");
+      }
+
+      setOkMsg("✅ Settings saved.");
+      setTimeout(() => setOkMsg(""), 2500);
+    } catch (error: any) {
+      setErr(error?.message ?? "Save failed");
+    } finally {
       setSaving(false);
     }
   }
 
-  if (!poolId) return <main className="p-6">Missing poolId.</main>;
+  async function deletePool() {
+    setDeleteError("");
+
+    if (deleteNameConfirmation.trim() !== deletePoolName) {
+      setDeleteError("The pool name does not match exactly.");
+      return;
+    }
+
+    if (deleteWordConfirmation.trim().toUpperCase() !== "DELETE") {
+      setDeleteError('Type DELETE in the second confirmation field.');
+      return;
+    }
+
+    const confirmed = window.confirm(
+      `Permanently delete "${deletePoolName}"?\n\nThis will delete all entries, picks, messages, invites, used teams, pool settings, and related pool history. This cannot be undone.`
+    );
+
+    if (!confirmed) return;
+
+    setDeleting(true);
+
+    try {
+      const response = await fetch(
+        `/api/pool/${poolId}/admin/delete`,
+        {
+          method: "DELETE",
+          headers: {
+            "content-type": "application/json",
+          },
+          body: JSON.stringify({
+            confirmationName: deleteNameConfirmation.trim(),
+            confirmationWord: deleteWordConfirmation.trim(),
+          }),
+        }
+      );
+
+      const json = await response.json();
+
+      if (!response.ok || !json.ok) {
+        throw new Error(json?.error ?? "Pool deletion failed");
+      }
+
+      router.replace("/dashboard");
+      router.refresh();
+    } catch (error: any) {
+      setDeleteError(error?.message ?? "Pool deletion failed");
+      setDeleting(false);
+    }
+  }
+
+  if (!poolId) {
+    return <main className="p-6">Missing pool ID.</main>;
+  }
+
+  const deleteReady =
+    deleteNameConfirmation.trim() === deletePoolName &&
+    deleteWordConfirmation.trim().toUpperCase() === "DELETE" &&
+    !deleting;
 
   return (
-    <main className="p-6 max-w-3xl">
-      <div className="flex items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-extrabold tracking-tight">Pool Settings</h1>
-          <p className="text-sm opacity-80 mt-1">
-            Pool: <span className="font-mono">{poolId}</span>
-          </p>
-        </div>
+    <main className="min-h-screen p-4 sm:p-6">
+      <div className="mx-auto max-w-3xl space-y-6">
+        <header className="flex flex-wrap items-center justify-between gap-4">
+          <div>
+            <h1 className="text-3xl font-extrabold tracking-tight text-white">
+              Pool Settings
+            </h1>
 
-        <div className="flex gap-2">
-          <Link
-            href={`/pool/${poolId}/admin`}
-            className="px-3 py-2 rounded-lg border text-sm font-semibold hover:opacity-90"
-          >
-            ← Admin
-          </Link>
-          <Link
-            href={`/pool/${poolId}`}
-            className="px-3 py-2 rounded-lg border text-sm font-semibold hover:opacity-90"
-          >
-            Pool Home
-          </Link>
-        </div>
-      </div>
-
-      <div className="mt-6 rounded-2xl border p-4">
-        <h2 className="text-lg font-bold">General</h2>
-
-        {loading ? <div className="mt-3 text-sm opacity-70">Loading…</div> : null}
-
-        {err ? (
-          <div className="mt-4 rounded-xl border border-black/20 bg-black/5 p-3 text-sm">
-            <div className="font-semibold">Error</div>
-            <div className="opacity-80 mt-1">{err}</div>
+            <p className="mt-1 text-sm text-slate-300">
+              {deletePoolName || poolId}
+            </p>
           </div>
-        ) : null}
 
-        {okMsg ? (
-          <div className="mt-4 rounded-xl border border-black/20 bg-black/5 p-3 text-sm font-semibold">
-            {okMsg}
+          <div className="flex flex-wrap gap-2">
+            <Link
+              href={`/pool/${poolId}/admin`}
+              className="rounded-lg border border-slate-500 bg-slate-700 px-3 py-2 text-sm font-semibold text-white hover:bg-slate-600"
+            >
+              ← Admin
+            </Link>
+
+            <Link
+              href={`/pool/${poolId}`}
+              className="rounded-lg border border-slate-500 bg-slate-700 px-3 py-2 text-sm font-semibold text-white hover:bg-slate-600"
+            >
+              Pool Home
+            </Link>
           </div>
-        ) : null}
+        </header>
 
-        <div className="mt-4 grid gap-4">
-          <label className="grid gap-1">
-            <span className="text-sm font-semibold">Pool name</span>
-            <input
-              className="rounded-xl border p-3"
-              value={poolName}
-              onChange={(e) => setPoolName(e.target.value)}
-              placeholder="My Survivor Pool"
-              disabled={loading || saving}
-            />
-          </label>
+        <section className="rounded-2xl border border-slate-700 bg-slate-900 p-5 shadow-lg">
+          <h2 className="text-xl font-bold text-white">General Settings</h2>
 
-          <label className="grid gap-1">
-            <span className="text-sm font-semibold">Season year</span>
-            <input
-              className="rounded-xl border p-3"
-              type="number"
-              value={seasonYear}
-              onChange={(e) => setSeasonYear(Number(e.target.value))}
-              disabled={loading || saving}
-            />
-          </label>
+          {loading ? (
+            <div className="mt-4 text-sm text-slate-300">Loading…</div>
+          ) : null}
 
-          <label className="grid gap-1">
-            <span className="text-sm font-semibold">Entry fee (dollars)</span>
-            <input
-              className="rounded-xl border p-3"
-              type="number"
-              value={entryFeeDollars}
-              onChange={(e) => setEntryFeeDollars(e.target.value)}
-              disabled={loading || saving}
-            />
-          </label>
-
-          <label className="flex items-center gap-3 rounded-xl border p-3">
-            <input
-              type="checkbox"
-              checked={isPublic}
-              onChange={(e) => setIsPublic(e.target.checked)}
-              disabled={loading || saving}
-            />
-            <div>
-              <div className="font-semibold">Public pool</div>
-              <div className="text-sm opacity-70">
-                If off, only people with an invite link can join.
-              </div>
+          {err ? (
+            <div className="mt-4 rounded-xl border border-red-400/40 bg-red-400/10 p-3 text-sm text-red-200">
+              <div className="font-bold">Error</div>
+              <div className="mt-1">{err}</div>
             </div>
-          </label>
+          ) : null}
 
-          <label className="grid gap-1">
-            <span className="text-sm font-semibold">Max losses allowed</span>
-            <select
-              className="rounded-xl border p-3"
-              value={maxLosses}
-              onChange={(e) => setMaxLosses(Number(e.target.value))}
-              disabled={loading || saving}
-            >
-              <option value={1}>1 (single elimination)</option>
-              <option value={2}>2 (double elimination)</option>
-              <option value={3}>3</option>
-            </select>
-          </label>
+          {okMsg ? (
+            <div className="mt-4 rounded-xl border border-green-400/40 bg-green-400/10 p-3 text-sm font-semibold text-green-200">
+              {okMsg}
+            </div>
+          ) : null}
 
-          <div className="flex items-center gap-3">
+          <div className="mt-5 grid gap-5">
+            <label className="grid gap-2">
+              <span className="text-sm font-bold text-white">Pool name</span>
+
+              <input
+                className="rounded-xl border border-slate-300 bg-white p-3 text-slate-950 placeholder:text-slate-500"
+                value={poolName}
+                onChange={(event) => setPoolName(event.target.value)}
+                placeholder="My Survivor Pool"
+                maxLength={60}
+                disabled={loading || saving || deleting}
+              />
+            </label>
+
+            <label className="grid gap-2">
+              <span className="text-sm font-bold text-white">Season year</span>
+
+              <input
+                className="rounded-xl border border-slate-300 bg-white p-3 text-slate-950"
+                type="number"
+                min="2026"
+                max="2035"
+                value={seasonYear}
+                onChange={(event) =>
+                  setSeasonYear(Number(event.target.value))
+                }
+                disabled={loading || saving || deleting}
+              />
+            </label>
+
+            <label className="grid gap-2">
+              <span className="text-sm font-bold text-white">
+                Entry fee (dollars)
+              </span>
+
+              <input
+                className="rounded-xl border border-slate-300 bg-white p-3 text-slate-950"
+                type="number"
+                min="0"
+                value={entryFeeDollars}
+                onChange={(event) =>
+                  setEntryFeeDollars(event.target.value)
+                }
+                disabled={loading || saving || deleting}
+              />
+            </label>
+
+            <label className="flex items-center gap-3 rounded-xl border border-slate-600 bg-slate-800 p-4">
+              <input
+                type="checkbox"
+                checked={isPublic}
+                onChange={(event) => setIsPublic(event.target.checked)}
+                disabled={loading || saving || deleting}
+              />
+
+              <div>
+                <div className="font-bold text-white">Public pool</div>
+
+                <div className="text-sm text-slate-300">
+                  If off, only people with an invite link can join.
+                </div>
+              </div>
+            </label>
+
+            <label className="grid gap-2">
+              <span className="text-sm font-bold text-white">
+                Max losses allowed
+              </span>
+
+              <select
+                className="rounded-xl border border-slate-300 bg-white p-3 text-slate-950"
+                value={maxLosses}
+                onChange={(event) =>
+                  setMaxLosses(Number(event.target.value))
+                }
+                disabled={loading || saving || deleting}
+              >
+                <option value={1}>1 — Single elimination</option>
+                <option value={2}>2 — Double elimination</option>
+                <option value={3}>3 losses</option>
+              </select>
+            </label>
+
+            <div className="flex flex-wrap items-center gap-3">
+              <button
+                type="button"
+                onClick={save}
+                className="rounded-xl bg-orange-500 px-5 py-3 text-sm font-extrabold text-black hover:bg-orange-400 disabled:cursor-not-allowed disabled:bg-slate-600 disabled:text-slate-300"
+                disabled={loading || saving || deleting}
+              >
+                {saving ? "Saving…" : "Save Settings"}
+              </button>
+
+              <button
+                type="button"
+                onClick={load}
+                className="rounded-xl border border-slate-500 bg-slate-700 px-5 py-3 text-sm font-semibold text-white hover:bg-slate-600 disabled:opacity-60"
+                disabled={loading || saving || deleting}
+              >
+                Reload
+              </button>
+            </div>
+          </div>
+        </section>
+
+        <section className="rounded-2xl border border-red-500/50 bg-slate-900 p-5 shadow-lg">
+          <h2 className="text-xl font-bold text-red-300">Danger Zone</h2>
+
+          <p className="mt-2 text-sm text-slate-300">
+            Permanently deleting this pool removes its players, entries,
+            picks, messages, invites, used teams, locks, and pool history.
+            User login accounts will not be deleted.
+          </p>
+
+          <div className="mt-5 rounded-xl border border-red-500/30 bg-red-500/5 p-4">
+            <div className="font-bold text-white">
+              Delete {deletePoolName || "this pool"}
+            </div>
+
+            <label className="mt-4 block">
+              <span className="text-sm font-semibold text-slate-200">
+                Type the exact pool name:
+              </span>
+
+              <div className="mt-1 rounded-lg bg-slate-800 px-3 py-2 font-mono text-sm text-red-200">
+                {deletePoolName}
+              </div>
+
+              <input
+                className="mt-2 w-full rounded-xl border border-slate-300 bg-white p-3 text-slate-950 placeholder:text-slate-500"
+                placeholder="Exact pool name"
+                value={deleteNameConfirmation}
+                onChange={(event) =>
+                  setDeleteNameConfirmation(event.target.value)
+                }
+                autoComplete="off"
+                disabled={loading || deleting}
+              />
+            </label>
+
+            <label className="mt-4 block">
+              <span className="text-sm font-semibold text-slate-200">
+                Type DELETE:
+              </span>
+
+              <input
+                className="mt-2 w-full rounded-xl border border-slate-300 bg-white p-3 text-slate-950 placeholder:text-slate-500"
+                placeholder="DELETE"
+                value={deleteWordConfirmation}
+                onChange={(event) =>
+                  setDeleteWordConfirmation(event.target.value)
+                }
+                autoComplete="off"
+                disabled={loading || deleting}
+              />
+            </label>
+
+            {deleteError ? (
+              <div className="mt-4 rounded-lg border border-red-400/40 bg-red-400/10 p-3 text-sm font-semibold text-red-200">
+                {deleteError}
+              </div>
+            ) : null}
+
             <button
-              onClick={save}
-              className="px-4 py-3 rounded-xl border text-sm font-extrabold hover:opacity-90"
-              disabled={loading || saving}
+              type="button"
+              onClick={deletePool}
+              disabled={!deleteReady}
+              className="mt-5 rounded-xl bg-red-600 px-5 py-3 font-extrabold text-white hover:bg-red-500 disabled:cursor-not-allowed disabled:bg-slate-700 disabled:text-slate-400"
             >
-              {saving ? "Saving…" : "Save settings"}
-            </button>
-
-            <button
-              onClick={load}
-              className="px-4 py-3 rounded-xl border text-sm font-semibold hover:opacity-90"
-              disabled={loading || saving}
-            >
-              Reload
+              {deleting ? "Deleting Pool…" : "Permanently Delete Pool"}
             </button>
           </div>
-        </div>
+        </section>
       </div>
     </main>
   );
