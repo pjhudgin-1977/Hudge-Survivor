@@ -1,8 +1,17 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
-import { useParams, useRouter, useSearchParams } from "next/navigation";
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
+import {
+  useParams,
+  useRouter,
+  useSearchParams,
+} from "next/navigation";
 import { createClient } from "@/lib/supabaseClient";
 
 type GameRow = {
@@ -22,9 +31,13 @@ type PoolStateRow = {
   picks_locked: boolean;
 };
 
-function normalizePhase(v: string | null | undefined) {
-  const s = String(v ?? "").toLowerCase();
-  if (s.includes("play")) return "playoffs";
+function normalizePhase(value: string | null | undefined) {
+  const normalized = String(value ?? "").toLowerCase();
+
+  if (normalized.includes("play")) {
+    return "playoffs";
+  }
+
   return "regular";
 }
 
@@ -34,18 +47,29 @@ export default function PoolPickPage() {
   const params = useParams<{ poolId: string }>();
   const poolId = params.poolId;
 
-  const entryNo = Math.max(1, Number(searchParams.get("entry") ?? "1") || 1);
+  const entryNo = Math.max(
+    1,
+    Number(searchParams.get("entry") ?? "1") || 1
+  );
+
+  const messageTimerRef = useRef<ReturnType<typeof setTimeout> | null>(
+    null
+  );
 
   const [loading, setLoading] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
   const [statusMsg, setStatusMsg] = useState("");
 
   const [screenName, setScreenName] = useState<string | null>(null);
-  const [poolMemberUserId, setPoolMemberUserId] = useState<string | null>(null);
+  const [poolMemberUserId, setPoolMemberUserId] = useState<
+    string | null
+  >(null);
 
   const [games, setGames] = useState<GameRow[]>([]);
   const [usedTeams, setUsedTeams] = useState<string[]>([]);
   const [existingPick, setExistingPick] = useState<string | null>(null);
-  const [existingPickWasAutopick, setExistingPickWasAutopick] = useState(false);
+  const [existingPickWasAutopick, setExistingPickWasAutopick] =
+    useState(false);
   const [selectedTeam, setSelectedTeam] = useState("");
 
   const [isLocked, setIsLocked] = useState(false);
@@ -54,18 +78,42 @@ export default function PoolPickPage() {
   const [weekNumber, setWeekNumber] = useState<number | null>(null);
 
   const weeklyTeams = useMemo(() => {
-    const s = new Set<string>();
-    for (const g of games) {
-      s.add(g.home_team);
-      s.add(g.away_team);
+    const teams = new Set<string>();
+
+    for (const game of games) {
+      teams.add(game.home_team);
+      teams.add(game.away_team);
     }
-    return Array.from(s).sort();
+
+    return Array.from(teams).sort();
   }, [games]);
 
   const eligibleTeams = useMemo(() => {
     const used = new Set(usedTeams);
-    return weeklyTeams.filter((t) => !used.has(t));
+
+    return weeklyTeams.filter((team) => !used.has(team));
   }, [weeklyTeams, usedTeams]);
+
+  function showTemporaryMessage(message: string) {
+    setStatusMsg(message);
+
+    if (messageTimerRef.current) {
+      clearTimeout(messageTimerRef.current);
+    }
+
+    messageTimerRef.current = setTimeout(() => {
+      setStatusMsg("");
+      messageTimerRef.current = null;
+    }, 5000);
+  }
+
+  useEffect(() => {
+    return () => {
+      if (messageTimerRef.current) {
+        clearTimeout(messageTimerRef.current);
+      }
+    };
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -75,48 +123,59 @@ export default function PoolPickPage() {
         setLoading(true);
         setStatusMsg("");
 
-        if (!poolId) return;
+        if (!poolId) {
+          return;
+        }
 
         const supabase = createClient();
 
-        const { data: userRes } = await supabase.auth.getUser();
-        const user = userRes?.user;
+        const { data: userResult } = await supabase.auth.getUser();
+        const user = userResult?.user;
 
-        if (cancelled) return;
+        if (cancelled) {
+          return;
+        }
 
         if (!user) {
           router.replace("/login");
           return;
         }
 
-        const { data: ps, error: psErr } = await supabase
-          .from("pool_state")
-          .select("pool_id, season_year, week_type, week_number, picks_locked")
-          .eq("pool_id", poolId)
-          .maybeSingle<PoolStateRow>();
+        const { data: poolState, error: poolStateError } =
+          await supabase
+            .from("pool_state")
+            .select(
+              "pool_id, season_year, week_type, week_number, picks_locked"
+            )
+            .eq("pool_id", poolId)
+            .maybeSingle<PoolStateRow>();
 
-        if (cancelled) return;
-
-        if (psErr) {
-          setStatusMsg(`Error loading pool state: ${psErr.message}`);
+        if (cancelled) {
           return;
         }
 
-        if (!ps) {
+        if (poolStateError) {
           setStatusMsg(
-            "Pool state not found. Go to Admin page and click Save once to initialize."
+            `Error loading pool state: ${poolStateError.message}`
           );
           return;
         }
 
-        const currentPhase = normalizePhase(ps.week_type);
+        if (!poolState) {
+          setStatusMsg(
+            "Pool state not found. Go to Admin and save the pool settings once to initialize it."
+          );
+          return;
+        }
 
-        setSeasonYear(ps.season_year);
+        const currentPhase = normalizePhase(poolState.week_type);
+
+        setSeasonYear(poolState.season_year);
         setPhase(currentPhase);
-        setWeekNumber(ps.week_number);
-        setIsLocked(!!ps.picks_locked);
+        setWeekNumber(poolState.week_number);
+        setIsLocked(Boolean(poolState.picks_locked));
 
-        const { data: member, error: memberErr } = await supabase
+        const { data: member, error: memberError } = await supabase
           .from("pool_members")
           .select("user_id, entry_no, screen_name")
           .eq("pool_id", poolId)
@@ -124,82 +183,115 @@ export default function PoolPickPage() {
           .eq("entry_no", entryNo)
           .maybeSingle();
 
-        if (cancelled) return;
+        if (cancelled) {
+          return;
+        }
 
-        if (memberErr) {
-          setStatusMsg(`Error loading pool member: ${memberErr.message}`);
+        if (memberError) {
+          setStatusMsg(
+            `Error loading pool member: ${memberError.message}`
+          );
           return;
         }
 
         if (!member) {
-          setStatusMsg(`Entry ${entryNo} was not found for this pool.`);
+          setStatusMsg(
+            `Entry ${entryNo} was not found for this pool.`
+          );
           return;
         }
 
         setPoolMemberUserId(member.user_id);
         setScreenName(member.screen_name ?? null);
 
-        const { data: gameRows, error: gamesErr } = await supabase
+        const { data: gameRows, error: gamesError } = await supabase
           .from("games")
           .select(
             "season_year, phase, week_number, home_team, away_team, kickoff_at"
           )
-          .eq("season_year", ps.season_year)
+          .eq("season_year", poolState.season_year)
           .eq("phase", currentPhase)
-          .eq("week_number", ps.week_number)
+          .eq("week_number", poolState.week_number)
           .order("kickoff_at", { ascending: true });
 
-        if (cancelled) return;
+        if (cancelled) {
+          return;
+        }
 
-        if (gamesErr) {
-          setStatusMsg(`Error loading games: ${gamesErr.message}`);
+        if (gamesError) {
+          setStatusMsg(
+            `Error loading games: ${gamesError.message}`
+          );
           return;
         }
 
         setGames((gameRows ?? []) as GameRow[]);
 
-        const { data: usedRows, error: usedErr } = await supabase
+        const { data: usedRows, error: usedError } = await supabase
           .from("used_teams")
           .select("team_abbr")
           .eq("pool_id", poolId)
           .eq("user_id", member.user_id)
           .eq("entry_no", entryNo);
 
-        if (cancelled) return;
-
-        if (usedErr) {
-          setStatusMsg(`Warning: could not load used teams: ${usedErr.message}`);
-          setUsedTeams([]);
-        } else {
-          setUsedTeams((usedRows ?? []).map((r: any) => r.team_abbr));
+        if (cancelled) {
+          return;
         }
 
-        const { data: pickRow, error: pickErr } = await supabase
+        if (usedError) {
+          setStatusMsg(
+            `Warning: could not load used teams: ${usedError.message}`
+          );
+          setUsedTeams([]);
+        } else {
+          setUsedTeams(
+            (usedRows ?? []).map((row: { team_abbr: string }) =>
+              String(row.team_abbr)
+            )
+          );
+        }
+
+        const { data: pickRow, error: pickError } = await supabase
           .from("picks")
           .select("picked_team, was_autopick")
           .eq("pool_id", poolId)
           .eq("user_id", member.user_id)
           .eq("entry_no", entryNo)
           .eq("phase", currentPhase)
-          .eq("week_number", ps.week_number)
+          .eq("week_number", poolState.week_number)
           .maybeSingle();
 
-        if (cancelled) return;
+        if (cancelled) {
+          return;
+        }
 
-        if (pickErr) {
-          setStatusMsg(`Warning: could not load existing pick: ${pickErr.message}`);
+        if (pickError) {
+          setStatusMsg(
+            `Warning: could not load existing pick: ${pickError.message}`
+          );
           setExistingPick(null);
           setExistingPickWasAutopick(false);
           setSelectedTeam("");
         } else {
-          setExistingPick(pickRow?.picked_team ?? null);
-          setExistingPickWasAutopick(!!pickRow?.was_autopick);
-          setSelectedTeam(pickRow?.picked_team ?? "");
+          const pickedTeam = pickRow?.picked_team ?? null;
+
+          setExistingPick(pickedTeam);
+          setExistingPickWasAutopick(
+            Boolean(pickRow?.was_autopick)
+          );
+          setSelectedTeam(pickedTeam ?? "");
         }
-      } catch (e: any) {
-        setStatusMsg(e?.message ?? "Unexpected error.");
+      } catch (error: unknown) {
+        const message =
+          error instanceof Error
+            ? error.message
+            : "Unexpected error.";
+
+        setStatusMsg(message);
       } finally {
-        if (!cancelled) setLoading(false);
+        if (!cancelled) {
+          setLoading(false);
+        }
       }
     }
 
@@ -224,131 +316,312 @@ export default function PoolPickPage() {
     }
 
     if (!selectedTeam) {
-      setStatusMsg("Please select a team.");
+      setStatusMsg("Select a team before saving your pick.");
       return;
     }
 
-    if (seasonYear == null || phase == null || weekNumber == null) {
-      setStatusMsg("Missing current week. Go to Admin and set week.");
+    if (
+      seasonYear === null ||
+      phase === null ||
+      weekNumber === null
+    ) {
+      setStatusMsg(
+        "Missing the current week. Go to Admin and set the week."
+      );
       return;
     }
 
-    if (!eligibleTeams.includes(selectedTeam) && existingPick !== selectedTeam) {
-      setStatusMsg("That team is not eligible (already used or not playing this week).");
+    if (
+      !eligibleTeams.includes(selectedTeam) &&
+      existingPick !== selectedTeam
+    ) {
+      setStatusMsg(
+        "That team is not eligible because it was already used or is not playing this week."
+      );
       return;
     }
 
-    const supabase = createClient();
+    setSubmitting(true);
 
-    const { error } = await supabase.from("picks").upsert(
-      [
+    try {
+      const supabase = createClient();
+
+      const { error } = await supabase.from("picks").upsert(
+        [
+          {
+            pool_id: poolId,
+            user_id: poolMemberUserId,
+            entry_no: entryNo,
+            phase,
+            week_number: weekNumber,
+            picked_team: selectedTeam,
+            submitted_at: new Date().toISOString(),
+          },
+        ],
         {
-          pool_id: poolId,
-          user_id: poolMemberUserId,
-          entry_no: entryNo,
-          phase,
-          week_number: weekNumber,
-          picked_team: selectedTeam,
-          submitted_at: new Date().toISOString(),
-        },
-      ],
-      { onConflict: "pool_id,user_id,entry_no,phase,week_number" }
-    );
+          onConflict:
+            "pool_id,user_id,entry_no,phase,week_number",
+        }
+      );
 
-    if (error) {
-      setStatusMsg(`Submit failed: ${error.message}`);
-      return;
+      if (error) {
+        setStatusMsg(`Submit failed: ${error.message}`);
+        return;
+      }
+
+      const previousPick = existingPick;
+
+      setExistingPick(selectedTeam);
+      setExistingPickWasAutopick(false);
+
+      showTemporaryMessage(
+        previousPick && previousPick !== selectedTeam
+          ? `✅ Pick changed from ${previousPick} to ${selectedTeam}.`
+          : `✅ ${selectedTeam} pick saved.`
+      );
+    } finally {
+      setSubmitting(false);
     }
-
-    setExistingPick(selectedTeam);
-    setExistingPickWasAutopick(false);
-    setStatusMsg("✅ Pick saved.");
   }
 
+  const pickChanged =
+    Boolean(existingPick) &&
+    Boolean(selectedTeam) &&
+    existingPick !== selectedTeam;
+
+  const submitDisabled =
+    loading || submitting || isLocked || !selectedTeam;
+
   return (
-<main
-  style={{
-    width: "100%",
-    padding: 24,
-    boxSizing: "border-box",
-  }}
->      <h1 style={{ fontSize: 26, fontWeight: 800 }}>
+    <main
+      style={{
+        width: "100%",
+        padding: 24,
+        boxSizing: "border-box",
+      }}
+    >
+      <h1 style={{ fontSize: 26, fontWeight: 800 }}>
         Week {weekNumber ?? "—"} Pick
       </h1>
 
-      <div style={{ marginTop: 8, opacity: 0.85 }}>
+      <div style={{ marginTop: 8, opacity: 0.9 }}>
         {screenName ? (
           <div>
             Player: <strong>{screenName}</strong>
           </div>
         ) : null}
 
-        <div style={{ marginTop: 8 }}>
-          <div style={{ marginBottom: 8, fontWeight: 700 }}>Entry</div>
-          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-            {[1, 2].map((n) => {
-              const isActive = entryNo === n;
+        <div style={{ marginTop: 10 }}>
+          <div style={{ marginBottom: 8, fontWeight: 700 }}>
+            Entry
+          </div>
+
+          <div
+            style={{
+              display: "flex",
+              gap: 8,
+              flexWrap: "wrap",
+            }}
+          >
+            {[1, 2].map((number) => {
+              const active = entryNo === number;
 
               return (
                 <button
-                  key={n}
+                  key={number}
                   type="button"
-                  onClick={() => router.push(`/pool/${poolId}/pick?entry=${n}`)}
+                  onClick={() =>
+                    router.push(
+                      `/pool/${poolId}/pick?entry=${number}`
+                    )
+                  }
                   style={{
                     padding: "8px 12px",
                     borderRadius: 10,
-                    border: isActive
+                    border: active
                       ? "2px solid #f97316"
                       : "1px solid rgba(255,255,255,0.18)",
-                    background: isActive ? "#f97316" : "rgba(255,255,255,0.06)",
-                    color: isActive ? "#000" : "#fff",
+                    background: active
+                      ? "#f97316"
+                      : "rgba(255,255,255,0.06)",
+                    color: active ? "#000" : "#fff",
                     fontWeight: 800,
                     cursor: "pointer",
                   }}
                 >
-                  Entry {n}
+                  Entry {number}
                 </button>
               );
             })}
           </div>
         </div>
+      </div>
 
-        <div style={{ marginTop: 8 }}>
+      <section
+        style={{
+          marginTop: 14,
+          padding: 16,
+          borderRadius: 14,
+          border: "1px solid rgba(255,255,255,0.18)",
+          background: "#111827",
+        }}
+      >
+        <div
+          style={{
+            display: "flex",
+            flexWrap: "wrap",
+            alignItems: "center",
+            gap: 10,
+          }}
+        >
           <Link
             href={`/pool/${poolId}/my-picks`}
             style={{
               display: "inline-block",
-              padding: "8px 12px",
+              padding: "10px 14px",
               borderRadius: 10,
               textDecoration: "none",
               fontWeight: 800,
               border: "1px solid rgba(255,255,255,0.18)",
-              background: "rgba(255,255,255,0.06)",
+              background: "rgba(255,255,255,0.08)",
               color: "white",
             }}
           >
             View My Picks
           </Link>
+
+          <button
+            type="button"
+            onClick={handleSubmit}
+            disabled={submitDisabled}
+            style={{
+              padding: "10px 16px",
+              borderRadius: 10,
+              fontWeight: 800,
+              background: submitDisabled ? "#64748b" : "#f97316",
+              color: submitDisabled ? "#dbeafe" : "#000",
+              border: "none",
+              cursor: submitDisabled
+                ? "not-allowed"
+                : "pointer",
+            }}
+          >
+            {submitting
+              ? "Saving…"
+              : isLocked
+                ? "Picks Locked"
+                : existingPick
+                  ? "Save Pick Change"
+                  : "Submit Pick"}
+          </button>
+
+          <Link
+            href={`/pool/${poolId}/rules`}
+            style={{
+              display: "inline-block",
+              padding: "10px 14px",
+              borderRadius: 10,
+              textDecoration: "none",
+              fontWeight: 700,
+              border: "1px solid rgba(255,255,255,0.18)",
+              color: "white",
+            }}
+          >
+            Rules
+          </Link>
         </div>
 
-        {isLocked && (
-          <div style={{ marginTop: 8, color: "#fca5a5", fontWeight: 800 }}>
+        <div style={{ marginTop: 12 }}>
+          {selectedTeam ? (
+            <div>
+              Selected team:{" "}
+              <strong style={{ color: "#fdba74" }}>
+                {selectedTeam}
+              </strong>
+
+              {pickChanged ? (
+                <span style={{ marginLeft: 8, opacity: 0.8 }}>
+                  Current saved pick: {existingPick}
+                </span>
+              ) : existingPickWasAutopick ? (
+                <span style={{ marginLeft: 8, opacity: 0.8 }}>
+                  AUTO
+                </span>
+              ) : null}
+            </div>
+          ) : (
+            <div style={{ opacity: 0.75 }}>
+              Select one eligible team below.
+            </div>
+          )}
+        </div>
+
+        <div
+          style={{
+            marginTop: 8,
+            fontSize: 13,
+            opacity: 0.75,
+          }}
+        >
+          Each entry has one pick per week. You may change that pick
+          until picks lock; only the most recently saved team counts.
+        </div>
+
+        {statusMsg ? (
+          <div
+            role="status"
+            aria-live="polite"
+            style={{
+              marginTop: 12,
+              padding: "10px 12px",
+              borderRadius: 10,
+              background: statusMsg.startsWith("✅")
+                ? "rgba(34,197,94,0.14)"
+                : "rgba(255,255,255,0.06)",
+              fontWeight: 700,
+              whiteSpace: "pre-wrap",
+            }}
+          >
+            {statusMsg}
+          </div>
+        ) : null}
+
+        {isLocked ? (
+          <div
+            style={{
+              marginTop: 10,
+              color: "#fca5a5",
+              fontWeight: 800,
+            }}
+          >
             🔒 Picks are locked for this week.
           </div>
-        )}
-      </div>
+        ) : null}
+      </section>
 
       {loading ? (
-        <p style={{ marginTop: 16 }}>Loading…</p>
+        <p style={{ marginTop: 18 }}>Loading…</p>
       ) : (
         <>
-          <div style={{ marginTop: 18 }}>
-            <div style={{ marginTop: 16, marginBottom: 8, fontWeight: 700 }}>
+          <section style={{ marginTop: 20 }}>
+            <div
+              style={{
+                marginBottom: 8,
+                fontWeight: 700,
+              }}
+            >
               Used teams
             </div>
 
             {usedTeams.length === 0 ? (
-              <div style={{ opacity: 0.75, marginBottom: 14 }}>None yet</div>
+              <div
+                style={{
+                  opacity: 0.75,
+                  marginBottom: 14,
+                }}
+              >
+                None yet
+              </div>
             ) : (
               <div
                 style={{
@@ -367,75 +640,108 @@ export default function PoolPickPage() {
                       style={{
                         padding: "6px 10px",
                         borderRadius: 999,
-                        border: "1px solid rgba(255,255,255,0.18)",
-                        background: "rgba(255,255,255,0.06)",
+                        border:
+                          "1px solid rgba(255,255,255,0.18)",
+                        background:
+                          "rgba(255,255,255,0.06)",
                         fontWeight: 700,
                         fontSize: 14,
                       }}
                     >
                       {team}
-                      {existingPickWasAutopick && existingPick === team
-                        ? " · AUTO"
-                        : ""}
                     </span>
                   ))}
               </div>
             )}
 
-            <div style={{ marginTop: 16, marginBottom: 8, fontWeight: 700 }}>
+            <div
+              style={{
+                marginTop: 16,
+                marginBottom: 8,
+                fontWeight: 700,
+              }}
+            >
               Eligible teams
             </div>
 
-            {isLocked && (
-              <div style={{ marginBottom: 12, opacity: 0.8 }}>
-                Picks are locked. Your existing pick is shown below and cannot be changed.
+            {isLocked ? (
+              <div
+                style={{
+                  marginBottom: 12,
+                  opacity: 0.8,
+                }}
+              >
+                Your existing pick is shown below and cannot be
+                changed.
               </div>
-            )}
+            ) : null}
 
             <div
               style={{
                 display: "grid",
-                gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))",
+                gridTemplateColumns:
+                  "repeat(auto-fit, minmax(150px, 1fr))",
                 gap: 14,
                 marginTop: 12,
               }}
             >
-              {games.flatMap((g) => {
-                const teams = [g.home_team, g.away_team];
+              {games.flatMap((game) => {
+                const teams = [
+                  game.home_team,
+                  game.away_team,
+                ];
 
                 return teams
-                  .filter((t) => eligibleTeams.includes(t))
+                  .filter((team) =>
+                    eligibleTeams.includes(team)
+                  )
                   .map((team) => {
-                    const isSelected = selectedTeam === team;
-                    const opponent = team === g.home_team ? g.away_team : g.home_team;
-                    const isHome = team === g.home_team;
+                    const selected = selectedTeam === team;
+                    const opponent =
+                      team === game.home_team
+                        ? game.away_team
+                        : game.home_team;
+                    const homeTeam =
+                      team === game.home_team;
 
                     return (
                       <button
-                        key={`${team}-${g.home_team}-${g.away_team}-${g.kickoff_at}`}
+                        key={`${team}-${game.home_team}-${game.away_team}-${game.kickoff_at}`}
                         type="button"
-                        disabled={isLocked}
+                        disabled={isLocked || submitting}
                         onClick={() => {
-                          if (isLocked) return;
+                          if (isLocked || submitting) {
+                            return;
+                          }
+
                           setSelectedTeam(team);
+                          setStatusMsg("");
                         }}
                         style={{
-                          padding: "14px",
+                          padding: 14,
                           borderRadius: 12,
-                          border: isSelected
+                          border: selected
                             ? "2px solid #f97316"
                             : "1px solid rgba(255,255,255,0.18)",
-                          background: isSelected ? "#f97316" : "#111827",
-                          color: isSelected ? "#000" : "#fff",
+                          background: selected
+                            ? "#f97316"
+                            : "#111827",
+                          color: selected ? "#000" : "#fff",
                           fontWeight: 800,
-                          cursor: isLocked ? "not-allowed" : "pointer",
+                          cursor:
+                            isLocked || submitting
+                              ? "not-allowed"
+                              : "pointer",
                           textAlign: "left",
                           lineHeight: 1.4,
-                          opacity: isLocked && !isSelected ? 0.55 : 1,
-                          boxShadow: isSelected
+                          opacity:
+                            isLocked && !selected ? 0.55 : 1,
+                          boxShadow: selected
                             ? "0 0 0 2px #fb923c, 0 4px 14px rgba(0,0,0,0.35)"
                             : "0 2px 6px rgba(0,0,0,0.35)",
-                          transform: isSelected ? "scale(1.02)" : "scale(1)",
+                          transform: selected
+                            ? "scale(1.02)"
+                            : "scale(1)",
                           transition: "all .12s ease",
                         }}
                       >
@@ -447,14 +753,19 @@ export default function PoolPickPage() {
                             gap: 8,
                           }}
                         >
-                          <span style={{ fontSize: 18 }}>{team}</span>
+                          <span style={{ fontSize: 18 }}>
+                            {team}
+                          </span>
 
-                          {isSelected && existingPickWasAutopick ? (
+                          {selected &&
+                          existingPickWasAutopick &&
+                          existingPick === team ? (
                             <span
                               style={{
                                 padding: "3px 7px",
                                 borderRadius: 999,
-                                background: "rgba(0,0,0,0.22)",
+                                background:
+                                  "rgba(0,0,0,0.22)",
                                 fontSize: 10,
                                 fontWeight: 900,
                                 letterSpacing: 0.5,
@@ -464,12 +775,21 @@ export default function PoolPickPage() {
                             </span>
                           ) : null}
                         </div>
+
                         <div style={{ opacity: 0.75 }}>
-                          {isHome ? "vs" : "@"} {opponent}
+                          {homeTeam ? "vs" : "@"} {opponent}
                         </div>
-                        <div style={{ fontSize: 12, opacity: 0.65 }}>
-                          {g.kickoff_at
-                            ? new Date(g.kickoff_at).toLocaleString()
+
+                        <div
+                          style={{
+                            fontSize: 12,
+                            opacity: 0.65,
+                          }}
+                        >
+                          {game.kickoff_at
+                            ? new Date(
+                                game.kickoff_at
+                              ).toLocaleString()
                             : ""}
                         </div>
                       </button>
@@ -477,77 +797,44 @@ export default function PoolPickPage() {
                   });
               })}
             </div>
+          </section>
 
+          <section style={{ marginTop: 24 }}>
             <div
               style={{
-                marginTop: 18,
-                padding: 14,
-                borderRadius: 12,
-                border: "1px solid rgba(255,255,255,0.18)",
-                background: "rgba(255,255,255,0.03)",
-                display: "inline-block",
+                fontWeight: 800,
+                marginBottom: 6,
               }}
             >
-              <button
-                onClick={handleSubmit}
-                disabled={isLocked || !selectedTeam}
-                style={{
-                  padding: "10px 14px",
-                  borderRadius: 10,
-                  fontWeight: 800,
-                  background: isLocked || !selectedTeam ? "#666" : "#f97316",
-                  color: "#000",
-                  border: "none",
-                  cursor: isLocked || !selectedTeam ? "not-allowed" : "pointer",
-                  opacity: isLocked || !selectedTeam ? 0.75 : 1,
-                }}
-              >
-                {isLocked ? "Picks Locked" : "Submit Pick"}
-              </button>
+              This week’s games
             </div>
 
-            <div style={{ marginTop: 10, opacity: 0.85 }}>
-              {existingPick ? (
-                <div>
-                  Existing pick:{" "}
-                  <strong>
-                    {existingPick}
-                    {existingPickWasAutopick ? " · AUTO" : ""}
-                  </strong>
-                </div>
-              ) : (
-                <div>No pick submitted yet.</div>
-              )}
-            </div>
-
-            {statusMsg ? (
-              <div
-                style={{
-                  marginTop: 10,
-                  marginBottom: 28,
-                  whiteSpace: "pre-wrap",
-                }}
-              >
-                {statusMsg}
-              </div>
-            ) : null}
-          </div>
-
-          <div style={{ marginTop: 22 }}>
-            <div style={{ fontWeight: 800, marginBottom: 6 }}>This week’s games</div>
             {games.length === 0 ? (
-              <div style={{ opacity: 0.75 }}>No games found for this week.</div>
+              <div style={{ opacity: 0.75 }}>
+                No games found for this week.
+              </div>
             ) : (
-              <ul style={{ paddingLeft: 18, margin: 0 }}>
-                {games.map((g, idx) => (
-                  <li key={`${g.home_team}-${g.away_team}-${idx}`}>
-                    {g.away_team} @ {g.home_team} —{" "}
-                    {g.kickoff_at ? new Date(g.kickoff_at).toLocaleString() : ""}
+              <ul
+                style={{
+                  paddingLeft: 18,
+                  margin: 0,
+                }}
+              >
+                {games.map((game, index) => (
+                  <li
+                    key={`${game.home_team}-${game.away_team}-${index}`}
+                  >
+                    {game.away_team} @ {game.home_team} —{" "}
+                    {game.kickoff_at
+                      ? new Date(
+                          game.kickoff_at
+                        ).toLocaleString()
+                      : ""}
                   </li>
                 ))}
               </ul>
             )}
-          </div>
+          </section>
         </>
       )}
     </main>
