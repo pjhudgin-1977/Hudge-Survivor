@@ -55,27 +55,46 @@ export default function DashboardClient() {
 
       setEmail(user.email ?? "");
 
-      const { data, error } = await supabase
-        .from("pool_members")
-        .select(`
-          pool_id,
-          screen_name,
-          pools!inner(name)
-        `)
-        .eq("user_id", user.id)
-        .order("pool_id", { ascending: false });
+      const { data: memberRows, error: memberError } = await supabase
+  .from("pool_members")
+  .select("pool_id, screen_name")
+  .eq("user_id", user.id)
+  .order("pool_id", { ascending: false });
 
-      if (error) {
-        setErr(error.message);
-        setLoading(false);
-        return;
-      }
+if (memberError) {
+  setErr(memberError.message);
+  setLoading(false);
+  return;
+}
 
-      const list = (data ?? []).map((row: any) => ({
-        pool_id: row.pool_id,
-        screen_name: row.screen_name,
-        pool_name: row.pools?.name ?? "Unnamed Pool",
-      })) as Membership[];
+const poolIds = Array.from(
+  new Set((memberRows ?? []).map((row) => row.pool_id))
+);
+
+const poolNameMap = new Map<string, string>();
+
+if (poolIds.length > 0) {
+  const { data: poolRows, error: poolError } = await supabase
+    .from("pools")
+    .select("id, name")
+    .in("id", poolIds);
+
+  if (poolError) {
+    setErr(poolError.message);
+    setLoading(false);
+    return;
+  }
+
+  for (const pool of poolRows ?? []) {
+    poolNameMap.set(pool.id, pool.name || "Unnamed Pool");
+  }
+}
+
+const list = (memberRows ?? []).map((row) => ({
+  pool_id: row.pool_id,
+  screen_name: row.screen_name,
+  pool_name: poolNameMap.get(row.pool_id) ?? "Unnamed Pool",
+})) as Membership[];
 
       setMemberships(list);
 
