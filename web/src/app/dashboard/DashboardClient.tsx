@@ -5,10 +5,11 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabaseClient";
 
-type Membership = {
+type PoolMembership = {
   pool_id: string;
-  screen_name?: string | null;
-  pool_name?: string | null;
+  pool_name: string;
+  screen_names: string[];
+  entry_count: number;
 };
 
 function extractPoolId(input: string): string | null {
@@ -23,11 +24,10 @@ function extractPoolId(input: string): string | null {
 
 export default function DashboardClient() {
   const router = useRouter();
-  
 
   const [loading, setLoading] = useState(true);
   const [email, setEmail] = useState("");
-  const [memberships, setMemberships] = useState<Membership[]>([]);
+  const [memberships, setMemberships] = useState<PoolMembership[]>([]);
   const [err, setErr] = useState<string | null>(null);
 
   const [joinText, setJoinText] = useState("");
@@ -51,45 +51,70 @@ export default function DashboardClient() {
       setEmail(user.email ?? "");
 
       const { data: memberRows, error: memberError } = await supabase
-  .from("pool_members")
-  .select("pool_id, screen_name")
-  .eq("user_id", user.id)
-  .order("pool_id", { ascending: false });
+        .from("pool_members")
+        .select("pool_id, entry_no, screen_name")
+        .eq("user_id", user.id)
+        .order("pool_id", { ascending: false })
+        .order("entry_no", { ascending: true });
 
-if (memberError) {
-  setErr(memberError.message);
-  setLoading(false);
-  return;
-}
+      if (memberError) {
+        setErr(memberError.message);
+        setLoading(false);
+        return;
+      }
 
-const poolIds = Array.from(
-  new Set((memberRows ?? []).map((row) => row.pool_id))
-);
+      const poolIds = Array.from(
+        new Set((memberRows ?? []).map((row) => row.pool_id))
+      );
 
-const poolNameMap = new Map<string, string>();
+      const poolNameMap = new Map<string, string>();
 
-if (poolIds.length > 0) {
-  const { data: poolRows, error: poolError } = await supabase
-    .from("pools")
-    .select("id, name")
-    .in("id", poolIds);
+      if (poolIds.length > 0) {
+        const { data: poolRows, error: poolError } = await supabase
+          .from("pools")
+          .select("id, name")
+          .in("id", poolIds);
 
-  if (poolError) {
-    setErr(poolError.message);
-    setLoading(false);
-    return;
-  }
+        if (poolError) {
+          setErr(poolError.message);
+          setLoading(false);
+          return;
+        }
 
-  for (const pool of poolRows ?? []) {
-    poolNameMap.set(pool.id, pool.name || "Unnamed Pool");
-  }
-}
+        for (const pool of poolRows ?? []) {
+          poolNameMap.set(pool.id, pool.name || "Unnamed Pool");
+        }
+      }
 
-const list = (memberRows ?? []).map((row) => ({
-  pool_id: row.pool_id,
-  screen_name: row.screen_name,
-  pool_name: poolNameMap.get(row.pool_id) ?? "Unnamed Pool",
-})) as Membership[];
+      const groupedPools = new Map<string, PoolMembership>();
+
+      for (const row of memberRows ?? []) {
+        const existing = groupedPools.get(row.pool_id);
+
+        const screenName = String(row.screen_name ?? "").trim();
+
+        if (existing) {
+          existing.entry_count += 1;
+
+          if (
+            screenName &&
+            !existing.screen_names.includes(screenName)
+          ) {
+            existing.screen_names.push(screenName);
+          }
+
+          continue;
+        }
+
+        groupedPools.set(row.pool_id, {
+          pool_id: row.pool_id,
+          pool_name: poolNameMap.get(row.pool_id) ?? "Unnamed Pool",
+          screen_names: screenName ? [screenName] : [],
+          entry_count: 1,
+        });
+      }
+
+      const list = Array.from(groupedPools.values());
 
       setMemberships(list);
 
@@ -136,7 +161,6 @@ const list = (memberRows ?? []).map((row) => ({
           </p>
         </section>
 
-        
         <section className="space-y-4 rounded-2xl border border-slate-700 bg-slate-900 p-5 shadow-lg">
           <div>
             <h2 className="text-xl font-bold text-white">Join a Pool</h2>
@@ -165,8 +189,6 @@ const list = (memberRows ?? []).map((row) => ({
             >
               Join
             </button>
-
-            
           </div>
 
           {joinErr ? (
@@ -201,14 +223,20 @@ const list = (memberRows ?? []).map((row) => ({
                         className="text-lg font-bold text-orange-300 hover:text-orange-200 hover:underline"
                         href={`/pool/${membership.pool_id}`}
                       >
-                        {membership.pool_name || "Unnamed Pool"}
+                        {membership.pool_name}
                       </Link>
 
-                      {membership.screen_name ? (
+                      <div className="mt-1 text-sm text-slate-300">
+                        {membership.entry_count === 1
+                          ? "1 entry"
+                          : `${membership.entry_count} entries`}
+                      </div>
+
+                      {membership.screen_names.length > 0 ? (
                         <div className="mt-1 text-sm text-slate-300">
                           Playing as{" "}
                           <strong className="text-white">
-                            {membership.screen_name}
+                            {membership.screen_names.join(", ")}
                           </strong>
                         </div>
                       ) : null}
