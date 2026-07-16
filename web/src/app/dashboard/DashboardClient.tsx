@@ -8,29 +8,30 @@ import { createClient } from "@/lib/supabaseClient";
 type Membership = {
   pool_id: string;
   screen_name?: string | null;
+  pool_name?: string | null;
 };
 
 function extractPoolId(input: string): string | null {
-  const s = String(input || "").trim();
+  const value = String(input || "").trim();
 
-  // UUID match (works for full URLs too)
-  const m = s.match(
+  const match = value.match(
     /[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}/i
   );
-  return m ? m[0] : null;
+
+  return match ? match[0] : null;
 }
 
 export default function DashboardClient() {
   const router = useRouter();
-  const sp = useSearchParams();
+  const searchParams = useSearchParams();
 
   const onboardingJoinOnly = useMemo(
-    () => sp.get("onboarding") === "joinonly",
-    [sp]
+    () => searchParams.get("onboarding") === "joinonly",
+    [searchParams]
   );
 
   const [loading, setLoading] = useState(true);
-  const [email, setEmail] = useState<string>("");
+  const [email, setEmail] = useState("");
   const [memberships, setMemberships] = useState<Membership[]>([]);
   const [err, setErr] = useState<string | null>(null);
 
@@ -40,7 +41,7 @@ export default function DashboardClient() {
   useEffect(() => {
     const supabase = createClient();
 
-    (async () => {
+    async function loadDashboard() {
       setLoading(true);
       setErr(null);
 
@@ -56,7 +57,11 @@ export default function DashboardClient() {
 
       const { data, error } = await supabase
         .from("pool_members")
-        .select("pool_id, screen_name")
+        .select(`
+          pool_id,
+          screen_name,
+          pools!inner(name)
+        `)
         .eq("user_id", user.id)
         .order("pool_id", { ascending: false });
 
@@ -66,133 +71,186 @@ export default function DashboardClient() {
         return;
       }
 
-      const list = (data ?? []) as Membership[];
+      const list = (data ?? []).map((row: any) => ({
+        pool_id: row.pool_id,
+        screen_name: row.screen_name,
+        pool_name: row.pools?.name ?? "Unnamed Pool",
+      })) as Membership[];
+
       setMemberships(list);
 
-      // ✅ If the user is in exactly one pool, land them on the pool Standings (grid) page
       if (list.length === 1 && list[0]?.pool_id) {
         router.replace(`/pool/${list[0].pool_id}`);
         return;
       }
 
       setLoading(false);
-    })();
+    }
+
+    loadDashboard();
   }, [router]);
 
   function onQuickJoin() {
     setJoinErr(null);
 
-    const pid = extractPoolId(joinText);
-    if (!pid) {
-      setJoinErr("Paste a valid invite link or pool id (UUID).");
+    const poolId = extractPoolId(joinText);
+
+    if (!poolId) {
+      setJoinErr("Paste a valid pool invite link or pool ID.");
       return;
     }
 
-    // Send them to the join flow
-    router.push(`/join/${pid}`);
+    router.push(`/join/${poolId}`);
   }
 
   if (loading) {
-    return <main className="p-6">Loading…</main>;
+    return (
+      <main className="min-h-screen p-6">
+        <div className="mx-auto max-w-6xl">Loading…</div>
+      </main>
+    );
   }
 
   return (
-    <main className="p-6 space-y-5 max-w-3xl">
-      <h1 className="text-2xl font-semibold">Home</h1>
+    <main className="min-h-screen p-4 sm:p-6">
+      <div className="mx-auto max-w-6xl space-y-6">
+        <section>
+          <h1 className="text-3xl font-bold text-white">Home</h1>
 
-      <p className="opacity-80">
-        Signed in as <strong>{email}</strong>
-      </p>
+          <p className="mt-2 text-sm text-slate-300">
+            Signed in as <strong className="text-white">{email}</strong>
+          </p>
+        </section>
 
-      {onboardingJoinOnly ? (
-        <div className="rounded-xl border p-4 bg-yellow-50/5">
-          <div className="font-semibold">Pool creation is disabled</div>
-          <div className="opacity-80 mt-1 text-sm">
-            To get started, you’ll need an invite link from a commissioner.
+        {onboardingJoinOnly ? (
+          <section className="rounded-2xl border border-amber-400/40 bg-slate-900 p-5 shadow-lg">
+            <div className="font-bold text-amber-300">
+              Pool creation is disabled
+            </div>
+
+            <div className="mt-1 text-sm text-slate-300">
+              To get started, you’ll need an invite link from a commissioner.
+            </div>
+          </section>
+        ) : null}
+
+        <section className="space-y-4 rounded-2xl border border-slate-700 bg-slate-900 p-5 shadow-lg">
+          <div>
+            <h2 className="text-xl font-bold text-white">Join a Pool</h2>
+
+            <p className="mt-1 text-sm text-slate-300">
+              Paste an invite link or pool ID and we’ll take you to the join
+              page.
+            </p>
           </div>
-        </div>
-      ) : null}
 
-      {/* Join-only onboarding card */}
-      <div className="rounded-xl border p-4 space-y-3">
-        <div className="font-semibold">Join a Pool</div>
-        <div className="opacity-70 text-sm">
-          Paste an invite link or pool id and we’ll take you to the join page.
-        </div>
+          <div className="flex flex-wrap gap-3">
+            <input
+              className="min-w-[260px] flex-1 rounded-lg border border-slate-300 bg-white px-3 py-2 text-slate-950 placeholder:text-slate-500 focus:border-orange-500 focus:outline-none focus:ring-2 focus:ring-orange-500/40"
+              placeholder="Paste invite link or pool ID…"
+              value={joinText}
+              onChange={(event) => setJoinText(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === "Enter") onQuickJoin();
+              }}
+            />
 
-        <div className="flex gap-2 flex-wrap">
-          <input
-            className="border p-2 flex-1 min-w-[260px] rounded-lg bg-transparent"
-            placeholder="Paste invite link or pool id…"
-            value={joinText}
-            onChange={(e) => setJoinText(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") onQuickJoin();
-            }}
-          />
+            <button
+              type="button"
+              className="rounded-lg border border-orange-400 bg-orange-500 px-5 py-2 font-bold text-black transition hover:bg-orange-400"
+              onClick={onQuickJoin}
+            >
+              Join
+            </button>
 
-          <button
-            className="px-4 py-2 rounded-lg border font-semibold"
-            onClick={onQuickJoin}
-          >
-            Join
-          </button>
-
-          <Link className="px-4 py-2 rounded-lg border font-semibold" href="/join">
-            Open Join Page
-          </Link>
-        </div>
-
-        {joinErr ? <div className="text-sm text-red-400">{joinErr}</div> : null}
-      </div>
-
-      {err ? (
-        <div className="rounded-xl border p-3">
-          Error loading pools: <span className="opacity-70">{err}</span>
-        </div>
-      ) : null}
-
-      {/* Pools list (only if multi-pool) */}
-      <div className="rounded-xl border p-4 space-y-3">
-        <div className="font-semibold">Your Pools</div>
-
-        {memberships.length === 0 ? (
-          <div className="opacity-70">
-            You’re not in any pools yet. Ask your commissioner for an invite link.
+            <Link
+              className="rounded-lg border border-slate-500 bg-slate-700 px-5 py-2 font-bold text-white transition hover:bg-slate-600"
+              href="/join"
+            >
+              Open Join Page
+            </Link>
           </div>
-        ) : (
-          <div className="grid gap-3">
-            {memberships.map((m) => (
-              <div key={m.pool_id} className="rounded-xl border p-3">
-                <div className="flex items-baseline justify-between gap-3 flex-wrap">
-                  <div className="font-semibold">
-                    <Link className="underline" href={`/pool/${m.pool_id}`}>
-                      {m.pool_id}
-                    </Link>
-                    {m.screen_name ? (
-                      <span className="opacity-70"> — as {m.screen_name}</span>
-                    ) : null}
-                  </div>
 
-                  <div className="flex gap-3 flex-wrap text-sm">
-                    <Link className="underline" href={`/pool/${m.pool_id}`}>
-                      Standings
-                    </Link>
-                    <Link className="underline" href={`/pool/${m.pool_id}/pick`}>
-                      Pick
-                    </Link>
-                    <Link className="underline" href={`/pool/${m.pool_id}/sweat`}>
-                      Sweat
-                    </Link>
-                    <Link className="underline" href={`/pool/${m.pool_id}/standings2`}>
-                      Latest Picks
-                    </Link>
+          {joinErr ? (
+            <div className="text-sm font-semibold text-red-300">{joinErr}</div>
+          ) : null}
+        </section>
+
+        {err ? (
+          <section className="rounded-2xl border border-red-400/40 bg-slate-900 p-4 text-red-200 shadow-lg">
+            Error loading pools: <span className="text-red-300">{err}</span>
+          </section>
+        ) : null}
+
+        <section className="space-y-4 rounded-2xl border border-slate-700 bg-slate-900 p-5 shadow-lg">
+          <h2 className="text-xl font-bold text-white">Your Pools</h2>
+
+          {memberships.length === 0 ? (
+            <div className="rounded-xl border border-slate-700 bg-slate-800 p-4 text-slate-300">
+              You’re not in any pools yet. Ask your commissioner for an invite
+              link.
+            </div>
+          ) : (
+            <div className="grid gap-4">
+              {memberships.map((membership) => (
+                <div
+                  key={membership.pool_id}
+                  className="rounded-xl border border-slate-600 bg-slate-800 p-4 shadow-md"
+                >
+                  <div className="flex flex-wrap items-center justify-between gap-4">
+                    <div>
+                      <Link
+                        className="text-lg font-bold text-orange-300 hover:text-orange-200 hover:underline"
+                        href={`/pool/${membership.pool_id}`}
+                      >
+                        {membership.pool_name || "Unnamed Pool"}
+                      </Link>
+
+                      {membership.screen_name ? (
+                        <div className="mt-1 text-sm text-slate-300">
+                          Playing as{" "}
+                          <strong className="text-white">
+                            {membership.screen_name}
+                          </strong>
+                        </div>
+                      ) : null}
+                    </div>
+
+                    <div className="flex flex-wrap gap-2 text-sm">
+                      <Link
+                        className="rounded-lg bg-orange-500 px-3 py-2 font-bold text-black transition hover:bg-orange-400"
+                        href={`/pool/${membership.pool_id}`}
+                      >
+                        Standings
+                      </Link>
+
+                      <Link
+                        className="rounded-lg bg-slate-600 px-3 py-2 font-bold text-white transition hover:bg-slate-500"
+                        href={`/pool/${membership.pool_id}/pick`}
+                      >
+                        Pick
+                      </Link>
+
+                      <Link
+                        className="rounded-lg bg-slate-600 px-3 py-2 font-bold text-white transition hover:bg-slate-500"
+                        href={`/pool/${membership.pool_id}/sweat`}
+                      >
+                        Sweat
+                      </Link>
+
+                      <Link
+                        className="rounded-lg bg-slate-600 px-3 py-2 font-bold text-white transition hover:bg-slate-500"
+                        href={`/pool/${membership.pool_id}/standings2`}
+                      >
+                        Latest Picks
+                      </Link>
+                    </div>
                   </div>
                 </div>
-              </div>
-            ))}
-          </div>
-        )}
+              ))}
+            </div>
+          )}
+        </section>
       </div>
     </main>
   );
