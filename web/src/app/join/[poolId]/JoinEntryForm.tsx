@@ -5,9 +5,11 @@ import { useRouter } from "next/navigation";
 
 export default function JoinEntryForm({
   poolId,
+  inviteCode,
   entryNo,
 }: {
   poolId: string;
+  inviteCode: string;
   entryNo: number;
 }) {
   const router = useRouter();
@@ -53,6 +55,7 @@ export default function JoinEntryForm({
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
+          invite_code: inviteCode,
           full_name: trimmedFullName,
           screen_name: trimmedScreenName,
         }),
@@ -66,8 +69,8 @@ export default function JoinEntryForm({
 
       router.replace(`/pool/${poolId}`);
       router.refresh();
-    } catch (e: any) {
-      setError(e?.message || "Could not join pool.");
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : "Could not join pool.");
       setSubmitting(false);
     }
   }
@@ -127,6 +130,7 @@ export default function JoinEntryForm({
         placeholder="Example: RyanH"
         maxLength={30}
         disabled={submitting}
+        autoComplete="nickname"
         style={{
           width: "100%",
           padding: "11px 12px",

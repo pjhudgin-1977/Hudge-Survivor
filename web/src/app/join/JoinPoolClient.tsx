@@ -3,23 +3,22 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 
-function extractPoolId(input: string): string | null {
-  const s = String(input || "").trim();
+function extractInviteCode(input: string): string | null {
+  const value = String(input || "").trim().toUpperCase();
+  const match = value.match(/HUDGE-[A-Z0-9]{4}/);
 
-  // UUID match (works even if they paste full URLs)
-  const m = s.match(/[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}/i);
-  return m ? m[0] : null;
+  return match?.[0] ?? null;
 }
 
 export default function JoinPoolClient() {
   const router = useRouter();
   const searchParams = useSearchParams();
 
-  const poolIdFromUrl = useMemo(() => {
+  const inviteFromUrl = useMemo(() => {
     return (
+      searchParams.get("code") ||
+      searchParams.get("invite") ||
       searchParams.get("poolId") ||
-      searchParams.get("poolid") ||
-      searchParams.get("id") ||
       ""
     );
   }, [searchParams]);
@@ -29,22 +28,27 @@ export default function JoinPoolClient() {
   const didAutoGo = useRef(false);
 
   function go(raw: string) {
-    const pid = extractPoolId(raw);
-    if (!pid) {
-      setError("Paste a valid invite link or pool id (UUID).");
+    const code = extractInviteCode(raw);
+
+    if (!code) {
+      setError(
+        "Enter a valid invite code such as HUDGE-AB12, or paste the complete invite link."
+      );
       return;
     }
-    router.push(`/join/${pid}`);
+
+    router.push(`/join/${code}`);
   }
 
   function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
-    go(text || poolIdFromUrl);
+    go(text || inviteFromUrl);
   }
 
   useEffect(() => {
-    const raw = String(poolIdFromUrl || "").trim();
+    const raw = String(inviteFromUrl || "").trim();
+
     if (!raw) return;
 
     setText(raw);
@@ -53,71 +57,127 @@ export default function JoinPoolClient() {
     didAutoGo.current = true;
 
     go(raw);
-  }, [poolIdFromUrl]);
+  }, [inviteFromUrl]);
 
   return (
-    <main style={{ padding: 24, maxWidth: 560 }}>
-      <h1 style={{ fontSize: 26, fontWeight: 900 }}>Join a Pool</h1>
+    <main
+      style={{
+        minHeight: "100vh",
+        padding: 24,
+        background:
+          "linear-gradient(180deg, #050A14 0%, #050812 50%, #04060F 100%)",
+        color: "white",
+      }}
+    >
+      <div style={{ width: "100%", maxWidth: 560, margin: "40px auto" }}>
+        <h1 style={{ fontSize: 28, fontWeight: 950 }}>Join a Pool</h1>
 
-      <p style={{ marginTop: 8, opacity: 0.85 }}>
-        Paste your invite link or pool id below.
-      </p>
+        <p style={{ marginTop: 8, opacity: 0.82, lineHeight: 1.5 }}>
+          Enter the invite code provided by your commissioner, or paste the
+          complete invite link.
+        </p>
 
-      <form onSubmit={onSubmit} style={{ marginTop: 16 }}>
-        <input
-          value={text}
-          onChange={(e) => setText(e.target.value)}
-          placeholder="Paste invite link or pool id…"
-          style={{
-            width: "100%",
-            padding: 10,
-            borderRadius: 10,
-            border: "1px solid rgba(0,0,0,0.25)",
-          }}
-        />
-
-        <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginTop: 12 }}>
-          <button
-            type="submit"
+        <form onSubmit={onSubmit} style={{ marginTop: 20 }}>
+          <label
+            htmlFor="invite-code"
             style={{
-              padding: "10px 14px",
-              borderRadius: 10,
-              border: "1px solid rgba(0,0,0,0.35)",
-              cursor: "pointer",
-              fontWeight: 800,
+              display: "block",
+              marginBottom: 7,
+              fontSize: 13,
+              fontWeight: 900,
             }}
           >
-            Continue
-          </button>
+            Invite code or link
+          </label>
 
-          <button
-            type="button"
-            onClick={() => {
-              setText("");
+          <input
+            id="invite-code"
+            value={text}
+            onChange={(e) => {
+              setText(e.target.value);
               setError(null);
             }}
+            placeholder="HUDGE-AB12"
+            autoCapitalize="characters"
+            autoComplete="off"
+            spellCheck={false}
             style={{
-              padding: "10px 14px",
-              borderRadius: 10,
-              border: "1px solid rgba(0,0,0,0.20)",
-              cursor: "pointer",
-              opacity: 0.85,
-              fontWeight: 700,
+              width: "100%",
+              padding: "12px 13px",
+              borderRadius: 12,
+              border: "1px solid rgba(255,255,255,0.22)",
+              background: "rgba(255,255,255,0.08)",
+              color: "white",
+              fontSize: 16,
+              outline: "none",
+            }}
+          />
+
+          {error ? (
+            <div
+              style={{
+                marginTop: 12,
+                padding: "10px 12px",
+                borderRadius: 10,
+                border: "1px solid rgba(255,90,90,0.35)",
+                background: "rgba(255,90,90,0.10)",
+                color: "#fecaca",
+                fontWeight: 800,
+                fontSize: 13,
+              }}
+            >
+              {error}
+            </div>
+          ) : null}
+
+          <div
+            style={{
+              display: "flex",
+              gap: 10,
+              flexWrap: "wrap",
+              marginTop: 14,
             }}
           >
-            Clear
-          </button>
+            <button
+              type="submit"
+              style={{
+                padding: "11px 16px",
+                borderRadius: 11,
+                border: "1px solid rgba(255,255,255,0.18)",
+                background:
+                  "linear-gradient(180deg, rgba(255,92,0,1), rgba(255,92,0,0.76))",
+                color: "white",
+                cursor: "pointer",
+                fontWeight: 950,
+              }}
+            >
+              Continue
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                setText("");
+                setError(null);
+              }}
+              style={{
+                padding: "11px 16px",
+                borderRadius: 11,
+                border: "1px solid rgba(255,255,255,0.18)",
+                background: "rgba(255,255,255,0.07)",
+                color: "white",
+                cursor: "pointer",
+                fontWeight: 800,
+              }}
+            >
+              Clear
+            </button>
+          </div>
+        </form>
+
+        <div style={{ marginTop: 14, fontSize: 12, opacity: 0.7 }}>
+          Pool IDs are not accepted. A valid HUDGE invite code is required.
         </div>
-
-        {error && (
-          <p style={{ marginTop: 10, color: "#b00", fontWeight: 700 }}>
-            {error}
-          </p>
-        )}
-      </form>
-
-      <div style={{ marginTop: 12, fontSize: 12, opacity: 0.75 }}>
-        Tip: You can paste the full invite URL — we’ll extract the pool id automatically.
       </div>
     </main>
   );

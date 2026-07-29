@@ -1,38 +1,8 @@
 import { NextResponse } from "next/server";
-import { createClient as createAdminClient } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/server";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-
-function getAdminSupabase() {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
-
-  if (!url) throw new Error("Missing NEXT_PUBLIC_SUPABASE_URL");
-  if (!key) throw new Error("Missing SUPABASE_SERVICE_ROLE_KEY");
-
-  return createAdminClient(url, key, {
-    auth: {
-      persistSession: false,
-      autoRefreshToken: false,
-    },
-  });
-}
-
-function nextEntryNo(rows: Array<{ entry_no: number | null }>) {
-  const used = new Set(
-    rows
-      .map((row) => Number(row.entry_no))
-      .filter((n) => Number.isInteger(n) && n >= 1 && n <= 3)
-  );
-
-  for (const n of [1, 2, 3]) {
-    if (!used.has(n)) return n;
-  }
-
-  return null;
-}
 
 export async function POST(
   req: Request,
@@ -40,150 +10,77 @@ export async function POST(
 ) {
   try {
     const supabase = await createClient();
-    const adminSupabase = getAdminSupabase();
     const { poolId } = await params;
 
-    const { data: auth, error: authError } =
-      await supabase.auth.getUser();
+    const {
+      data: { user },
+      error: authError,
+    } = await supabase.auth.getUser();
 
-    if (authError || !auth?.user) {
+    if (authError || !user) {
       return NextResponse.json(
-        { error: "Not logged in" },
+        { error: "Not logged in." },
         { status: 401 }
       );
     }
 
-    const body = await req.json();
+    const body = await req.json().catch(() => ({}));
 
-    const fullName = String(body.full_name || "").trim();
-    const screenName = String(body.screen_name || "").trim();
+    const inviteCode = String(body?.invite_code || "")
+      .trim()
+      .toUpperCase();
+    const fullName = String(body?.full_name || "").trim();
+    const screenName = String(body?.screen_name || "").trim();
 
-    if (fullName.length < 2) {
+    if (!/^HUDGE-[A-Z0-9]{4}$/.test(inviteCode)) {
       return NextResponse.json(
-        { error: "Full name must be at least 2 characters." },
+        { error: "A valid HUDGE invite code is required." },
         { status: 400 }
       );
     }
 
-    if (fullName.length > 100) {
+    const { data, error } = await supabase.rpc(
+      "join_pool_with_invite",
+      {
+        p_code: inviteCode,
+        p_expected_pool_id: poolId,
+        p_full_name: fullName,
+        p_screen_name: screenName,
+      }
+    );
+
+    if (error) {
+      const message = error.message || "Could not join pool.";
+
+      const status =
+        message.includes("maximum of 3 entries") ||
+        message.includes("Invalid or expired") ||
+        message.includes("does not match") ||
+        message.includes("must be")
+          ? 400
+          : 500;
+
+      return NextResponse.json({ error: message }, { status });
+    }
+
+    const result = Array.isArray(data) ? data[0] : data;
+
+    if (!result?.pool_id) {
       return NextResponse.json(
-        { error: "Full name must be 100 characters or fewer." },
-        { status: 400 }
+        { error: "Could not join pool." },
+        { status: 500 }
       );
     }
-
-    if (screenName.length < 2) {
-      return NextResponse.json(
-        { error: "Screen name must be at least 2 characters." },
-        { status: 400 }
-      );
-    }
-
-    if (screenName.length > 30) {
-      return NextResponse.json(
-        { error: "Screen name must be 30 characters or fewer." },
-        { status: 400 }
-      );
-    }
-
-    const { data: pool, error: poolError } = await adminSupabase
-      .from("pools")
-      .select("id")
-      .eq("id", poolId)
-      .maybeSingle();
-
-    if (poolError) throw poolError;
-
-    if (!pool) {
-      return NextResponse.json(
-        { error: "Pool not found." },
-        { status: 404 }
-      );
-    }
-
-    const { data: existingProfile, error: profileReadError } =
-      await adminSupabase
-        .from("profiles")
-        .select("user_id")
-        .eq("user_id", auth.user.id)
-        .maybeSingle();
-
-    if (profileReadError) throw profileReadError;
-
-    if (existingProfile) {
-      const { error: profileUpdateError } = await adminSupabase
-        .from("profiles")
-        .update({
-          email: auth.user.email ?? null,
-          full_name: fullName,
-          updated_at: new Date().toISOString(),
-        })
-        .eq("user_id", auth.user.id);
-
-      if (profileUpdateError) throw profileUpdateError;
-    } else {
-      const { error: profileInsertError } = await adminSupabase
-        .from("profiles")
-        .insert({
-          user_id: auth.user.id,
-          email: auth.user.email ?? null,
-          full_name: fullName,
-          referred_by: null,
-        });
-
-      if (profileInsertError) throw profileInsertError;
-    }
-
-    const { data: existingRows, error: existingError } =
-      await adminSupabase
-        .from("pool_members")
-        .select("entry_no")
-        .eq("pool_id", poolId)
-        .eq("user_id", auth.user.id)
-        .order("entry_no", { ascending: true });
-
-    if (existingError) throw existingError;
-
-    const entryNo = nextEntryNo(existingRows ?? []);
-
-    if (entryNo == null) {
-      return NextResponse.json(
-        {
-          error:
-            "You already have the maximum of 3 entries in this pool.",
-        },
-        { status: 400 }
-      );
-    }
-
-    const finalScreenName =
-      entryNo === 1
-        ? screenName
-        : `${screenName} (Entry ${entryNo})`;
-
-    const { error: joinError } = await adminSupabase
-      .from("pool_members")
-      .insert({
-        pool_id: poolId,
-        user_id: auth.user.id,
-        entry_no: entryNo,
-        screen_name: finalScreenName,
-        role: "member",
-        is_commissioner: false,
-        losses: 0,
-        is_eliminated: false,
-      });
-
-    if (joinError) throw joinError;
 
     return NextResponse.json({
       ok: true,
-      entry_no: entryNo,
-      screen_name: finalScreenName,
+      pool_id: result.pool_id,
+      entry_no: result.entry_no,
+      screen_name: result.screen_name,
     });
   } catch (error: unknown) {
     const message =
-      error instanceof Error ? error.message : String(error);
+      error instanceof Error ? error.message : "Could not join pool.";
 
     return NextResponse.json(
       { error: message },
