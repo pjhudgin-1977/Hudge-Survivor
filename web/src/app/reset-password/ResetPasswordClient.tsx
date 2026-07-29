@@ -50,9 +50,9 @@ export default function ResetPasswordClient() {
     setSending(true);
     try {
       const redirectTo =
-        typeof window !== "undefined"
-          ? `${window.location.origin}/reset-password`
-          : undefined;
+  typeof window !== "undefined"
+    ? `${window.location.origin}/auth/callback?next=/reset-password`
+    : undefined;
 
       const { error } = await supabase.auth.resetPasswordForEmail(eaddr, {
         redirectTo,
