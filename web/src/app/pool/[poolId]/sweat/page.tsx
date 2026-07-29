@@ -310,11 +310,8 @@ export default async function SweatPage({
         }}
       >
         <div>
-          <h1 style={{ fontSize: 28, fontWeight: 800 }}>Sweat Board</h1>
-          <p style={{ marginTop: 6, opacity: 0.75 }}>
-            Pool: <strong>{poolId}</strong>
-          </p>
-        </div>
+  <h1 style={{ fontSize: 28, fontWeight: 800 }}>Sweat Board</h1>
+</div>
 
         <div style={{ opacity: 0.75, fontSize: 13 }}>
           <strong>Intensity legend:</strong> 😌 Chill · 😅 Sweat · 😱 Panic · ✅ Done · ☠️ Out
