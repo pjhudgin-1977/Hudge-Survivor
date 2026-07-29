@@ -21,6 +21,8 @@ type GameRow = {
   home_team: string;
   away_team: string;
   kickoff_at: string;
+  favorite_team: string | null;
+  point_spread: number | null;
 };
 
 type PoolStateRow = {
@@ -207,7 +209,7 @@ export default function PoolPickPage() {
         const { data: gameRows, error: gamesError } = await supabase
           .from("games")
           .select(
-            "season_year, phase, week_number, home_team, away_team, kickoff_at"
+            "season_year, phase, week_number, home_team, away_team, kickoff_at, favorite_team, point_spread"
           )
           .eq("season_year", poolState.season_year)
           .eq("phase", currentPhase)
@@ -704,6 +706,18 @@ export default function PoolPickPage() {
                     const homeTeam =
                       team === game.home_team;
 
+                    const spreadLabel =
+                      game.point_spread === null
+                        ? null
+                        : game.point_spread === 0 ||
+                            !game.favorite_team
+                          ? "Pick 'em"
+                          : game.favorite_team === team
+                            ? `${team} ${game.point_spread}`
+                            : `${team} +${Math.abs(
+                                game.point_spread
+                              )}`;
+
                     return (
                       <button
                         key={`${team}-${game.home_team}-${game.away_team}-${game.kickoff_at}`}
@@ -779,6 +793,19 @@ export default function PoolPickPage() {
                         <div style={{ opacity: 0.75 }}>
                           {homeTeam ? "vs" : "@"} {opponent}
                         </div>
+
+                        {spreadLabel ? (
+                          <div
+                            style={{
+                              marginTop: 3,
+                              fontSize: 12,
+                              fontWeight: 900,
+                              opacity: 0.85,
+                            }}
+                          >
+                            Spread: {spreadLabel}
+                          </div>
+                        ) : null}
 
                         <div
                           style={{
