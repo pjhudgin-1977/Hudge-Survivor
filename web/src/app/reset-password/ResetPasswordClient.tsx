@@ -10,15 +10,16 @@ export default function ResetPasswordClient() {
   const supabase = createClient();
 
   const [ready, setReady] = useState(false);
-  const [hasSession, setHasSession] = useState<boolean>(false);
+  const [hasSession, setHasSession] = useState(false);
 
-  // mode A: request email
+  // Mode A: request reset email
   const [email, setEmail] = useState("");
   const [sending, setSending] = useState(false);
 
-  // mode B: set new password
+  // Mode B: set new password
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
+  const [showPasswords, setShowPasswords] = useState(false);
   const [saving, setSaving] = useState(false);
 
   const [msg, setMsg] = useState<string | null>(null);
@@ -26,37 +27,51 @@ export default function ResetPasswordClient() {
   const emailFromQuery = useMemo(() => sp.get("email") ?? "", [sp]);
 
   useEffect(() => {
-    if (emailFromQuery) setEmail(emailFromQuery);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+    if (emailFromQuery) {
+      setEmail(emailFromQuery);
+    }
+  }, [emailFromQuery]);
 
   useEffect(() => {
+    let active = true;
+
     supabase.auth.getSession().then(({ data }) => {
-      setHasSession(!!data.session);
+      if (!active) return;
+
+      setHasSession(Boolean(data.session));
       setReady(true);
     });
+
+    return () => {
+      active = false;
+    };
   }, [supabase]);
 
   async function sendResetEmail(e: React.FormEvent) {
     e.preventDefault();
     setMsg(null);
 
-    const eaddr = String(email || "").trim();
-    if (!eaddr) {
+    const emailAddress = email.trim();
+
+    if (!emailAddress) {
       setMsg("Please enter your email.");
       return;
     }
 
     setSending(true);
+
     try {
       const redirectTo =
-  typeof window !== "undefined"
-    ? `${window.location.origin}/auth/callback?next=/reset-password`
-    : undefined;
+        typeof window !== "undefined"
+          ? `${window.location.origin}/auth/callback?next=/reset-password`
+          : undefined;
 
-      const { error } = await supabase.auth.resetPasswordForEmail(eaddr, {
-        redirectTo,
-      });
+      const { error } = await supabase.auth.resetPasswordForEmail(
+        emailAddress,
+        {
+          redirectTo,
+        }
+      );
 
       if (error) {
         setMsg(error.message);
@@ -64,7 +79,7 @@ export default function ResetPasswordClient() {
       }
 
       setMsg(
-        "✅ Reset email sent. Check your inbox (and spam). Open the link to set a new password."
+        "✅ Reset email sent. Check your inbox and spam folder. Open the link to set a new password."
       );
     } finally {
       setSending(false);
@@ -79,12 +94,14 @@ export default function ResetPasswordClient() {
       setMsg("Password must be at least 6 characters.");
       return;
     }
+
     if (password !== confirm) {
       setMsg("Passwords do not match.");
       return;
     }
 
     setSaving(true);
+
     try {
       const { error } = await supabase.auth.updateUser({ password });
 
@@ -94,7 +111,10 @@ export default function ResetPasswordClient() {
       }
 
       setMsg("✅ Password updated. Redirecting to login…");
-      setTimeout(() => router.push("/login"), 900);
+
+      window.setTimeout(() => {
+        router.push("/login");
+      }, 900);
     } finally {
       setSaving(false);
     }
@@ -131,9 +151,16 @@ export default function ResetPasswordClient() {
               "linear-gradient(180deg, rgba(255,92,0,0.14), rgba(255,92,0,0.02))",
           }}
         >
-          <div style={{ fontSize: 18, fontWeight: 950, letterSpacing: 0.2 }}>
+          <div
+            style={{
+              fontSize: 18,
+              fontWeight: 950,
+              letterSpacing: 0.2,
+            }}
+          >
             Reset Password
           </div>
+
           <div style={{ fontSize: 13, opacity: 0.78, marginTop: 4 }}>
             {hasSession
               ? "Set a new password for your account."
@@ -147,35 +174,81 @@ export default function ResetPasswordClient() {
           ) : hasSession ? (
             <form onSubmit={setNewPassword}>
               <label style={labelStyle}>New password</label>
-              <input
-                style={inputStyle}
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="••••••••"
-                autoComplete="new-password"
-              />
+
+              <div style={{ position: "relative" }}>
+                <input
+                  style={{ ...inputStyle, paddingRight: 46 }}
+                  type={showPasswords ? "text" : "password"}
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="••••••••"
+                  autoComplete="new-password"
+                />
+
+                <button
+                  type="button"
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={() => setShowPasswords((value) => !value)}
+                  aria-label={
+                    showPasswords ? "Hide passwords" : "Show passwords"
+                  }
+                  title={showPasswords ? "Hide passwords" : "Show passwords"}
+                  style={passwordToggleStyle}
+                >
+                  {showPasswords ? "🙈" : "👁️"}
+                </button>
+              </div>
 
               <div style={{ height: 12 }} />
 
               <label style={labelStyle}>Confirm password</label>
-              <input
-                style={inputStyle}
-                type="password"
-                value={confirm}
-                onChange={(e) => setConfirm(e.target.value)}
-                placeholder="••••••••"
-                autoComplete="new-password"
-              />
+
+              <div style={{ position: "relative" }}>
+                <input
+                  style={{ ...inputStyle, paddingRight: 46 }}
+                  type={showPasswords ? "text" : "password"}
+                  value={confirm}
+                  onChange={(e) => setConfirm(e.target.value)}
+                  placeholder="••••••••"
+                  autoComplete="new-password"
+                />
+
+                <button
+                  type="button"
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={() => setShowPasswords((value) => !value)}
+                  aria-label={
+                    showPasswords ? "Hide passwords" : "Show passwords"
+                  }
+                  title={showPasswords ? "Hide passwords" : "Show passwords"}
+                  style={passwordToggleStyle}
+                >
+                  {showPasswords ? "🙈" : "👁️"}
+                </button>
+              </div>
 
               {msg ? <div style={msgStyle}>{msg}</div> : null}
 
-              <button type="submit" disabled={saving} style={primaryButtonStyle(saving)}>
+              <button
+                type="submit"
+                disabled={saving}
+                style={primaryButtonStyle(saving)}
+              >
                 {saving ? "Saving…" : "Set new password"}
               </button>
 
-              <div style={{ marginTop: 12, display: "flex", justifyContent: "flex-end" }}>
-                <button type="button" onClick={() => router.push("/login")} style={linkButtonStyle}>
+              <div
+                style={{
+                  marginTop: 12,
+                  display: "flex",
+                  justifyContent: "flex-end",
+                }}
+              >
+                <button
+                  type="button"
+                  onClick={() => router.push("/login")}
+                  style={linkButtonStyle}
+                >
                   Back to login
                 </button>
               </div>
@@ -183,6 +256,7 @@ export default function ResetPasswordClient() {
           ) : (
             <form onSubmit={sendResetEmail}>
               <label style={labelStyle}>Email</label>
+
               <input
                 style={inputStyle}
                 value={email}
@@ -194,18 +268,39 @@ export default function ResetPasswordClient() {
 
               {msg ? <div style={msgStyle}>{msg}</div> : null}
 
-              <button type="submit" disabled={sending} style={primaryButtonStyle(sending)}>
+              <button
+                type="submit"
+                disabled={sending}
+                style={primaryButtonStyle(sending)}
+              >
                 {sending ? "Sending…" : "Send reset link"}
               </button>
 
-              <div style={{ marginTop: 12, display: "flex", justifyContent: "flex-end" }}>
-                <button type="button" onClick={() => router.push("/login")} style={linkButtonStyle}>
+              <div
+                style={{
+                  marginTop: 12,
+                  display: "flex",
+                  justifyContent: "flex-end",
+                }}
+              >
+                <button
+                  type="button"
+                  onClick={() => router.push("/login")}
+                  style={linkButtonStyle}
+                >
                   Back to login
                 </button>
               </div>
 
-              <div style={{ marginTop: 12, fontSize: 12, opacity: 0.75, lineHeight: 1.4 }}>
-                If you don’t see the email within a minute, check spam/junk.
+              <div
+                style={{
+                  marginTop: 12,
+                  fontSize: 12,
+                  opacity: 0.75,
+                  lineHeight: 1.4,
+                }}
+              >
+                If you don’t see the email within a minute, check spam or junk.
               </div>
             </form>
           )}
@@ -234,6 +329,25 @@ const inputStyle: React.CSSProperties = {
   outline: "none",
 };
 
+const passwordToggleStyle: React.CSSProperties = {
+  position: "absolute",
+  right: 10,
+  top: "50%",
+  transform: "translateY(-50%)",
+  width: 32,
+  height: 32,
+  borderRadius: 10,
+  border: "1px solid rgba(255,255,255,0.14)",
+  background: "rgba(0,0,0,0.20)",
+  color: "rgba(255,255,255,0.92)",
+  cursor: "pointer",
+  display: "inline-flex",
+  alignItems: "center",
+  justifyContent: "center",
+  fontSize: 16,
+  lineHeight: 1,
+};
+
 function primaryButtonStyle(disabled: boolean): React.CSSProperties {
   return {
     marginTop: 14,
@@ -248,7 +362,9 @@ function primaryButtonStyle(disabled: boolean): React.CSSProperties {
     fontWeight: 950,
     letterSpacing: 0.2,
     cursor: disabled ? "not-allowed" : "pointer",
-    boxShadow: disabled ? "none" : "0 12px 30px rgba(255,92,0,0.22)",
+    boxShadow: disabled
+      ? "none"
+      : "0 12px 30px rgba(255,92,0,0.22)",
   };
 }
 
