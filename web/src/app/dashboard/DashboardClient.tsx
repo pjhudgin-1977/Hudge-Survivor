@@ -12,14 +12,11 @@ type PoolMembership = {
   entry_count: number;
 };
 
-function extractPoolId(input: string): string | null {
-  const value = String(input || "").trim();
+function extractInviteCode(input: string): string | null {
+  const value = String(input || "").trim().toUpperCase();
+  const match = value.match(/HUDGE-[A-Z0-9]{4}/);
 
-  const match = value.match(
-    /[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}/i
-  );
-
-  return match ? match[0] : null;
+  return match?.[0] ?? null;
 }
 
 export default function DashboardClient() {
@@ -90,7 +87,6 @@ export default function DashboardClient() {
 
       for (const row of memberRows ?? []) {
         const existing = groupedPools.get(row.pool_id);
-
         const screenName = String(row.screen_name ?? "").trim();
 
         if (existing) {
@@ -132,14 +128,16 @@ export default function DashboardClient() {
   function onQuickJoin() {
     setJoinErr(null);
 
-    const poolId = extractPoolId(joinText);
+    const inviteCode = extractInviteCode(joinText);
 
-    if (!poolId) {
-      setJoinErr("Paste a valid pool invite link or pool ID.");
+    if (!inviteCode) {
+      setJoinErr(
+        "Enter a valid invite code such as HUDGE-AB12, or paste the complete invite link."
+      );
       return;
     }
 
-    router.push(`/join/${poolId}`);
+    router.push(`/join/${inviteCode}`);
   }
 
   if (loading) {
@@ -166,20 +164,29 @@ export default function DashboardClient() {
             <h2 className="text-xl font-bold text-white">Join a Pool</h2>
 
             <p className="mt-1 text-sm text-slate-300">
-              Paste an invite link or pool ID and we’ll take you to the join
-              page.
+              Paste an invite link or enter a HUDGE invite code and we’ll take
+              you to the join page.
             </p>
           </div>
 
           <div className="flex flex-wrap gap-3">
             <input
               className="min-w-[260px] flex-1 rounded-lg border border-slate-300 bg-white px-3 py-2 text-slate-950 placeholder:text-slate-500 focus:border-orange-500 focus:outline-none focus:ring-2 focus:ring-orange-500/40"
-              placeholder="Paste invite link or pool ID…"
+              placeholder="Paste invite link or enter HUDGE-AB12…"
               value={joinText}
-              onChange={(event) => setJoinText(event.target.value)}
-              onKeyDown={(event) => {
-                if (event.key === "Enter") onQuickJoin();
+              onChange={(event) => {
+                setJoinText(event.target.value);
+                setJoinErr(null);
               }}
+              onKeyDown={(event) => {
+                if (event.key === "Enter") {
+                  event.preventDefault();
+                  onQuickJoin();
+                }
+              }}
+              autoCapitalize="characters"
+              autoComplete="off"
+              spellCheck={false}
             />
 
             <button
@@ -192,7 +199,9 @@ export default function DashboardClient() {
           </div>
 
           {joinErr ? (
-            <div className="text-sm font-semibold text-red-300">{joinErr}</div>
+            <div className="text-sm font-semibold text-red-300">
+              {joinErr}
+            </div>
           ) : null}
         </section>
 
