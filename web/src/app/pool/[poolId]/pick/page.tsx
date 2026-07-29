@@ -373,6 +373,19 @@ export default function PoolPickPage() {
 
       const previousPick = existingPick;
 
+      setUsedTeams((currentTeams) => {
+        const withoutPrevious =
+          previousPick && previousPick !== selectedTeam
+            ? currentTeams.filter(
+                (team) => team !== previousPick
+              )
+            : currentTeams;
+
+        return withoutPrevious.includes(selectedTeam)
+          ? withoutPrevious
+          : [...withoutPrevious, selectedTeam];
+      });
+
       setExistingPick(selectedTeam);
       setExistingPickWasAutopick(false);
 
