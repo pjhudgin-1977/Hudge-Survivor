@@ -97,16 +97,16 @@ export default function PoolStandingsGridPage() {
         );
 
         try {
-          const { data: poolRow } = await supabase
-            .from("pools")
-            .select("commissioner_note")
-            .eq("id", poolId)
-            .maybeSingle();
+  const { data: noteRow } = await supabase
+    .from("pool_notes")
+    .select("note")
+    .eq("pool_id", poolId)
+    .maybeSingle();
 
-          setCommissionerNote((poolRow as any)?.commissioner_note ?? null);
-        } catch {
-          setCommissionerNote(null);
-        }
+  setCommissionerNote(noteRow?.note ?? null);
+} catch {
+  setCommissionerNote(null);
+}
 
         const { data: m, error: mErr } = await supabase
           .from("pool_members")
