@@ -61,6 +61,88 @@ Prizes are paid after hosting fees:
 • Automated results are used whenever possible.
 • Commissioner decisions are final.`;
 
+type RuleSection = {
+  heading: string;
+  body: string[];
+};
+
+function parseRules(rulesText: string): RuleSection[] {
+  const blocks = rulesText
+    .split(/\n{2,}/)
+    .map((block) => block.trim())
+    .filter(Boolean);
+
+  const sections: RuleSection[] = [];
+
+  for (let index = 0; index < blocks.length; index += 1) {
+    const block = blocks[index];
+    const lines = block
+      .split("\n")
+      .map((line) => line.trimEnd())
+      .filter((line) => line.trim().length > 0);
+
+    if (lines.length === 0) continue;
+
+    const firstLine = lines[0];
+    const looksLikeHeading =
+      firstLine === firstLine.toUpperCase() ||
+      /^[^\w\s]/u.test(firstLine);
+
+    if (looksLikeHeading) {
+      const nextBlock = blocks[index + 1];
+      const bodyLines = lines.slice(1);
+
+      if (bodyLines.length > 0) {
+        sections.push({
+          heading: firstLine,
+          body: bodyLines,
+        });
+        continue;
+      }
+
+      if (nextBlock) {
+        const nextLines = nextBlock
+          .split("\n")
+          .map((line) => line.trimEnd())
+          .filter((line) => line.trim().length > 0);
+
+        const nextFirstLine = nextLines[0] ?? "";
+        const nextLooksLikeHeading =
+          nextFirstLine === nextFirstLine.toUpperCase() ||
+          /^[^\w\s]/u.test(nextFirstLine);
+
+        if (!nextLooksLikeHeading) {
+          sections.push({
+            heading: firstLine,
+            body: nextLines,
+          });
+
+          index += 1;
+          continue;
+        }
+      }
+
+      sections.push({
+        heading: firstLine,
+        body: [],
+      });
+
+      continue;
+    }
+
+    if (sections.length === 0) {
+      sections.push({
+        heading: "Pool Rules",
+        body: lines,
+      });
+    } else {
+      sections[sections.length - 1].body.push(...lines);
+    }
+  }
+
+  return sections;
+}
+
 export default async function RulesPage({
   params,
 }: {
@@ -85,107 +167,145 @@ export default async function RulesPage({
   const rulesText =
     String(pool?.rules_text ?? "").trim() || DEFAULT_RULES;
 
-  const sections = rulesText
-    .split(/\n{2,}/)
-    .map((section) => section.trim())
-    .filter(Boolean);
+  const sections = parseRules(rulesText);
+
+  const entryFeeSection = sections.find(
+    (section) => section.heading.trim().toUpperCase() === "ENTRY FEE"
+  );
+
+  const regularSections = sections.filter(
+    (section) => section !== entryFeeSection
+  );
 
   return (
-    <div style={{ maxWidth: 900, margin: "0 auto", padding: "24px 18px 40px" }}>
+    <main
+      style={{
+        maxWidth: 900,
+        margin: "0 auto",
+        padding: "24px 18px 48px",
+      }}
+    >
       <Link
         href={`/pool/${poolId}`}
         style={{
+          display: "inline-block",
+          marginBottom: 12,
+          color: "white",
           textDecoration: "none",
           fontWeight: 900,
-          display: "inline-block",
-          marginBottom: 10,
+          opacity: 0.9,
         }}
       >
         ← Back to Dashboard
       </Link>
 
-      <h1
+      <header style={{ marginBottom: 22 }}>
+        <h1
+          style={{
+            margin: 0,
+            fontSize: 32,
+            fontWeight: 950,
+            letterSpacing: 0.2,
+          }}
+        >
+          Pool Rules
+        </h1>
+
+        <p
+          style={{
+            margin: "8px 0 0",
+            maxWidth: 720,
+            fontSize: 16,
+            lineHeight: 1.6,
+            opacity: 0.74,
+          }}
+        >
+          Everything you need to know for making picks, surviving each week,
+          and winning the pool.
+        </p>
+      </header>
+
+      {entryFeeSection ? (
+        <section
+          style={{
+            marginBottom: 26,
+            padding: "16px 18px",
+            borderRadius: 14,
+            border: "1px solid rgba(249,115,22,0.45)",
+            background:
+              "linear-gradient(180deg, rgba(249,115,22,0.16), rgba(249,115,22,0.06))",
+          }}
+        >
+          <div
+            style={{
+              fontSize: 12,
+              fontWeight: 950,
+              letterSpacing: 0.6,
+              color: "#fdba74",
+            }}
+          >
+            ENTRY FEE
+          </div>
+
+          <div
+            style={{
+              marginTop: 6,
+              fontSize: 22,
+              fontWeight: 950,
+              lineHeight: 1.35,
+            }}
+          >
+            {entryFeeSection.body.join(" ")}
+          </div>
+        </section>
+      ) : null}
+
+      <article
         style={{
-          marginTop: 6,
-          marginBottom: 8,
-          fontSize: 30,
-          fontWeight: 950,
+          borderRadius: 18,
+          border: "1px solid rgba(255,255,255,0.12)",
+          background: "rgba(255,255,255,0.035)",
+          padding: "4px 20px",
         }}
       >
-        Pool Rules
-      </h1>
-
-      <p style={{ margin: 0, opacity: 0.75, lineHeight: 1.5 }}>
-        Everything you need to know for making picks, surviving each week, and
-        winning the pool.
-      </p>
-
-      <div style={{ marginTop: 18, display: "grid", gap: 14 }}>
-        {sections.map((section, index) => {
-          const lines = section
-            .split("\n")
-            .map((line) => line.trimEnd())
-            .filter((line) => line.trim().length > 0);
-
-          if (lines.length === 0) return null;
-
-          const firstLine = lines[0];
-          const remainingLines = lines.slice(1);
-
-          const looksLikeHeading =
-            firstLine === firstLine.toUpperCase() ||
-            /^[^\w\s]/u.test(firstLine);
-
-          return (
-            <section
-              key={`${firstLine}-${index}`}
+        {regularSections.map((section, index) => (
+          <section
+            key={`${section.heading}-${index}`}
+            style={{
+              padding: "22px 0",
+              borderTop:
+                index === 0
+                  ? "none"
+                  : "1px solid rgba(255,255,255,0.10)",
+            }}
+          >
+            <h2
               style={{
-                padding: "16px 16px",
-                borderRadius: 16,
-                border: "1px solid rgba(255,255,255,0.10)",
-                background: "rgba(255,255,255,0.04)",
-                boxShadow: "0 4px 14px rgba(0,0,0,0.18)",
+                margin: 0,
+                fontSize: 21,
+                fontWeight: 950,
+                letterSpacing: 0.2,
               }}
             >
-              {looksLikeHeading ? (
-                <h2
-                  style={{
-                    margin: 0,
-                    fontSize: 19,
-                    fontWeight: 950,
-                    letterSpacing: 0.2,
-                  }}
-                >
-                  {firstLine}
-                </h2>
-              ) : (
-                <div
-                  style={{
-                    fontSize: 16,
-                    fontWeight: 800,
-                    lineHeight: 1.6,
-                  }}
-                >
-                  {firstLine}
-                </div>
-              )}
+              {section.heading}
+            </h2>
 
-              {remainingLines.length > 0 ? (
-                <div
-                  style={{
-                    marginTop: looksLikeHeading ? 10 : 8,
-                    whiteSpace: "pre-wrap",
-                    lineHeight: 1.7,
-                    opacity: 0.94,
-                  }}
-                >
-                  {remainingLines.join("\n")}
-                </div>
-              ) : null}
-            </section>
-          );
-        })}
-      </div>
-    </div>
+            {section.body.length > 0 ? (
+              <div
+                style={{
+                  marginTop: 12,
+                  whiteSpace: "pre-wrap",
+                  fontSize: 16,
+                  lineHeight: 1.75,
+                  opacity: 0.92,
+                }}
+              >
+                {section.body.join("\n")}
+              </div>
+            ) : null}
+          </section>
+        ))}
+      </article>
+    </main>
   );
 }
