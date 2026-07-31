@@ -35,7 +35,7 @@ export default function NavBar({
 
   const items: NavItem[] = [
     {
-      label: "🏆 Standings",
+      label: "🏠 Dashboard",
       href: base,
       active: (p, b) =>
         p === b || p === `${b}/standings` || p === `${b}/standings2`,

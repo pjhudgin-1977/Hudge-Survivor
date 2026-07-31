@@ -457,6 +457,43 @@ export default function PoolStandingsGridPage() {
         </div>
       </div>
 
+      {commissionerNote && commissionerNote.trim() !== "" && (
+        <div
+          style={{
+            borderRadius: 16,
+            border: "1px solid rgba(249,115,22,0.55)",
+            background:
+              "linear-gradient(180deg, rgba(249,115,22,0.18), rgba(249,115,22,0.07))",
+            padding: "16px 18px",
+            marginBottom: 18,
+            boxShadow: "0 12px 30px rgba(249,115,22,0.10)",
+          }}
+        >
+          <div
+            style={{
+              fontSize: 12,
+              fontWeight: 950,
+              letterSpacing: 0.5,
+              color: "#fdba74",
+              marginBottom: 7,
+            }}
+          >
+            📌 COMMISSIONER MESSAGE
+          </div>
+
+          <div
+            style={{
+              fontSize: 16,
+              fontWeight: 850,
+              lineHeight: 1.5,
+              color: "white",
+            }}
+          >
+            {commissionerNote}
+          </div>
+        </div>
+      )}
+
       {myEntries.length > 0 && (
         <div
           style={{
@@ -504,7 +541,8 @@ export default function PoolStandingsGridPage() {
                   key={`my-entry-${entry.user_id}-${entry.entry_no}`}
                   style={{
                     display: "grid",
-                    gridTemplateColumns: "minmax(180px, 1fr) 140px 140px 140px",
+                    gridTemplateColumns:
+                      "minmax(180px, 1fr) 140px 140px 120px 140px",
                     gap: 10,
                     alignItems: "center",
                     padding: "10px 12px",
@@ -526,6 +564,42 @@ export default function PoolStandingsGridPage() {
 
                   <div style={{ fontWeight: 900, opacity: 0.92 }}>
                     Pick: {latestTeam}
+                  </div>
+
+                  <div>
+                    {entry.entry_fee_paid ? (
+                      <span
+                        style={{
+                          display: "inline-block",
+                          padding: "7px 10px",
+                          borderRadius: 999,
+                          border: "1px solid rgba(134,239,172,0.45)",
+                          background: "rgba(22,101,52,0.28)",
+                          color: "#bbf7d0",
+                          fontWeight: 900,
+                          whiteSpace: "nowrap",
+                        }}
+                      >
+                        ✓ Paid
+                      </span>
+                    ) : (
+                      <Link
+                        href={`/pool/${poolId}/payment`}
+                        style={{
+                          display: "inline-block",
+                          padding: "7px 10px",
+                          borderRadius: 10,
+                          border: "1px solid rgba(96,165,250,0.5)",
+                          background: "rgba(30,64,175,0.28)",
+                          color: "#dbeafe",
+                          fontWeight: 900,
+                          textDecoration: "none",
+                          whiteSpace: "nowrap",
+                        }}
+                      >
+                        Pay Now
+                      </Link>
+                    )}
                   </div>
 
                   <div style={{ textAlign: "right" }}>
@@ -571,84 +645,6 @@ export default function PoolStandingsGridPage() {
                 </button>
               </div>
             )}
-          </div>
-        </div>
-      )}
-
-      {myEntries.length > 0 && (
-        <div
-          style={{
-            borderRadius: 16,
-            border: "1px solid rgba(255,255,255,0.18)",
-            background: "rgba(255,255,255,0.06)",
-            padding: "14px 16px",
-            marginTop: 32,
-            marginBottom: 14,
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "center",
-            gap: 12,
-          }}
-        >
-          <div>
-            <div style={{ fontSize: 12, fontWeight: 900, opacity: 0.75 }}>
-              PAYMENT STATUS
-            </div>
-
-            <div style={{ fontSize: 18, fontWeight: 950, marginTop: 4 }}>
-              {myPaidCount} / {myEntries.length} Entries Paid
-            </div>
-          </div>
-
-          <Link
-            href={`/pool/${poolId}/payment`}
-            style={{
-              padding: "8px 12px",
-              borderRadius: 10,
-              border: "1px solid rgba(255,255,255,0.18)",
-              background: "rgba(0,128,255,0.18)",
-              fontWeight: 900,
-              textDecoration: "none",
-              color: "white",
-              whiteSpace: "nowrap",
-            }}
-          >
-            {myPaidCount >= myEntries.length ? "Paid" : "Pay Now"}
-          </Link>
-        </div>
-      )}
-
-      {commissionerNote && commissionerNote.trim() !== "" && (
-        <div
-          style={{
-            borderRadius: 16,
-            border: "1px solid rgba(255,255,255,0.18)",
-            background: "rgba(255,255,255,0.06)",
-            padding: "14px 16px",
-            marginTop: 32,
-            marginBottom: 14,
-          }}
-        >
-          <div
-            style={{
-              fontSize: 12,
-              fontWeight: 900,
-              opacity: 0.75,
-              marginBottom: 6,
-            }}
-          >
-            COMMISSIONER MESSAGE
-          </div>
-
-          <div
-            style={{
-              fontSize: 15,
-              fontWeight: 800,
-              lineHeight: 1.4,
-              opacity: 0.95,
-            }}
-          >
-            {commissionerNote}
           </div>
         </div>
       )}
