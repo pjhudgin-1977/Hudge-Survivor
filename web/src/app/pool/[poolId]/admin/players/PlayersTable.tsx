@@ -192,6 +192,75 @@ export default function PlayersTable({
     }
   }
 
+  async function removeMember(rowKey: string) {
+    const row = rows.find((r) => r.rowKey === rowKey);
+    if (!row) return;
+
+    const isCommissioner =
+      Boolean(row.is_commissioner) ||
+      String(row.role ?? "").toLowerCase() === "commissioner";
+
+    if (isCommissioner) {
+      alert("The commissioner cannot be removed from the pool.");
+      return;
+    }
+
+    const memberEntries = rows.filter((r) => r.user_id === row.user_id);
+    const memberName =
+      String(row.full_name || "").trim() ||
+      String(row.screen_name || "").trim() ||
+      "this member";
+
+    const confirmed = window.confirm(
+      `Remove ${memberName} from this pool?\n\nThis will delete all ${memberEntries.length} of their pool entries, picks, and used-team history. Their login account will remain active.`
+    );
+
+    if (!confirmed) return;
+
+    setRows((prev) =>
+      prev.map((r) =>
+        r.user_id === row.user_id
+          ? { ...r, removing: true, savedMsg: "", errMsg: "" }
+          : r
+      )
+    );
+
+    try {
+      const res = await fetch(`/api/pool/${poolId}/admin/players`, {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          user_id: row.user_id,
+          remove_member: true,
+        }),
+      });
+
+      const json = await res.json();
+
+      if (!res.ok) {
+        throw new Error(json?.error || "Remove member failed");
+      }
+
+      setRows((prev) => prev.filter((r) => r.user_id !== row.user_id));
+    } catch (e: unknown) {
+      const message =
+        e instanceof Error ? e.message : "Remove member failed";
+
+      setRows((prev) =>
+        prev.map((r) =>
+          r.user_id === row.user_id
+            ? {
+                ...r,
+                removing: false,
+                savedMsg: "",
+                errMsg: r.rowKey === rowKey ? message : "",
+              }
+            : r
+        )
+      );
+    }
+  }
+
   async function saveRow(rowKey: string) {
     setRows((prev) =>
       prev.map((r) =>
@@ -701,6 +770,26 @@ export default function PlayersTable({
                         }}
                       >
                         {r.removing ? "Removing..." : "Remove Entry"}
+                      </button>
+                    ) : null}
+
+                    {!r.is_commissioner &&
+                    String(r.role ?? "").toLowerCase() !== "commissioner" ? (
+                      <button
+                        onClick={() => removeMember(r.rowKey)}
+                        disabled={r.removing || r.saving}
+                        style={{
+                          padding: "8px 12px",
+                          borderRadius: 10,
+                          border: "1px solid rgba(248,113,113,0.85)",
+                          background: "rgba(69,10,10,0.72)",
+                          color: "#fee2e2",
+                          fontWeight: 900,
+                          cursor:
+                            r.removing || r.saving ? "not-allowed" : "pointer",
+                        }}
+                      >
+                        {r.removing ? "Removing..." : "Remove Member"}
                       </button>
                     ) : null}
                   </div>

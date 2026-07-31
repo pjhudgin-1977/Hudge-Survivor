@@ -181,13 +181,17 @@ export async function DELETE(
   const body = await req.json();
 
   const targetUserId = String(body.user_id || "");
+  const removeMember = body.remove_member === true;
   const targetEntryNo = Number(body.entry_no);
 
   if (!targetUserId) {
     return NextResponse.json({ error: "Missing user_id" }, { status: 400 });
   }
 
-  if (!Number.isInteger(targetEntryNo) || targetEntryNo < 1) {
+  if (
+    !removeMember &&
+    (!Number.isInteger(targetEntryNo) || targetEntryNo < 1)
+  ) {
     return NextResponse.json({ error: "Invalid entry_no" }, { status: 400 });
   }
 
@@ -210,75 +214,120 @@ export async function DELETE(
 
   if (!isCommissioner) {
     return NextResponse.json(
-      { error: "Only commissioners can remove entries" },
+      {
+        error: removeMember
+          ? "Only commissioners can remove members"
+          : "Only commissioners can remove entries",
+      },
       { status: 403 }
     );
   }
 
-  const { data: targetRow, error: targetError } = await adminSupabase
+  let targetQuery = adminSupabase
     .from("pool_members")
     .select("user_id, entry_no, screen_name, is_commissioner, role")
     .eq("pool_id", poolId)
-    .eq("user_id", targetUserId)
-    .eq("entry_no", targetEntryNo)
-    .maybeSingle();
+    .eq("user_id", targetUserId);
+
+  if (!removeMember) {
+    targetQuery = targetQuery.eq("entry_no", targetEntryNo);
+  }
+
+  const { data: targetRows, error: targetError } = await targetQuery;
 
   if (targetError) {
     return NextResponse.json({ error: targetError.message }, { status: 400 });
   }
 
-  if (!targetRow) {
-    return NextResponse.json({ error: "Entry not found" }, { status: 404 });
+  if (!targetRows || targetRows.length === 0) {
+    return NextResponse.json(
+      { error: removeMember ? "Member not found" : "Entry not found" },
+      { status: 404 }
+    );
   }
 
-  const targetIsCommissioner =
-    Boolean(targetRow.is_commissioner) ||
-    String(targetRow.role ?? "").toLowerCase() === "commissioner";
+  const targetIsCommissioner = targetRows.some(
+    (row) =>
+      Boolean(row.is_commissioner) ||
+      String(row.role ?? "").toLowerCase() === "commissioner"
+  );
 
   if (targetIsCommissioner) {
     return NextResponse.json(
-      { error: "The commissioner entry cannot be removed" },
+      {
+        error: removeMember
+          ? "The commissioner cannot be removed from the pool"
+          : "The commissioner entry cannot be removed",
+      },
       { status: 400 }
     );
   }
 
-  const { error: picksError } = await adminSupabase
+  let picksDelete = adminSupabase
     .from("picks")
     .delete()
     .eq("pool_id", poolId)
-    .eq("user_id", targetUserId)
-    .eq("entry_no", targetEntryNo);
+    .eq("user_id", targetUserId);
+
+  if (!removeMember) {
+    picksDelete = picksDelete.eq("entry_no", targetEntryNo);
+  }
+
+  const { error: picksError } = await picksDelete;
 
   if (picksError) {
     return NextResponse.json({ error: picksError.message }, { status: 400 });
   }
 
-  const { error: usedTeamsError } = await adminSupabase
+  let usedTeamsDelete = adminSupabase
     .from("used_teams")
     .delete()
     .eq("pool_id", poolId)
-    .eq("user_id", targetUserId)
-    .eq("entry_no", targetEntryNo);
+    .eq("user_id", targetUserId);
 
-  if (usedTeamsError) {
-    return NextResponse.json({ error: usedTeamsError.message }, { status: 400 });
+  if (!removeMember) {
+    usedTeamsDelete = usedTeamsDelete.eq("entry_no", targetEntryNo);
   }
 
-  const { error: memberError } = await adminSupabase
+  const { error: usedTeamsError } = await usedTeamsDelete;
+
+  if (usedTeamsError) {
+    return NextResponse.json(
+      { error: usedTeamsError.message },
+      { status: 400 }
+    );
+  }
+
+  let memberDelete = adminSupabase
     .from("pool_members")
     .delete()
     .eq("pool_id", poolId)
-    .eq("user_id", targetUserId)
-    .eq("entry_no", targetEntryNo);
+    .eq("user_id", targetUserId);
+
+  if (!removeMember) {
+    memberDelete = memberDelete.eq("entry_no", targetEntryNo);
+  }
+
+  const { error: memberError } = await memberDelete;
 
   if (memberError) {
     return NextResponse.json({ error: memberError.message }, { status: 400 });
   }
 
+  if (removeMember) {
+    return NextResponse.json({
+      ok: true,
+      removed_member: {
+        user_id: targetUserId,
+        entry_count: targetRows.length,
+      },
+    });
+  }
+
   return NextResponse.json({
     ok: true,
     removed: {
-      screen_name: targetRow.screen_name,
+      screen_name: targetRows[0]?.screen_name ?? null,
       entry_no: targetEntryNo,
     },
   });
