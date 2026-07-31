@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { createClient } from "@/lib/supabaseClient";
 
 export default function JoinEntryForm({
   poolId,
@@ -16,8 +17,45 @@ export default function JoinEntryForm({
 
   const [fullName, setFullName] = useState("");
   const [screenName, setScreenName] = useState("");
+  const [loadingProfile, setLoadingProfile] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
+
+  useEffect(() => {
+    let active = true;
+
+    async function loadSavedName() {
+      try {
+        const supabase = createClient();
+
+        const {
+          data: { user },
+        } = await supabase.auth.getUser();
+
+        if (!active || !user) return;
+
+        const savedScreenName = String(
+          user.user_metadata?.screen_name ?? ""
+        ).trim();
+
+        if (savedScreenName) {
+          setScreenName(savedScreenName);
+        }
+      } catch {
+        // The form still works if metadata cannot be loaded.
+      } finally {
+        if (active) {
+          setLoadingProfile(false);
+        }
+      }
+    }
+
+    loadSavedName();
+
+    return () => {
+      active = false;
+    };
+  }, []);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -70,7 +108,9 @@ export default function JoinEntryForm({
       router.replace(`/pool/${poolId}`);
       router.refresh();
     } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : "Could not join pool.");
+      setError(
+        e instanceof Error ? e.message : "Could not join pool."
+      );
       setSubmitting(false);
     }
   }
@@ -78,6 +118,7 @@ export default function JoinEntryForm({
   const canSubmit =
     fullName.trim().length >= 2 &&
     screenName.trim().length >= 2 &&
+    !loadingProfile &&
     !submitting;
 
   return (
@@ -119,7 +160,7 @@ export default function JoinEntryForm({
           marginBottom: 8,
         }}
       >
-        Choose your screen name
+        Screen name
       </label>
 
       <input
@@ -127,9 +168,9 @@ export default function JoinEntryForm({
         type="text"
         value={screenName}
         onChange={(e) => setScreenName(e.target.value)}
-        placeholder="Example: RyanH"
+        placeholder={loadingProfile ? "Loading saved screen name…" : "Example: RyanH"}
         maxLength={30}
-        disabled={submitting}
+        disabled={submitting || loadingProfile}
         autoComplete="nickname"
         style={{
           width: "100%",
@@ -139,11 +180,12 @@ export default function JoinEntryForm({
           background: "rgba(0,0,0,0.2)",
           color: "white",
           fontSize: 16,
+          opacity: loadingProfile ? 0.7 : 1,
         }}
       />
 
       <div style={{ marginTop: 6, fontSize: 12, opacity: 0.7 }}>
-        Your screen name will appear in standings and pool activity.
+        We saved this from account creation. You can change it before joining.
       </div>
 
       {error ? (
@@ -166,7 +208,11 @@ export default function JoinEntryForm({
           cursor: canSubmit ? "pointer" : "not-allowed",
         }}
       >
-        {submitting ? "Joining..." : `Join Pool as Entry ${entryNo}`}
+        {submitting
+          ? "Joining..."
+          : loadingProfile
+            ? "Loading..."
+            : `Join Pool as Entry ${entryNo}`}
       </button>
     </form>
   );
