@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { createClient as createAdminClient } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/server";
 
 type Body = {
@@ -11,15 +12,37 @@ type Body = {
   rules_text?: string;
 };
 
+function getAdminSupabase() {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+  if (!url) {
+    throw new Error("Missing NEXT_PUBLIC_SUPABASE_URL");
+  }
+
+  if (!key) {
+    throw new Error("Missing SUPABASE_SERVICE_ROLE_KEY");
+  }
+
+  return createAdminClient(url, key, {
+    auth: {
+      persistSession: false,
+      autoRefreshToken: false,
+    },
+  });
+}
+
 export async function POST(req: Request) {
   try {
     const supabase = await createClient();
+    const adminSupabase = getAdminSupabase();
 
-    const { data: auth, error: authErr } = await supabase.auth.getUser();
+    const { data: auth, error: authError } =
+      await supabase.auth.getUser();
 
-    if (authErr) {
+    if (authError) {
       return NextResponse.json(
-        { ok: false, error: authErr.message },
+        { ok: false, error: authError.message },
         { status: 401 }
       );
     }
@@ -51,15 +74,15 @@ export async function POST(req: Request) {
       );
     }
 
-    const { data: gateRows, error: gateErr } = await supabase
+    const { data: gateRows, error: gateError } = await adminSupabase
       .from("pool_members")
       .select("is_commissioner, role")
       .eq("pool_id", poolId)
       .eq("user_id", auth.user.id);
 
-    if (gateErr) {
+    if (gateError) {
       return NextResponse.json(
-        { ok: false, error: gateErr.message },
+        { ok: false, error: gateError.message },
         { status: 403 }
       );
     }
@@ -111,30 +134,39 @@ export async function POST(req: Request) {
 
     if (rulesText.length < 20) {
       return NextResponse.json(
-        { ok: false, error: "Pool rules must be at least 20 characters." },
+        {
+          ok: false,
+          error: "Pool rules must be at least 20 characters.",
+        },
         { status: 400 }
       );
     }
 
     if (rulesText.length > 20000) {
       return NextResponse.json(
-        { ok: false, error: "Pool rules must be 20,000 characters or fewer." },
+        {
+          ok: false,
+          error: "Pool rules must be 20,000 characters or fewer.",
+        },
         { status: 400 }
       );
     }
 
-    const { error: updateError } = await supabase
-      .from("pools")
-      .update({
-        name: poolName,
-        pool_name: poolName,
-        season_year: seasonYear,
-        entry_fee_cents: entryFeeCents,
-        is_public: isPublic,
-        max_losses: maxLosses,
-        rules_text: rulesText,
-      })
-      .eq("id", poolId);
+    const { data: updatedPool, error: updateError } =
+      await adminSupabase
+        .from("pools")
+        .update({
+          name: poolName,
+          pool_name: poolName,
+          season_year: seasonYear,
+          entry_fee_cents: entryFeeCents,
+          is_public: isPublic,
+          max_losses: maxLosses,
+          rules_text: rulesText,
+        })
+        .eq("id", poolId)
+        .select("id")
+        .maybeSingle();
 
     if (updateError) {
       return NextResponse.json(
@@ -143,12 +175,20 @@ export async function POST(req: Request) {
       );
     }
 
+    if (!updatedPool) {
+      return NextResponse.json(
+        { ok: false, error: "Pool settings were not updated." },
+        { status: 404 }
+      );
+    }
+
     return NextResponse.json({ ok: true });
   } catch (error: unknown) {
     return NextResponse.json(
       {
         ok: false,
-        error: error instanceof Error ? error.message : "Server error",
+        error:
+          error instanceof Error ? error.message : "Server error",
       },
       { status: 500 }
     );
