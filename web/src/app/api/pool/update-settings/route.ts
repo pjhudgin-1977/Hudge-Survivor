@@ -8,6 +8,7 @@ type Body = {
   entry_fee_cents: number;
   is_public: boolean;
   max_losses: number;
+  rules_text?: string;
 };
 
 export async function POST(req: Request) {
@@ -15,63 +16,141 @@ export async function POST(req: Request) {
     const supabase = await createClient();
 
     const { data: auth, error: authErr } = await supabase.auth.getUser();
-    if (authErr) return NextResponse.json({ ok: false, error: authErr.message }, { status: 401 });
-    if (!auth?.user) return NextResponse.json({ ok: false, error: "Not logged in" }, { status: 401 });
+
+    if (authErr) {
+      return NextResponse.json(
+        { ok: false, error: authErr.message },
+        { status: 401 }
+      );
+    }
+
+    if (!auth?.user) {
+      return NextResponse.json(
+        { ok: false, error: "Not logged in" },
+        { status: 401 }
+      );
+    }
 
     let body: Body;
+
     try {
       body = (await req.json()) as Body;
     } catch {
-      return NextResponse.json({ ok: false, error: "Invalid JSON body" }, { status: 400 });
+      return NextResponse.json(
+        { ok: false, error: "Invalid JSON body" },
+        { status: 400 }
+      );
     }
 
     const poolId = String(body.poolId ?? "").trim();
+
     if (!poolId) {
-      return NextResponse.json({ ok: false, error: "Missing poolId" }, { status: 400 });
+      return NextResponse.json(
+        { ok: false, error: "Missing poolId" },
+        { status: 400 }
+      );
     }
 
-    // Commissioner gate (same pattern as your other admin actions)
-    const { data: gate, error: gateErr } = await supabase
+    const { data: gateRows, error: gateErr } = await supabase
       .from("pool_members")
-      .select("is_commissioner")
+      .select("is_commissioner, role")
       .eq("pool_id", poolId)
-      .eq("user_id", auth.user.id)
-      .maybeSingle();
+      .eq("user_id", auth.user.id);
 
-    if (gateErr) return NextResponse.json({ ok: false, error: gateErr.message }, { status: 403 });
-    if (!gate?.is_commissioner) return NextResponse.json({ ok: false, error: "Forbidden" }, { status: 403 });
-
-    // Basic validation
-    const pool_name = String(body.pool_name ?? "").trim();
-    const season_year = Number(body.season_year ?? 0);
-    const entry_fee_cents = Math.max(0, Math.floor(Number(body.entry_fee_cents ?? 0)));
-    const is_public = Boolean(body.is_public);
-    const max_losses = Math.max(1, Math.min(5, Math.floor(Number(body.max_losses ?? 2))));
-
-    if (!pool_name) {
-      return NextResponse.json({ ok: false, error: "Pool name is required" }, { status: 400 });
-    }
-    if (!Number.isFinite(season_year) || season_year < 2000 || season_year > 2100) {
-      return NextResponse.json({ ok: false, error: "Season year looks invalid" }, { status: 400 });
+    if (gateErr) {
+      return NextResponse.json(
+        { ok: false, error: gateErr.message },
+        { status: 403 }
+      );
     }
 
-    const { error: upErr } = await supabase
+    const isCommissioner = (gateRows ?? []).some(
+      (row) =>
+        Boolean(row?.is_commissioner) ||
+        String(row?.role ?? "").toLowerCase() === "commissioner" ||
+        String(row?.role ?? "").toLowerCase() === "admin"
+    );
+
+    if (!isCommissioner) {
+      return NextResponse.json(
+        { ok: false, error: "Forbidden" },
+        { status: 403 }
+      );
+    }
+
+    const poolName = String(body.pool_name ?? "").trim();
+    const seasonYear = Number(body.season_year ?? 0);
+    const entryFeeCents = Math.max(
+      0,
+      Math.floor(Number(body.entry_fee_cents ?? 0))
+    );
+    const isPublic = Boolean(body.is_public);
+    const maxLosses = Math.max(
+      1,
+      Math.min(5, Math.floor(Number(body.max_losses ?? 2)))
+    );
+    const rulesText = String(body.rules_text ?? "").trim();
+
+    if (!poolName) {
+      return NextResponse.json(
+        { ok: false, error: "Pool name is required" },
+        { status: 400 }
+      );
+    }
+
+    if (
+      !Number.isFinite(seasonYear) ||
+      seasonYear < 2000 ||
+      seasonYear > 2100
+    ) {
+      return NextResponse.json(
+        { ok: false, error: "Season year looks invalid" },
+        { status: 400 }
+      );
+    }
+
+    if (rulesText.length < 20) {
+      return NextResponse.json(
+        { ok: false, error: "Pool rules must be at least 20 characters." },
+        { status: 400 }
+      );
+    }
+
+    if (rulesText.length > 20000) {
+      return NextResponse.json(
+        { ok: false, error: "Pool rules must be 20,000 characters or fewer." },
+        { status: 400 }
+      );
+    }
+
+    const { error: updateError } = await supabase
       .from("pools")
       .update({
-        pool_name,
-        season_year,
-        entry_fee_cents,
-        is_public,
-        max_losses,
+        name: poolName,
+        pool_name: poolName,
+        season_year: seasonYear,
+        entry_fee_cents: entryFeeCents,
+        is_public: isPublic,
+        max_losses: maxLosses,
+        rules_text: rulesText,
       })
       .eq("id", poolId);
 
-    if (upErr) {
-      return NextResponse.json({ ok: false, error: upErr.message }, { status: 400 });
+    if (updateError) {
+      return NextResponse.json(
+        { ok: false, error: updateError.message },
+        { status: 400 }
+      );
     }
 
     return NextResponse.json({ ok: true });
-  } catch (e: any) {
-    return NextResponse.json({ ok: false, error: e?.message ?? "Server error" }, { status: 500 });
+  } catch (error: unknown) {
+    return NextResponse.json(
+      {
+        ok: false,
+        error: error instanceof Error ? error.message : "Server error",
+      },
+      { status: 500 }
+    );
   }
 }

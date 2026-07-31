@@ -13,6 +13,7 @@ type PoolRow = {
   entry_fee_cents: number | null;
   is_public: boolean | null;
   max_losses: number | null;
+  rules_text: string | null;
 };
 
 export default function PoolSettingsPage() {
@@ -36,6 +37,7 @@ export default function PoolSettingsPage() {
   const [entryFeeDollars, setEntryFeeDollars] = useState("0");
   const [isPublic, setIsPublic] = useState(false);
   const [maxLosses, setMaxLosses] = useState(2);
+  const [rulesText, setRulesText] = useState("");
 
   const [deleteNameConfirmation, setDeleteNameConfirmation] = useState("");
   const [deleteWordConfirmation, setDeleteWordConfirmation] = useState("");
@@ -75,7 +77,7 @@ export default function PoolSettingsPage() {
       const { data: pool, error: poolErr } = await supabase
         .from("pools")
         .select(
-          "id, name, pool_name, season_year, entry_fee_cents, is_public, max_losses"
+          "id, name, pool_name, season_year, entry_fee_cents, is_public, max_losses, rules_text"
         )
         .eq("id", poolId)
         .maybeSingle();
@@ -103,6 +105,7 @@ export default function PoolSettingsPage() {
       );
       setIsPublic(Boolean(loadedPool.is_public ?? false));
       setMaxLosses(Number(loadedPool.max_losses ?? 2));
+      setRulesText(String(loadedPool.rules_text ?? ""));
     } catch (error: any) {
       setErr(error?.message ?? "Unknown error");
     } finally {
@@ -154,6 +157,7 @@ export default function PoolSettingsPage() {
             entry_fee_cents: entryFeeCents,
             is_public: Boolean(isPublic),
             max_losses: Number(maxLosses),
+            rules_text: rulesText,
           }),
         }
       );
@@ -377,6 +381,26 @@ export default function PoolSettingsPage() {
                 <option value={2}>2 — Double elimination</option>
                 <option value={3}>3 losses</option>
               </select>
+            </label>
+
+            <label className="grid gap-2">
+              <span className="text-sm font-bold text-white">
+                Pool Rules
+              </span>
+
+              <textarea
+                className="min-h-[480px] w-full rounded-xl border border-slate-300 bg-white p-4 font-mono text-sm leading-6 text-slate-950 placeholder:text-slate-500"
+                value={rulesText}
+                onChange={(event) => setRulesText(event.target.value)}
+                placeholder="Enter the pool rules..."
+                maxLength={20000}
+                disabled={loading || saving || deleting}
+              />
+
+              <span className="text-xs text-slate-400">
+                These rules appear on the public Rules page. Plain text,
+                headings, bullets, spacing, and emojis are preserved.
+              </span>
             </label>
 
             <div className="flex flex-wrap items-center gap-3">
