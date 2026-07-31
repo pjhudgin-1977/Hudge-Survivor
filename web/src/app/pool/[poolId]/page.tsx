@@ -194,13 +194,23 @@ export default function PoolStandingsGridPage() {
   const rows = useMemo(() => {
     const norm = (s: string) => s.toLowerCase();
 
+    const entryCountsByUser: Record<string, number> = {};
+
+    for (const member of members) {
+      entryCountsByUser[member.user_id] =
+        (entryCountsByUser[member.user_id] ?? 0) + 1;
+    }
+
     const list = members.map((m) => {
       const losses = Number(m.losses ?? 0);
       const eliminated = Boolean(m.is_eliminated) || losses >= 2;
       const entryNo = Number(m.entry_no ?? 1);
 
       const baseScreen = String(m.screen_name ?? "").trim() || "—";
-      const screen = `${baseScreen} #${entryNo}`;
+      const hasMultipleEntries = (entryCountsByUser[m.user_id] ?? 0) > 1;
+      const screen = hasMultipleEntries
+        ? `${baseScreen} #${entryNo}`
+        : baseScreen;
       const fullLine = nameInitialLine(profilesById[m.user_id]?.full_name);
 
       const section = eliminated ? 2 : losses === 0 ? 0 : 1;
