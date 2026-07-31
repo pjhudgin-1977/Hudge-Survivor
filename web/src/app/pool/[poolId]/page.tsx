@@ -53,7 +53,7 @@ export default function PoolStandingsGridPage() {
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
 
-  const [showNames, setShowNames] = useState(false);
+  const [showNames, setShowNames] = useState(true);
   const [commissionerNote, setCommissionerNote] = useState<string | null>(null);
   const [members, setMembers] = useState<MemberRow[]>([]);
   const [myUserId, setMyUserId] = useState<string | null>(null);
