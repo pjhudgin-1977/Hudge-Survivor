@@ -162,7 +162,7 @@ export default function PoolStandingsGridPage() {
       week: number;
     }[] = [];
 
-    for (let w = 1; w <= 17; w++) {
+    for (let w = 1; w <= 18; w++) {
       cols.push({ key: `REG_${w}`, label: `W${w}`, phase: "regular", week: w });
     }
 
@@ -410,7 +410,7 @@ export default function PoolStandingsGridPage() {
             Dashboard
           </div>
           <div style={{ opacity: 0.7, marginTop: 2, fontSize: 13 }}>
-            Grid view • 17 Regular + 4 Playoffs • A = autopick • Strike-through =
+            Grid view • 18 Regular + 4 Playoffs • A = autopick • Strike-through =
             counted loss
           </div>
         </div>
