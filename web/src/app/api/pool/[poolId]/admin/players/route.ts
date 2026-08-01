@@ -30,6 +30,7 @@ export async function POST(
   { params }: { params: Promise<{ poolId: string }> }
 ) {
   const supabase = await createClient();
+  const adminSupabase = getAdminSupabase();
   const { poolId } = await params;
 
   const { data: userRes } = await supabase.auth.getUser();
@@ -129,33 +130,47 @@ export async function POST(
     }
   }
 
-     if (fullName !== undefined) {
-    const { data: existingProfile } = await supabase
-      .from("profiles")
-      .select("user_id")
-      .eq("user_id", targetUserId)
-      .maybeSingle();
-
-    if (!existingProfile) {
+  if (fullName !== undefined) {
+    if (fullName.length < 2) {
       return NextResponse.json(
-        {
-          error:
-            "No profile row exists yet for this user. Full name can be edited after a profile row is created.",
-        },
+        { error: "Your name must be at least 2 characters." },
         { status: 400 }
       );
     }
 
-    const { error: profileUpdateError } = await supabase
-      .from("profiles")
-      .update({
-        full_name: fullName || null,
-      })
-      .eq("user_id", targetUserId);
-
-    if (profileUpdateError) {
+    if (fullName.length > 100) {
       return NextResponse.json(
-        { error: profileUpdateError.message },
+        { error: "Your name must be 100 characters or fewer." },
+        { status: 400 }
+      );
+    }
+
+    const { data: targetAuthUser, error: authUserError } =
+      await adminSupabase.auth.admin.getUserById(targetUserId);
+
+    if (authUserError || !targetAuthUser?.user) {
+      return NextResponse.json(
+        { error: authUserError?.message || "User account not found" },
+        { status: 400 }
+      );
+    }
+
+    const { error: profileUpsertError } = await adminSupabase
+      .from("profiles")
+      .upsert(
+        {
+          user_id: targetUserId,
+          full_name: fullName,
+          email: targetAuthUser.user.email || null,
+        },
+        {
+          onConflict: "user_id",
+        }
+      );
+
+    if (profileUpsertError) {
+      return NextResponse.json(
+        { error: profileUpsertError.message },
         { status: 400 }
       );
     }
