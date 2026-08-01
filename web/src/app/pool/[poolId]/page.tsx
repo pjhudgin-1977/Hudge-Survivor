@@ -62,7 +62,6 @@ export default function PoolStandingsGridPage() {
   );
   const [picks, setPicks] = useState<PickRow[]>([]);
 
-  const [savingKey, setSavingKey] = useState<string | null>(null);
   const [addingEntry, setAddingEntry] = useState(false);
   const [isCommissioner, setIsCommissioner] = useState(false);
   const [seasonStarted, setSeasonStarted] = useState(false);
@@ -270,49 +269,6 @@ export default function PoolStandingsGridPage() {
     maxWidth: 260,
     overflow: "hidden",
   };
-
-  async function togglePaid(targetUserId: string, targetEntryNo: number) {
-    if (!confirm("Toggle paid status?")) return;
-
-    const key = `${targetUserId}|${targetEntryNo}`;
-    const current = members.find(
-      (m) => m.user_id === targetUserId && Number(m.entry_no ?? 1) === targetEntryNo
-    );
-    const nextVal = !Boolean(current?.entry_fee_paid);
-
-    setMembers((prev) =>
-      prev.map((m) =>
-        m.user_id === targetUserId && Number(m.entry_no ?? 1) === targetEntryNo
-          ? { ...m, entry_fee_paid: nextVal }
-          : m
-      )
-    );
-
-    setSavingKey(key);
-
-    try {
-      const supabase = createClient();
-      const { error } = await supabase
-        .from("pool_members")
-        .update({ entry_fee_paid: nextVal })
-        .eq("pool_id", poolId)
-        .eq("user_id", targetUserId)
-        .eq("entry_no", targetEntryNo);
-
-      if (error) throw error;
-    } catch (e: any) {
-      setMembers((prev) =>
-        prev.map((m) =>
-          m.user_id === targetUserId && Number(m.entry_no ?? 1) === targetEntryNo
-            ? { ...m, entry_fee_paid: !nextVal }
-            : m
-        )
-      );
-      alert(e?.message ?? "Update failed (permission/RLS).");
-    } finally {
-      setSavingKey(null);
-    }
-  }
 
   async function addEntry() {
     if (!myUserId) return;
@@ -539,6 +495,7 @@ export default function PoolStandingsGridPage() {
               return (
                 <div
                   key={`my-entry-${entry.user_id}-${entry.entry_no}`}
+                  className="dashboard-entry-card"
                   style={{
                     display: "grid",
                     gridTemplateColumns:
@@ -602,7 +559,10 @@ export default function PoolStandingsGridPage() {
                     )}
                   </div>
 
-                  <div style={{ textAlign: "right" }}>
+                  <div
+                    className="dashboard-entry-action"
+                    style={{ textAlign: "right" }}
+                  >
                     <Link
                       href={`/pool/${poolId}/pick?entry=${entry.entry_no}`}
                       style={{
@@ -661,6 +621,7 @@ export default function PoolStandingsGridPage() {
       </h2>
 
       <div
+        className="dashboard-summary-grid"
         style={{
           display: "grid",
           gridTemplateColumns: "repeat(5, minmax(140px, 1fr))",
@@ -767,8 +728,6 @@ export default function PoolStandingsGridPage() {
                 ? "rgba(255,165,0,0.06)"
                 : "rgba(0,0,0,0.10)";
 
-              const isSaving = savingKey === `${r.user_id}|${r.entry_no}`;
-
               return (
                 <tr key={r.row_key} style={{ background: rowBg }}>
                   <td
@@ -850,24 +809,29 @@ export default function PoolStandingsGridPage() {
                       background: "rgba(10, 12, 18, 0.70)",
                     }}
                   >
-                    <button
-                      disabled={isSaving}
-                      onClick={() => togglePaid(r.user_id, r.entry_no)}
+                    <span
                       style={{
+                        display: "inline-block",
                         width: "100%",
                         borderRadius: 10,
                         padding: "6px 8px",
-                        border: "1px solid rgba(255,255,255,0.22)",
-                        background: "rgba(0,0,0,0.25)",
-                        color: "white",
+                        border: r.entry_fee_paid
+                          ? "1px solid rgba(134,239,172,0.40)"
+                          : "1px solid rgba(248,113,113,0.40)",
+                        background: r.entry_fee_paid
+                          ? "rgba(22,101,52,0.25)"
+                          : "rgba(127,29,29,0.22)",
+                        color: r.entry_fee_paid ? "#bbf7d0" : "#fecaca",
                         fontWeight: 950,
-                        cursor: isSaving ? "default" : "pointer",
-                        opacity: isSaving ? 0.65 : 1,
                       }}
-                      title={r.entry_fee_paid ? "Entry fee paid" : "Not paid"}
+                      title={
+                        r.entry_fee_paid
+                          ? "Entry fee paid"
+                          : "Entry fee not paid"
+                      }
                     >
-                      {isSaving ? "Saving…" : r.entry_fee_paid ? "✅ Yes" : "❌ No"}
-                    </button>
+                      {r.entry_fee_paid ? "✅ Yes" : "❌ No"}
+                    </span>
                   </td>
 
                   {columns.map((c) => {
@@ -910,6 +874,28 @@ export default function PoolStandingsGridPage() {
         Sorting: 0-loss section → 1-loss section → Eliminated, and within each
         section by user name + entry number.
       </div>
+      <style jsx>{`
+        @media (max-width: 760px) {
+          .dashboard-entry-card {
+            grid-template-columns: 1fr 1fr !important;
+            gap: 12px !important;
+          }
+
+          .dashboard-entry-action {
+            text-align: left !important;
+          }
+
+          .dashboard-summary-grid {
+            grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+          }
+        }
+
+        @media (max-width: 430px) {
+          .dashboard-entry-card {
+            grid-template-columns: 1fr !important;
+          }
+        }
+      `}</style>
     </div>
   );
 }

@@ -189,8 +189,7 @@ export default async function RulesPage({
         href={`/pool/${poolId}`}
         style={{
           display: "inline-block",
-          marginBottom: 12,
-          color: "white",
+          marginBottom: 12,          color: "white",
           textDecoration: "none",
           fontWeight: 900,
           opacity: 0.9,
