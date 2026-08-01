@@ -261,6 +261,76 @@ export default function PlayersTable({
     }
   }
 
+  async function savePaidStatus(rowKey: string, nextPaid: boolean) {
+    const row = rows.find((r) => r.rowKey === rowKey);
+    if (!row || row.saving || row.removing) return;
+
+    const previousPaid = !!row.entry_fee_paid;
+
+    setRows((prev) =>
+      prev.map((r) =>
+        r.rowKey === rowKey
+          ? {
+              ...r,
+              entry_fee_paid: nextPaid,
+              saving: true,
+              savedMsg: "",
+              errMsg: "",
+            }
+          : r
+      )
+    );
+
+    try {
+      const res = await fetch(`/api/pool/${poolId}/admin/players`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          user_id: row.user_id,
+          entry_no: row.entry_no ?? 1,
+          entry_fee_paid: nextPaid,
+        }),
+      });
+
+      const json = await res.json();
+
+      if (!res.ok) {
+        throw new Error(json?.error || "Paid status update failed");
+      }
+
+      setRows((prev) =>
+        prev.map((r) =>
+          r.rowKey === rowKey
+            ? {
+                ...r,
+                entry_fee_paid: nextPaid,
+                saving: false,
+                savedMsg: nextPaid ? "Marked paid" : "Marked unpaid",
+                errMsg: "",
+              }
+            : r
+        )
+      );
+    } catch (e: unknown) {
+      const message =
+        e instanceof Error ? e.message : "Paid status update failed";
+
+      setRows((prev) =>
+        prev.map((r) =>
+          r.rowKey === rowKey
+            ? {
+                ...r,
+                entry_fee_paid: previousPaid,
+                saving: false,
+                savedMsg: "",
+                errMsg: message,
+              }
+            : r
+        )
+      );
+    }
+  }
+
   async function saveRow(rowKey: string) {
     setRows((prev) =>
       prev.map((r) =>
@@ -656,15 +726,16 @@ export default function PlayersTable({
                   <input
                     type="checkbox"
                     checked={!!r.entry_fee_paid}
+                    disabled={r.saving || r.removing}
                     onChange={(e) =>
-                      setRows((prev) =>
-                        prev.map((x) =>
-                          x.rowKey === r.rowKey
-                            ? { ...x, entry_fee_paid: e.target.checked, savedMsg: "", errMsg: "" }
-                            : x
-                        )
-                      )
+                      savePaidStatus(r.rowKey, e.target.checked)
                     }
+                    title="Payment status saves automatically"
+                    style={{
+                      cursor:
+                        r.saving || r.removing ? "not-allowed" : "pointer",
+                      opacity: r.saving || r.removing ? 0.6 : 1,
+                    }}
                   />
                 </td>
 
