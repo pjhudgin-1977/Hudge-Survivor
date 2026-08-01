@@ -34,14 +34,14 @@ export async function POST(
 
     if (fullName.length < 2) {
       return NextResponse.json(
-        { error: "Full name must be at least 2 characters." },
+        { error: "Your name must be at least 2 characters." },
         { status: 400 }
       );
     }
 
     if (fullName.length > 100) {
       return NextResponse.json(
-        { error: "Full name must be 100 characters or fewer." },
+        { error: "Your name must be 100 characters or fewer." },
         { status: 400 }
       );
     }

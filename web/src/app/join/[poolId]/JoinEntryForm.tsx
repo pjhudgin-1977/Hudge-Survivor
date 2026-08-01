@@ -65,12 +65,12 @@ export default function JoinEntryForm({
     const trimmedScreenName = screenName.trim();
 
     if (trimmedFullName.length < 2) {
-      setError("Full name must be at least 2 characters.");
+      setError("Your name must be at least 2 characters.");
       return;
     }
 
     if (trimmedFullName.length > 100) {
-      setError("Full name must be 100 characters or fewer.");
+      setError("Your name must be 100 characters or fewer.");
       return;
     }
 
@@ -127,7 +127,7 @@ export default function JoinEntryForm({
         htmlFor="full-name"
         style={{ display: "block", fontWeight: 800, marginBottom: 8 }}
       >
-        Full name
+        Your Name
       </label>
 
       <input
