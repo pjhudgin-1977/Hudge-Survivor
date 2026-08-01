@@ -32,6 +32,34 @@ export async function POST(
     const fullName = String(body?.full_name || "").trim();
     const screenName = String(body?.screen_name || "").trim();
 
+    if (fullName.length < 2) {
+      return NextResponse.json(
+        { error: "Full name must be at least 2 characters." },
+        { status: 400 }
+      );
+    }
+
+    if (fullName.length > 100) {
+      return NextResponse.json(
+        { error: "Full name must be 100 characters or fewer." },
+        { status: 400 }
+      );
+    }
+
+    if (screenName.length < 2) {
+      return NextResponse.json(
+        { error: "Screen name must be at least 2 characters." },
+        { status: 400 }
+      );
+    }
+
+    if (screenName.length > 30) {
+      return NextResponse.json(
+        { error: "Screen name must be 30 characters or fewer." },
+        { status: 400 }
+      );
+    }
+
     if (!/^HUDGE-[A-Z0-9]{4}$/.test(inviteCode)) {
       return NextResponse.json(
         { error: "A valid HUDGE invite code is required." },
