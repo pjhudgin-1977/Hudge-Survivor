@@ -119,17 +119,26 @@ export default function PoolStandingsGridPage() {
 
         const mem = (m ?? []) as MemberRow[];
 
-        const ids = Array.from(new Set(mem.map((x) => x.user_id).filter(Boolean)));
         const profMap: Record<string, ProfileRow> = {};
 
-        if (ids.length > 0) {
-          const { data: p, error: pErr } = await supabase
-            .from("profiles")
-            .select("user_id, full_name")
-            .in("user_id", ids);
+        const profileResponse = await fetch(`/api/pool/${poolId}/profiles`, {
+          method: "GET",
+          cache: "no-store",
+        });
 
-          if (!pErr && p) {
-            for (const row of p as ProfileRow[]) profMap[row.user_id] = row;
+        if (profileResponse.ok) {
+          const profileJson = await profileResponse.json();
+
+          for (const row of profileJson?.profiles ?? []) {
+            const userId = String(row?.user_id ?? "").trim();
+
+            if (userId) {
+              profMap[userId] = {
+                user_id: userId,
+                full_name:
+                  String(row?.full_name ?? "").trim() || null,
+              };
+            }
           }
         }
 
