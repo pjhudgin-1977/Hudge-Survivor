@@ -160,10 +160,6 @@ export default function DashboardClient() {
           <div>
             <h2 className="text-xl font-bold text-white">Join a Pool</h2>
 
-            <p className="mt-1 text-sm text-slate-300">
-              Paste an invite link or enter a HUDGE invite code and we’ll take
-              you to the join page.
-            </p>
           </div>
 
           <div className="flex flex-wrap gap-3">
