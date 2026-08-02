@@ -44,6 +44,8 @@ type GameGroup = {
   away_score: number | null;
   winner_team: string | null;
   was_tie: boolean | null;
+  favorite_team: string | null;
+  point_spread: number | null;
 
   season_year: number | null;
   week_number: number | null;
@@ -80,6 +82,16 @@ function fmtKickoff(d?: string | null) {
     hour12: true,
     timeZoneName: "short",
   }).format(dt);
+}
+
+function formatSpread(g: GameGroup) {
+  if (g.point_spread === null) return "Spread: TBD";
+
+  if (g.point_spread === 0 || !g.favorite_team) {
+    return "Spread: Pick'em";
+  }
+
+  return `Spread: ${g.favorite_team} ${g.point_spread}`;
 }
 
 function isFinalStatus(status?: string | null) {
@@ -187,6 +199,36 @@ export default async function SweatPage({
   }
 
   const list = (rows ?? []) as PickRow[];
+
+  const gameIds = Array.from(
+    new Set(
+      list
+        .map((row) => String(row.game_id ?? ""))
+        .filter(Boolean)
+    )
+  );
+
+  const spreadMap = new Map<
+    string,
+    { favorite_team: string | null; point_spread: number | null }
+  >();
+
+  if (gameIds.length > 0) {
+    const { data: spreadRows } = await supabase
+      .from("games")
+      .select("id, favorite_team, point_spread")
+      .in("id", gameIds);
+
+    for (const row of spreadRows ?? []) {
+      spreadMap.set(String(row.id), {
+        favorite_team: row.favorite_team ?? null,
+        point_spread:
+          typeof row.point_spread === "number"
+            ? row.point_spread
+            : null,
+      });
+    }
+  }
   const gamesMap = new Map<string, GameGroup>();
 
   for (const r of list) {
@@ -197,6 +239,8 @@ export default async function SweatPage({
     const status = (r.game_status ?? r.status ?? null) as string | null;
 
     if (!gamesMap.has(gameId)) {
+      const spread = spreadMap.get(gameId);
+
       gamesMap.set(gameId, {
         game_id: gameId,
         kickoff_at: (r.kickoff_at ?? null) as string | null,
@@ -207,6 +251,8 @@ export default async function SweatPage({
         away_score: typeof r.away_score === "number" ? r.away_score : null,
         winner_team: (r.winner_team ?? null) as string | null,
         was_tie: typeof r.was_tie === "boolean" ? r.was_tie : null,
+        favorite_team: spread?.favorite_team ?? null,
+        point_spread: spread?.point_spread ?? null,
 
         season_year: typeof r.season_year === "number" ? r.season_year : null,
         week_number: typeof r.week_number === "number" ? r.week_number : null,
@@ -503,6 +549,10 @@ export default async function SweatPage({
                 <div style={{ marginTop: 3, fontSize: 13, opacity: 0.72 }}>
                   {fmtKickoff(nextGame.kickoff_at)}
                 </div>
+
+                <div style={{ marginTop: 3, fontSize: 13, opacity: 0.8 }}>
+                  {formatSpread(nextGame)}
+                </div>
               </div>
 
               <div
@@ -673,6 +723,16 @@ export default async function SweatPage({
                           ? ` · ${meaningfulStatus}`
                           : ""}
                         {isComplete(g) ? " · Complete" : ""}
+                      </div>
+
+                      <div
+                        style={{
+                          marginTop: 3,
+                          fontSize: 13,
+                          opacity: 0.8,
+                        }}
+                      >
+                        {formatSpread(g)}
                       </div>
                     </div>
                   </div>
