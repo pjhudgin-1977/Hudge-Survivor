@@ -301,8 +301,12 @@ export default async function SweatPage({
         ? 0
         : Math.round(scores.reduce((a, b) => a + b.score, 0) / scores.length);
 
-    topSweats = [...scores].sort((a, b) => b.score - a.score).slice(0, 3);
+    topSweats = [...scores].sort((a, b) => b.score - a.score);
   }
+
+  const nextGameStarted = nextGame
+    ? haveScores(nextGame) || isComplete(nextGame)
+    : false;
 
   const poolMeta = riskLabel(poolAvg);
 
@@ -449,14 +453,28 @@ export default async function SweatPage({
                   gap: 12,
                 }}
               >
-                <div style={{ fontSize: 22, fontWeight: 950 }}>
-                  {poolMeta.icon} {poolMeta.label}
-                </div>
+                {nextGameStarted ? (
+                  <>
+                    <div style={{ fontSize: 22, fontWeight: 950 }}>
+                      {poolMeta.icon} {poolMeta.label}
+                    </div>
 
-                <div style={{ fontSize: 18, fontWeight: 900 }}>
-                  {poolAvg} / 100
-                </div>
+                    <div style={{ fontSize: 16, fontWeight: 900 }}>
+                      Sweat score: {poolAvg} / 100
+                    </div>
+                  </>
+                ) : (
+                  <div style={{ fontSize: 22, fontWeight: 950 }}>
+                    Not started
+                  </div>
+                )}
               </div>
+
+              {nextGameStarted ? (
+                <div style={{ marginTop: 5, fontSize: 12, opacity: 0.68 }}>
+                  Higher scores mean greater risk of losing the current pick.
+                </div>
+              ) : null}
 
               <div
                 style={{
@@ -504,7 +522,7 @@ export default async function SweatPage({
                     marginBottom: 8,
                   }}
                 >
-                  Most at risk
+                  {nextGameStarted ? "Most at risk" : "Entries in this game"}
                 </div>
 
                 {topSweats.length === 0 ? (
@@ -513,7 +531,10 @@ export default async function SweatPage({
                   </div>
                 ) : (
                   <div style={{ display: "grid", gap: 8 }}>
-                    {topSweats.map((p, idx) => (
+                    {(nextGameStarted
+                      ? topSweats.slice(0, 3)
+                      : topSweats
+                    ).map((p, idx) => (
                       <div
                         key={`${p.screen_name}:${idx}`}
                         style={{
@@ -526,17 +547,20 @@ export default async function SweatPage({
                       >
                         <div>
                           <strong>
-                            {idx + 1}. {p.screen_name}
+                            {nextGameStarted ? `${idx + 1}. ` : ""}
+                            {p.screen_name}
                             {p.isMe ? " (You)" : ""}
                           </strong>
                           <span style={{ opacity: 0.72 }}>
                             {" "}
-                            · {p.pick_team ?? "—"}
+                            · Pick: {p.pick_team ?? "—"}
                             {p.isAuto ? " · AUTO" : ""}
                           </span>
                         </div>
 
-                        <strong>{p.score}</strong>
+                        {nextGameStarted ? (
+                          <strong>Risk: {p.score}</strong>
+                        ) : null}
                       </div>
                     ))}
                   </div>
