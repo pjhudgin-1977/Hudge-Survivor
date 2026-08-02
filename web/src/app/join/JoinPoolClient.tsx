@@ -154,30 +154,9 @@ export default function JoinPoolClient() {
               Continue
             </button>
 
-            <button
-              type="button"
-              onClick={() => {
-                setText("");
-                setError(null);
-              }}
-              style={{
-                padding: "11px 16px",
-                borderRadius: 11,
-                border: "1px solid rgba(255,255,255,0.18)",
-                background: "rgba(255,255,255,0.07)",
-                color: "white",
-                cursor: "pointer",
-                fontWeight: 800,
-              }}
-            >
-              Clear
-            </button>
           </div>
         </form>
 
-        <div style={{ marginTop: 14, fontSize: 12, opacity: 0.7 }}>
-          Pool IDs are not accepted. A valid HUDGE invite code is required.
-        </div>
       </div>
     </main>
   );

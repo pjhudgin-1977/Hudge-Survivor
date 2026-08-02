@@ -321,8 +321,7 @@ export default function Standings2Client(props: {
           <div style={{ opacity: 0.85, marginTop: 4, fontSize: 13 }}>
             Shows the most recent pick per entry (prefers <b>{headerWeekLabel}</b>{" "}
             if that entry picked this week).
-            {isCommissioner ? " Commissioner actions are enabled." : ""}
-          </div>
+                  </div>
         </div>
 
         <button

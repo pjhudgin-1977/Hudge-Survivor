@@ -882,9 +882,6 @@ export default function PlayersTable({
         </tbody>
       </table>
 
-      <p style={{ marginTop: 12, opacity: 0.8, fontSize: 13 }}>
-        Rows without a real account can still use Screen Name and payment fields. Export only includes selected real email addresses.
-      </p>
     </div>
   );
 }

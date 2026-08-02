@@ -154,9 +154,6 @@ export default function DashboardClient() {
         <section>
           <h1 className="text-3xl font-bold text-white">Home</h1>
 
-          <p className="mt-2 text-sm text-slate-300">
-            Signed in as <strong className="text-white">{email}</strong>
-          </p>
         </section>
 
         <section className="space-y-4 rounded-2xl border border-slate-700 bg-slate-900 p-5 shadow-lg">
