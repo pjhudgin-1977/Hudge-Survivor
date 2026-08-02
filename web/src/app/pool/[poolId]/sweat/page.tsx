@@ -307,310 +307,420 @@ export default async function SweatPage({
   const poolMeta = riskLabel(poolAvg);
 
   return (
-    <main style={{ padding: 24 }}>
-      <div
-        style={{
-          display: "flex",
-          alignItems: "baseline",
-          justifyContent: "space-between",
-          gap: 16,
-          flexWrap: "wrap",
-        }}
-      >
-        <div>
-  <h1 style={{ fontSize: 28, fontWeight: 800 }}>Sweat Board</h1>
-</div>
+    <main
+      style={{
+        maxWidth: 1180,
+        margin: "0 auto",
+        padding: "24px 18px 40px",
+      }}
+    >
+      <header style={{ marginBottom: 18 }}>
+        <h1 style={{ margin: 0, fontSize: 28, fontWeight: 900 }}>
+          Sweat Board
+        </h1>
 
-        <div style={{ opacity: 0.75, fontSize: 13 }}>
-          <strong>Intensity legend:</strong> 😌 Chill · 😅 Sweat · 😱 Panic · ✅ Done · ☠️ Out
-        </div>
-      </div>
-
-      <div
-        style={{
-          marginTop: 16,
-          border: "1px solid rgba(0,0,0,0.12)",
-          borderRadius: 12,
-          padding: 14,
-          display: "grid",
-          gap: 10,
-        }}
-      >
-        <div style={{ display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
-          <div>
-            <div style={{ fontSize: 14, opacity: 0.75 }}>🔥 Pick Popularity</div>
-            <div style={{ marginTop: 4, fontSize: 16, fontWeight: 800 }}>
-              {popWeek != null ? (
-                <>
-                  {String(popPhase ?? "").toUpperCase()} · Week {popWeek}
-                </>
-              ) : (
-                <>No week detected yet</>
-              )}
-            </div>
-          </div>
-
-          <div style={{ opacity: 0.75, fontSize: 13 }}>
-            {popularityTotal > 0 ? <>{popularityTotal} picks counted</> : <>No picks yet</>}
-          </div>
-        </div>
-
-        {popularityTotal === 0 ? (
-          <div style={{ opacity: 0.75, fontSize: 13 }}>No popularity data available yet.</div>
-        ) : (
-          <div style={{ display: "grid", gap: 8 }}>
-            {popularity.slice(0, 10).map((r) => {
-              const pct = popularityTotal ? Math.round((r.count / popularityTotal) * 100) : 0;
-
-              return (
-                <div
-                  key={r.team}
-                  style={{
-                    display: "grid",
-                    gridTemplateColumns: "64px 1fr 90px",
-                    gap: 10,
-                    alignItems: "center",
-                  }}
-                >
-                  <div style={{ fontWeight: 900 }}>{r.team}</div>
-
-                  <div
-                    style={{
-                      height: 10,
-                      borderRadius: 999,
-                      background: "rgba(0,0,0,0.08)",
-                      overflow: "hidden",
-                      border: "1px solid rgba(0,0,0,0.10)",
-                    }}
-                    title={`${r.count} picks (${pct}%)`}
-                  >
-                    <div
-                      style={{
-                        height: "100%",
-                        width: `${pct}%`,
-                        background: "rgba(255,95,0,0.75)",
-                      }}
-                    />
-                  </div>
-
-                  <div style={{ textAlign: "right", fontSize: 13, opacity: 0.85 }}>
-                    <strong>{r.count}</strong> <span style={{ opacity: 0.7 }}>({pct}%)</span>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        )}
-      </div>
-
-      {nextGame ? (
         <div
           style={{
-            marginTop: 16,
-            border: "1px solid rgba(0,0,0,0.12)",
-            borderRadius: 12,
-            padding: 14,
-            display: "grid",
-            gap: 12,
+            marginTop: 7,
+            fontSize: 13,
+            opacity: 0.72,
+          }}
+        >
+          😌 Chill · 😅 Sweat · 😱 Panic · ✅ Done · ☠️ Out
+        </div>
+      </header>
+
+      <div className="sweat-summary-grid">
+        <section
+          style={{
+            border: "1px solid rgba(255,255,255,0.12)",
+            borderRadius: 14,
+            padding: 18,
+            background: "rgba(255,255,255,0.025)",
           }}
         >
           <div
             style={{
               display: "flex",
               justifyContent: "space-between",
-              alignItems: "center",
+              alignItems: "flex-start",
               gap: 12,
               flexWrap: "wrap",
+              marginBottom: 16,
             }}
           >
             <div>
-              <div style={{ fontSize: 14, opacity: 0.75 }}>
-                Pool Sweat Intensity (next active game)
+              <div style={{ fontSize: 14, opacity: 0.72 }}>
+                🔥 Pick Popularity
               </div>
-              <div style={{ marginTop: 4, fontSize: 16, fontWeight: 800 }}>
-                {poolMeta.icon} {poolMeta.label}{" "}
-                <span style={{ opacity: 0.7, fontWeight: 600 }}>
-                  · Avg {poolAvg} / 100 · {poolCount} active picks
-                </span>
-              </div>
-              <div style={{ marginTop: 4, fontSize: 13, opacity: 0.75 }}>
-                {nextGame.away_team ?? "AWAY"} @ {nextGame.home_team ?? "HOME"} · Kickoff:{" "}
-                {fmtKickoff(nextGame.kickoff_at)}
+
+              <div style={{ marginTop: 4, fontSize: 18, fontWeight: 900 }}>
+                {popWeek != null ? `Week ${popWeek}` : "Current Week"}
               </div>
             </div>
 
-            <SweatIntensityMeter
-              status={isComplete(nextGame) ? "final" : nextGame.status}
-              kickoffAt={nextGame.kickoff_at}
-              homeTeam={nextGame.home_team}
-              awayTeam={nextGame.away_team}
-              pickTeam={null}
-              homeScore={nextGame.home_score}
-              awayScore={nextGame.away_score}
-            />
+            {popularityTotal > 0 ? (
+              <div style={{ fontSize: 13, opacity: 0.72 }}>
+                {popularityTotal} picks counted
+              </div>
+            ) : null}
           </div>
 
-          <div
-            style={{
-              borderTop: "1px solid rgba(0,0,0,0.08)",
-              paddingTop: 10,
-              display: "grid",
-              gap: 8,
-            }}
-          >
-            <div style={{ fontSize: 13, opacity: 0.75 }}>
-              <strong>Top 3 sweats</strong> highest risk among active entries
+          {popularityTotal === 0 ? (
+            <div style={{ opacity: 0.72, fontSize: 13 }}>
+              Pick popularity will appear after picks are submitted.
             </div>
+          ) : (
+            <div style={{ display: "grid", gap: 12 }}>
+              {popularity.slice(0, 10).map((r) => {
+                const pct = popularityTotal
+                  ? Math.round((r.count / popularityTotal) * 100)
+                  : 0;
 
-            {topSweats.length === 0 ? (
-              <div style={{ opacity: 0.75, fontSize: 13 }}>No active picks yet.</div>
-            ) : (
-              topSweats.map((p, idx) => {
-                const meta = riskLabel(p.score);
                 return (
                   <div
-                    key={`${p.screen_name}:${idx}`}
+                    key={r.team}
                     style={{
-                      display: "flex",
-                      justifyContent: "space-between",
+                      display: "grid",
+                      gridTemplateColumns: "48px minmax(100px, 1fr) 78px",
+                      gap: 10,
                       alignItems: "center",
-                      gap: 12,
-                      flexWrap: "wrap",
-                      fontSize: 13,
                     }}
                   >
-                    <div>
-                      <strong>
-                        {idx + 1}. {p.screen_name}
-                        {p.isMe ? " (You)" : ""}
-                      </strong>{" "}
-                      <span style={{ opacity: 0.8 }}>
-                        · Pick:{" "}
-                        <strong>
-                          {p.pick_team ?? "—"}
-                          {p.isAuto ? " · AUTO" : ""}
-                        </strong>
-                      </span>
+                    <div style={{ fontWeight: 900 }}>{r.team}</div>
+
+                    <div
+                      style={{
+                        width: "100%",
+                        maxWidth: 320,
+                        height: 9,
+                        borderRadius: 999,
+                        background: "rgba(255,255,255,0.07)",
+                        overflow: "hidden",
+                        border: "1px solid rgba(255,255,255,0.08)",
+                      }}
+                      title={`${r.count} picks (${pct}%)`}
+                    >
+                      <div
+                        style={{
+                          height: "100%",
+                          width: `${pct}%`,
+                          minWidth: pct > 0 ? 8 : 0,
+                          background: "rgba(249,115,22,0.85)",
+                        }}
+                      />
                     </div>
 
-                    <div style={{ opacity: 0.85 }}>
-                      {meta.icon} {meta.label} · {p.score}/100
+                    <div
+                      style={{
+                        textAlign: "right",
+                        fontSize: 13,
+                        opacity: 0.82,
+                      }}
+                    >
+                      <strong>{r.count}</strong>{" "}
+                      <span style={{ opacity: 0.7 }}>({pct}%)</span>
                     </div>
                   </div>
                 );
-              })
-            )}
-          </div>
-        </div>
-      ) : null}
-
-      <div style={{ marginTop: 18, display: "grid", gap: 12 }}>
-        {games.length === 0 ? (
-          <div
-            style={{
-              padding: 18,
-              borderRadius: 12,
-              border: "1px solid rgba(255,255,255,0.12)",
-              background: "rgba(255,255,255,0.04)",
-            }}
-          >
-            <div style={{ fontSize: 18, fontWeight: 900 }}>
-              No picks yet for the current week
+              })}
             </div>
-            <div style={{ marginTop: 6, opacity: 0.78 }}>
-              Sweat data, pick popularity, and game risk will appear after players submit their picks.
-            </div>
-          </div>
-        ) : (
-          games.map((g) => {
-            const scoreLine =
-              typeof g.home_score === "number" && typeof g.away_score === "number"
-                ? `${g.away_team ?? "AWAY"} ${g.away_score} @ ${g.home_team ?? "HOME"} ${g.home_score}`
-                : `${g.away_team ?? "AWAY"} @ ${g.home_team ?? "HOME"}`;
+          )}
+        </section>
 
-            const picksSorted = [...g.picks].sort((a, b) => {
-              const ra = riskScoreForPick(g, a.pick_team, a.still_alive);
-              const rb = riskScoreForPick(g, b.pick_team, b.still_alive);
-              return rb - ra;
-            });
+        <section
+          style={{
+            border: "1px solid rgba(255,255,255,0.12)",
+            borderRadius: 14,
+            padding: 18,
+            background: "rgba(255,255,255,0.025)",
+          }}
+        >
+          <div style={{ fontSize: 14, opacity: 0.72 }}>Pool Sweat</div>
 
-            return (
+          {nextGame ? (
+            <>
               <div
-                key={g.game_id}
                 style={{
-                  border: "1px solid rgba(0,0,0,0.12)",
-                  borderRadius: 12,
-                  padding: 14,
+                  marginTop: 7,
+                  display: "flex",
+                  alignItems: "baseline",
+                  justifyContent: "space-between",
+                  gap: 12,
                 }}
               >
-                <div style={{ display: "grid", gap: 10 }}>
-                  <div>
-                    <div style={{ fontSize: 16, fontWeight: 800 }}>{scoreLine}</div>
-                    <div style={{ marginTop: 4, fontSize: 13, opacity: 0.75 }}>
-                      Kickoff: {fmtKickoff(g.kickoff_at)}
-                      {g.status ? ` · Status: ${g.status}` : ""}
-                      {isComplete(g) ? " · Complete" : ""}
+                <div style={{ fontSize: 22, fontWeight: 950 }}>
+                  {poolMeta.icon} {poolMeta.label}
+                </div>
+
+                <div style={{ fontSize: 18, fontWeight: 900 }}>
+                  {poolAvg} / 100
+                </div>
+              </div>
+
+              <div
+                style={{
+                  marginTop: 16,
+                  paddingTop: 14,
+                  borderTop: "1px solid rgba(255,255,255,0.09)",
+                }}
+              >
+                <div
+                  style={{
+                    fontSize: 12,
+                    fontWeight: 900,
+                    letterSpacing: 0.4,
+                    textTransform: "uppercase",
+                    opacity: 0.62,
+                  }}
+                >
+                  Next game
+                </div>
+
+                <div style={{ marginTop: 5, fontWeight: 850 }}>
+                  {nextGame.away_team ?? "AWAY"} at{" "}
+                  {nextGame.home_team ?? "HOME"}
+                </div>
+
+                <div style={{ marginTop: 3, fontSize: 13, opacity: 0.72 }}>
+                  {fmtKickoff(nextGame.kickoff_at)}
+                </div>
+              </div>
+
+              <div
+                style={{
+                  marginTop: 16,
+                  paddingTop: 14,
+                  borderTop: "1px solid rgba(255,255,255,0.09)",
+                }}
+              >
+                <div
+                  style={{
+                    fontSize: 12,
+                    fontWeight: 900,
+                    letterSpacing: 0.4,
+                    textTransform: "uppercase",
+                    opacity: 0.62,
+                    marginBottom: 8,
+                  }}
+                >
+                  Most at risk
+                </div>
+
+                {topSweats.length === 0 ? (
+                  <div style={{ opacity: 0.72, fontSize: 13 }}>
+                    No active picks yet.
+                  </div>
+                ) : (
+                  <div style={{ display: "grid", gap: 8 }}>
+                    {topSweats.map((p, idx) => (
+                      <div
+                        key={`${p.screen_name}:${idx}`}
+                        style={{
+                          display: "flex",
+                          justifyContent: "space-between",
+                          alignItems: "center",
+                          gap: 10,
+                          fontSize: 13,
+                        }}
+                      >
+                        <div>
+                          <strong>
+                            {idx + 1}. {p.screen_name}
+                            {p.isMe ? " (You)" : ""}
+                          </strong>
+                          <span style={{ opacity: 0.72 }}>
+                            {" "}
+                            · {p.pick_team ?? "—"}
+                            {p.isAuto ? " · AUTO" : ""}
+                          </span>
+                        </div>
+
+                        <strong>{p.score}</strong>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </>
+          ) : (
+            <div style={{ marginTop: 10, opacity: 0.72, fontSize: 13 }}>
+              Pool sweat will appear once games and picks are active.
+            </div>
+          )}
+        </section>
+      </div>
+
+      <section style={{ marginTop: 22 }}>
+        <h2
+          style={{
+            margin: "0 0 12px",
+            fontSize: 20,
+            fontWeight: 900,
+          }}
+        >
+          Games
+        </h2>
+
+        <div className="sweat-games-grid">
+          {games.length === 0 ? (
+            <div
+              style={{
+                padding: 18,
+                borderRadius: 14,
+                border: "1px solid rgba(255,255,255,0.12)",
+                background: "rgba(255,255,255,0.025)",
+              }}
+            >
+              <div style={{ fontSize: 18, fontWeight: 900 }}>
+                No picks yet for the current week
+              </div>
+
+              <div style={{ marginTop: 6, opacity: 0.74 }}>
+                Sweat data and game risk will appear after players submit
+                their picks.
+              </div>
+            </div>
+          ) : (
+            games.map((g) => {
+              const scoreLine =
+                typeof g.home_score === "number" &&
+                typeof g.away_score === "number"
+                  ? `${g.away_team ?? "AWAY"} ${g.away_score} at ${
+                      g.home_team ?? "HOME"
+                    } ${g.home_score}`
+                  : `${g.away_team ?? "AWAY"} at ${
+                      g.home_team ?? "HOME"
+                    }`;
+
+              const picksSorted = [...g.picks].sort((a, b) => {
+                const ra = riskScoreForPick(
+                  g,
+                  a.pick_team,
+                  a.still_alive
+                );
+                const rb = riskScoreForPick(
+                  g,
+                  b.pick_team,
+                  b.still_alive
+                );
+
+                return rb - ra;
+              });
+
+              const meaningfulStatus =
+                g.status &&
+                String(g.status).toLowerCase() !== "scheduled"
+                  ? String(g.status)
+                  : null;
+
+              return (
+                <article
+                  key={g.game_id}
+                  style={{
+                    border: "1px solid rgba(255,255,255,0.12)",
+                    borderRadius: 14,
+                    padding: 16,
+                    background: "rgba(255,255,255,0.025)",
+                  }}
+                >
+                  <div
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      alignItems: "flex-start",
+                      gap: 12,
+                    }}
+                  >
+                    <div>
+                      <div style={{ fontSize: 17, fontWeight: 900 }}>
+                        {scoreLine}
+                      </div>
+
+                      <div
+                        style={{
+                          marginTop: 4,
+                          fontSize: 13,
+                          opacity: 0.7,
+                        }}
+                      >
+                        {fmtKickoff(g.kickoff_at)}
+                        {meaningfulStatus
+                          ? ` · ${meaningfulStatus}`
+                          : ""}
+                        {isComplete(g) ? " · Complete" : ""}
+                      </div>
                     </div>
                   </div>
 
                   <div
                     style={{
-                      borderTop: "1px solid rgba(0,0,0,0.08)",
-                      paddingTop: 10,
+                      marginTop: 14,
+                      paddingTop: 12,
+                      borderTop: "1px solid rgba(255,255,255,0.09)",
                       display: "grid",
-                      gap: 10,
+                      gap: 12,
                     }}
                   >
                     {picksSorted.map((p) => {
-                      const isMe = p.user_id && me.id && p.user_id === me.id;
-                      const badge = pickResultBadge(p.pick_result, p.still_alive);
+                      const isMe =
+                        Boolean(p.user_id) &&
+                        Boolean(me.id) &&
+                        p.user_id === me.id;
+
+                      const badge = pickResultBadge(
+                        p.pick_result,
+                        p.still_alive
+                      );
 
                       return (
                         <div
-                          key={`${g.game_id}:${p.user_id ?? p.screen_name}:${p.entry_no ?? "entry"}`}
+                          key={`${g.game_id}:${
+                            p.user_id ?? p.screen_name
+                          }:${p.entry_no ?? "entry"}`}
                           style={{
-                            display: "flex",
+                            display: "grid",
+                            gridTemplateColumns: "minmax(0, 1fr) auto",
                             alignItems: "center",
-                            justifyContent: "space-between",
                             gap: 12,
-                            flexWrap: "wrap",
-                            opacity: p.still_alive ? 1 : 0.6,
-                            textDecoration: p.still_alive ? "none" : "line-through",
+                            opacity: p.still_alive ? 1 : 0.58,
+                            textDecoration: p.still_alive
+                              ? "none"
+                              : "line-through",
                           }}
                         >
-                          <div style={{ display: "flex", gap: 10, alignItems: "baseline" }}>
-                            <strong>
+                          <div style={{ minWidth: 0 }}>
+                            <div style={{ fontWeight: 850 }}>
                               {p.screen_name}
                               {isMe ? " (You)" : ""}
-                            </strong>
+                            </div>
 
-                            <span style={{ opacity: 0.8 }}>
+                            <div
+                              style={{
+                                marginTop: 3,
+                                fontSize: 13,
+                                opacity: 0.72,
+                              }}
+                            >
                               Pick:{" "}
                               <strong>
                                 {p.pick_team ?? "—"}
                                 {p.is_auto ? " · AUTO" : ""}
                               </strong>
-                            </span>
 
-                            {badge ? (
-                              <span
-                                title={badge.title}
-                                style={{
-                                  fontSize: 12,
-                                  padding: "2px 8px",
-                                  borderRadius: 999,
-                                  border: "1px solid rgba(0,0,0,0.18)",
-                                  opacity: 0.9,
-                                }}
-                              >
-                                {badge.text}
-                              </span>
-                            ) : null}
+                              {badge ? (
+                                <span style={{ marginLeft: 8 }}>
+                                  {badge.text}
+                                </span>
+                              ) : null}
+                            </div>
                           </div>
 
                           {p.still_alive ? (
                             <SweatIntensityMeter
-                              status={isComplete(g) ? "final" : g.status}
+                              status={
+                                isComplete(g) ? "final" : g.status
+                              }
                               kickoffAt={g.kickoff_at}
                               homeTeam={g.home_team}
                               awayTeam={g.away_team}
@@ -619,20 +729,41 @@ export default async function SweatPage({
                               awayScore={g.away_score}
                             />
                           ) : (
-                            <div style={{ fontSize: 13, fontWeight: 800, opacity: 0.85 }}>
+                            <strong style={{ fontSize: 13 }}>
                               ☠️ OUT
-                            </div>
+                            </strong>
                           )}
                         </div>
                       );
                     })}
                   </div>
-                </div>
-              </div>
-            );
-          })
-        )}
-      </div>
+                </article>
+              );
+            })
+          )}
+        </div>
+      </section>
+
+      <style>{`
+        .sweat-summary-grid {
+          display: grid;
+          grid-template-columns: minmax(0, 3fr) minmax(300px, 2fr);
+          gap: 16px;
+        }
+
+        .sweat-games-grid {
+          display: grid;
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+          gap: 14px;
+        }
+
+        @media (max-width: 850px) {
+          .sweat-summary-grid,
+          .sweat-games-grid {
+            grid-template-columns: 1fr;
+          }
+        }
+      `}</style>
     </main>
   );
 }
