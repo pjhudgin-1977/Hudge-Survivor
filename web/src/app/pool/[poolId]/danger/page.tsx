@@ -47,7 +47,7 @@ export default async function DangerPage({
 
   return (
     <main style={{ maxWidth: 900, margin: "0 auto", padding: 24 }}>
-      <Link href={`/pool/${poolId}/gameday`}>← Back to Game Day</Link>
+      <Link href={`/pool/${poolId}/sweat`}>← Back to Sweat Board</Link>
 
       <h1 style={{ marginTop: 18, fontSize: 32, fontWeight: 900 }}>
         ⚠️ Danger Zone

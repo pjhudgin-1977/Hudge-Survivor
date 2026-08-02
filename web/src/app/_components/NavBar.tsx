@@ -63,13 +63,6 @@ export default function NavBar({
       href: `${base}/sweat`,
       active: (p, b) => p === `${b}/sweat`,
     },
-    {
-      label: "🏈 Game Day",
-      href: `${base}/gameday`,
-      active: (p, b) =>
-        p === `${b}/gameday` ||
-        p === `${b}/danger`,
-    },
   ];
 
   const moreItems = [
