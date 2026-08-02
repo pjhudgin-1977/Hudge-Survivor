@@ -69,9 +69,17 @@ type PopularityRow = {
 
 function fmtKickoff(d?: string | null) {
   if (!d) return "—";
+
   const dt = new Date(d);
-  if (isNaN(dt.getTime())) return "—";
-  return dt.toLocaleString();
+  if (Number.isNaN(dt.getTime())) return "—";
+
+  return new Intl.DateTimeFormat("en-US", {
+    timeZone: "America/New_York",
+    hour: "numeric",
+    minute: "2-digit",
+    hour12: true,
+    timeZoneName: "short",
+  }).format(dt);
 }
 
 function isFinalStatus(status?: string | null) {
