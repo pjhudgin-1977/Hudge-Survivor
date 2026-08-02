@@ -396,24 +396,6 @@ export default function PoolStandingsGridPage() {
             </Link>
           ) : null}
 
-          <button
-            onClick={() => setShowNames((v) => !v)}
-            style={{
-              borderRadius: 999,
-              padding: "8px 12px",
-              fontWeight: 900,
-              fontSize: 13,
-              border: "1px solid rgba(255,255,255,0.24)",
-              background: showNames
-                ? "rgba(255,255,255,0.12)"
-                : "rgba(0,0,0,0.25)",
-              color: "white",
-              cursor: "pointer",
-              whiteSpace: "nowrap",
-            }}
-          >
-            {showNames ? "Hide names" : "Show names"}
-          </button>
         </div>
       </div>
 
@@ -613,16 +595,45 @@ export default function PoolStandingsGridPage() {
         </div>
       )}
 
-      <h2
+      <div
         style={{
-          fontSize: 22,
-          fontWeight: 900,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          gap: 12,
           marginTop: 32,
           marginBottom: 12,
         }}
       >
-        Overall Standings
-      </h2>
+        <h2
+          style={{
+            fontSize: 22,
+            fontWeight: 900,
+            margin: 0,
+          }}
+        >
+          Overall Standings
+        </h2>
+
+        <button
+          onClick={() => setShowNames((v) => !v)}
+          style={{
+            borderRadius: 999,
+            padding: "8px 12px",
+            fontWeight: 900,
+            fontSize: 13,
+            border: "1px solid rgba(255,255,255,0.24)",
+            background: showNames
+              ? "rgba(255,255,255,0.12)"
+              : "rgba(0,0,0,0.25)",
+            color: "white",
+            cursor: "pointer",
+            whiteSpace: "nowrap",
+          }}
+        >
+          {showNames ? "Hide names" : "Show names"}
+        </button>
+      </div>
 
       <div
         style={{
