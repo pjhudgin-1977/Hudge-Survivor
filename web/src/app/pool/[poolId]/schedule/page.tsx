@@ -27,7 +27,7 @@ type Game = {
 };
 
 function formatKickoff(kickoffAt: string) {
-  return new Intl.DateTimeFormat("en-US", {
+  const formatted = new Intl.DateTimeFormat("en-US", {
     weekday: "short",
     month: "short",
     day: "numeric",
@@ -35,6 +35,8 @@ function formatKickoff(kickoffAt: string) {
     minute: "2-digit",
     timeZone: "America/New_York",
   }).format(new Date(kickoffAt));
+
+  return `${formatted} ET`;
 }
 
 function formatSpread(game: Game) {
