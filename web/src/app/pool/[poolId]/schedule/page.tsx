@@ -69,16 +69,26 @@ export default async function SchedulePage({
 }: PageProps) {
   const { poolId } = await params;
   const resolvedSearchParams = searchParams ? await searchParams : {};
+  const supabase = await createClient();
 
-  const requestedWeek = Number(resolvedSearchParams.week ?? "1");
+  const { data: poolState } = await supabase
+    .from("pool_state")
+    .select("week_number")
+    .eq("pool_id", poolId)
+    .maybeSingle();
+
+  const currentPoolWeek = Number(poolState?.week_number ?? 1);
+
+  const requestedWeek = resolvedSearchParams.week
+    ? Number(resolvedSearchParams.week)
+    : currentPoolWeek;
+
   const selectedWeek =
     Number.isInteger(requestedWeek) &&
     requestedWeek >= 1 &&
     requestedWeek <= 18
       ? requestedWeek
-      : 1;
-
-  const supabase = await createClient();
+      : currentPoolWeek;
 
   const { data: games, error } = await supabase
     .from("games")
