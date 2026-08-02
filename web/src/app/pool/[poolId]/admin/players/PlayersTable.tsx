@@ -803,67 +803,131 @@ export default function PlayersTable({
                     whiteSpace: "nowrap",
                   }}
                 >
-                  <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                  {r.is_commissioner ||
+                  String(r.role ?? "").toLowerCase() === "commissioner" ? (
                     <button
+                      type="button"
                       onClick={() => saveRow(r.rowKey)}
                       disabled={r.saving || r.removing}
                       style={{
                         padding: "8px 12px",
                         borderRadius: 10,
                         border: "1px solid rgba(255,255,255,0.25)",
-                        background:
-                          r.saving || r.removing
-                            ? "rgba(255,255,255,0.12)"
-                            : "rgba(255,255,255,0.18)",
+                        background: "rgba(255,255,255,0.18)",
                         color: "white",
                         fontWeight: 800,
                         cursor:
                           r.saving || r.removing ? "not-allowed" : "pointer",
+                        opacity: r.saving || r.removing ? 0.6 : 1,
                       }}
                     >
                       {r.saving ? "Saving..." : "Save"}
                     </button>
-
-                    {!r.is_commissioner &&
-                    String(r.role ?? "").toLowerCase() !== "commissioner" ? (
-                      <button
-                        onClick={() => removeRow(r.rowKey)}
-                        disabled={r.removing || r.saving}
+                  ) : (
+                    <details style={{ position: "relative", display: "inline-block" }}>
+                      <summary
                         style={{
+                          listStyle: "none",
                           padding: "8px 12px",
                           borderRadius: 10,
-                          border: "1px solid rgba(248,113,113,0.6)",
-                          background: "rgba(127,29,29,0.35)",
-                          color: "#fecaca",
+                          border: "1px solid rgba(255,255,255,0.25)",
+                          background: "rgba(255,255,255,0.18)",
+                          color: "white",
                           fontWeight: 800,
                           cursor:
-                            r.removing || r.saving ? "not-allowed" : "pointer",
+                            r.saving || r.removing ? "not-allowed" : "pointer",
+                          opacity: r.saving || r.removing ? 0.6 : 1,
+                          whiteSpace: "nowrap",
                         }}
                       >
-                        {r.removing ? "Removing..." : "Remove Entry"}
-                      </button>
-                    ) : null}
+                        {r.saving
+                          ? "Saving..."
+                          : r.removing
+                            ? "Removing..."
+                            : "Actions ▾"}
+                      </summary>
 
-                    {!r.is_commissioner &&
-                    String(r.role ?? "").toLowerCase() !== "commissioner" ? (
-                      <button
-                        onClick={() => removeMember(r.rowKey)}
-                        disabled={r.removing || r.saving}
+                      <div
                         style={{
-                          padding: "8px 12px",
+                          position: "absolute",
+                          top: "calc(100% + 6px)",
+                          right: 0,
+                          zIndex: 20,
+                          minWidth: 170,
+                          padding: 6,
                           borderRadius: 10,
-                          border: "1px solid rgba(248,113,113,0.85)",
-                          background: "rgba(69,10,10,0.72)",
-                          color: "#fee2e2",
-                          fontWeight: 900,
-                          cursor:
-                            r.removing || r.saving ? "not-allowed" : "pointer",
+                          border: "1px solid rgba(255,255,255,0.2)",
+                          background: "#111827",
+                          boxShadow: "0 10px 24px rgba(0,0,0,0.4)",
+                          display: "grid",
+                          gap: 5,
                         }}
                       >
-                        {r.removing ? "Removing..." : "Remove Member"}
-                      </button>
-                    ) : null}
-                  </div>
+                        <button
+                          type="button"
+                          onClick={() => saveRow(r.rowKey)}
+                          disabled={r.saving || r.removing}
+                          style={{
+                            padding: "8px 10px",
+                            borderRadius: 8,
+                            border: "none",
+                            background: "rgba(255,255,255,0.12)",
+                            color: "white",
+                            fontWeight: 800,
+                            textAlign: "left",
+                            cursor:
+                              r.saving || r.removing
+                                ? "not-allowed"
+                                : "pointer",
+                          }}
+                        >
+                          Save Changes
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => removeRow(r.rowKey)}
+                          disabled={r.removing || r.saving}
+                          style={{
+                            padding: "8px 10px",
+                            borderRadius: 8,
+                            border: "none",
+                            background: "rgba(127,29,29,0.4)",
+                            color: "#fecaca",
+                            fontWeight: 800,
+                            textAlign: "left",
+                            cursor:
+                              r.removing || r.saving
+                                ? "not-allowed"
+                                : "pointer",
+                          }}
+                        >
+                          Remove Entry
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => removeMember(r.rowKey)}
+                          disabled={r.removing || r.saving}
+                          style={{
+                            padding: "8px 10px",
+                            borderRadius: 8,
+                            border: "none",
+                            background: "rgba(69,10,10,0.8)",
+                            color: "#fee2e2",
+                            fontWeight: 900,
+                            textAlign: "left",
+                            cursor:
+                              r.removing || r.saving
+                                ? "not-allowed"
+                                : "pointer",
+                          }}
+                        >
+                          Remove Member
+                        </button>
+                      </div>
+                    </details>
+                  )}
 
                   {r.savedMsg ? (
                     <span style={{ marginLeft: 10, color: "#9f9", fontWeight: 700 }}>
