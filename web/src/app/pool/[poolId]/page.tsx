@@ -643,7 +643,7 @@ export default function PoolStandingsGridPage() {
           marginBottom: 12,
         }}
       >
-        Legend: A = autopick • Strike-through = counted loss
+        A = autopick • Strikethrough = loss
       </div>
 
       <div
@@ -675,13 +675,195 @@ export default function PoolStandingsGridPage() {
           <div style={snapshotValueStyle}>💵 {paidEntries}</div>
         </div>
 
-        <div style={snapshotCardStyle}>
+        <div
+          className="dashboard-total-entries-card"
+          style={snapshotCardStyle}
+        >
           <div style={snapshotLabelStyle}>Total Entries</div>
           <div style={snapshotValueStyle}>{totalEntries}</div>
         </div>
       </div>
 
-      <div
+      <div className="dashboard-standings-mobile">
+        {rows.map((r) => {
+          const mobileStatus = r.eliminated
+            ? "Eliminated"
+            : r.losses === 1
+              ? "Last Life"
+              : "Alive";
+
+          const mobileStatusColor = r.eliminated
+            ? "#fca5a5"
+            : r.losses === 1
+              ? "#fbbf24"
+              : "#86efac";
+
+          return (
+            <article
+              key={`mobile-${r.row_key}`}
+              style={{
+                borderRadius: 14,
+                border: "1px solid rgba(255,255,255,0.16)",
+                background: r.eliminated
+                  ? "rgba(255,255,255,0.04)"
+                  : r.losses === 1
+                    ? "rgba(255,165,0,0.06)"
+                    : "rgba(10,12,18,0.72)",
+                overflow: "hidden",
+              }}
+            >
+              <div
+                style={{
+                  padding: 14,
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "flex-start",
+                  gap: 12,
+                }}
+              >
+                <div>
+                  <div style={{ fontSize: 17, fontWeight: 950 }}>
+                    {r.screen_name}
+                  </div>
+
+                  {showNames ? (
+                    <div
+                      style={{
+                        marginTop: 3,
+                        fontSize: 13,
+                        opacity: 0.72,
+                        fontWeight: 700,
+                      }}
+                    >
+                      {r.full_name_line || "—"}
+                    </div>
+                  ) : null}
+                </div>
+
+                <div style={{ textAlign: "right", whiteSpace: "nowrap" }}>
+                  <div
+                    style={{
+                      fontWeight: 900,
+                      color: mobileStatusColor,
+                    }}
+                  >
+                    {mobileStatus}
+                  </div>
+
+                  <div style={{ marginTop: 3, fontSize: 12, opacity: 0.72 }}>
+                    Losses: {r.losses}
+                  </div>
+                </div>
+              </div>
+
+              <div
+                style={{
+                  padding: "0 14px 12px",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  gap: 10,
+                  fontSize: 13,
+                }}
+              >
+                <span style={{ opacity: 0.72 }}>Entry {r.entry_no}</span>
+
+                <span
+                  style={{
+                    borderRadius: 999,
+                    padding: "5px 9px",
+                    border: r.entry_fee_paid
+                      ? "1px solid rgba(134,239,172,0.40)"
+                      : "1px solid rgba(248,113,113,0.40)",
+                    background: r.entry_fee_paid
+                      ? "rgba(22,101,52,0.25)"
+                      : "rgba(127,29,29,0.22)",
+                    color: r.entry_fee_paid ? "#bbf7d0" : "#fecaca",
+                    fontWeight: 900,
+                  }}
+                >
+                  {r.entry_fee_paid ? "✅ Paid" : "❌ Unpaid"}
+                </span>
+              </div>
+
+              <div
+                style={{
+                  borderTop: "1px solid rgba(255,255,255,0.10)",
+                  overflowX: "auto",
+                  padding: "12px 14px",
+                }}
+              >
+                <div
+                  style={{
+                    display: "flex",
+                    gap: 8,
+                    width: "max-content",
+                  }}
+                >
+                  {columns.map((c) => {
+                    const key =
+                      `${r.user_id}|${r.entry_no}|${c.phase}|${c.week}`;
+                    const pick = pickMap[key];
+
+                    const team = String(
+                      pick?.picked_team ?? ""
+                    ).trim();
+                    const auto = Boolean(pick?.was_autopick);
+                    const strike =
+                      pick?.counted_in_losses === true;
+
+                    return (
+                      <div
+                        key={`mobile-${r.row_key}-${c.key}`}
+                        style={{
+                          width: 64,
+                          flex: "0 0 64px",
+                          borderRadius: 10,
+                          border:
+                            "1px solid rgba(255,255,255,0.12)",
+                          background:
+                            "rgba(255,255,255,0.04)",
+                          padding: "8px 6px",
+                          textAlign: "center",
+                        }}
+                      >
+                        <div
+                          style={{
+                            fontSize: 11,
+                            fontWeight: 900,
+                            opacity: 0.64,
+                          }}
+                        >
+                          {c.label}
+                        </div>
+
+                        <div
+                          style={{
+                            marginTop: 5,
+                            fontWeight: 950,
+                            opacity: team ? 1 : 0.35,
+                            textDecoration: strike
+                              ? "line-through"
+                              : "none",
+                          }}
+                        >
+                          {team
+                            ? `${team}${auto ? " A" : ""}`
+                            : "—"}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            </article>
+          );
+        })}
+      </div>
+
+
+
+      <div className="dashboard-standings-desktop"
         style={{
           marginTop: 32,
           borderRadius: 16,
@@ -801,26 +983,6 @@ export default function PoolStandingsGridPage() {
                         {r.full_name_line || "—"}
                       </div>
                     )}
-
-                    <div style={{ marginTop: 8 }}>
-                      <Link
-                        href={`/pool/${poolId}/pick?entry=${r.entry_no}`}
-                        style={{
-                          display: "inline-block",
-                          padding: "6px 10px",
-                          borderRadius: 10,
-                          textDecoration: "none",
-                          fontWeight: 900,
-                          fontSize: 12,
-                          border: "1px solid rgba(255,255,255,0.18)",
-                          background: "rgba(255,128,0,0.18)",
-                          color: "white",
-                          whiteSpace: "nowrap",
-                        }}
-                      >
-                        Pick Entry {r.entry_no}
-                      </Link>
-                    </div>
                   </td>
 
                   <td
@@ -897,7 +1059,29 @@ export default function PoolStandingsGridPage() {
       </div>
 
       <style jsx>{`
+        .dashboard-standings-mobile {
+          display: none;
+        }
+
+        .dashboard-standings-desktop {
+          display: block;
+        }
+
         @media (max-width: 760px) {
+          .dashboard-standings-mobile {
+            display: grid;
+            gap: 12px;
+            margin-top: 28px;
+          }
+
+          .dashboard-standings-desktop {
+            display: none;
+          }
+
+          .dashboard-total-entries-card {
+            grid-column: 1 / -1;
+          }
+
           .dashboard-entry-card {
             grid-template-columns: 1fr 1fr !important;
             gap: 12px !important;
