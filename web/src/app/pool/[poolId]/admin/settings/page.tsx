@@ -356,17 +356,17 @@ export default function PoolSettingsPage() {
               />
 
               <div>
-                <div className="font-bold text-white">Public pool</div>
+                <div className="font-bold text-white">Allow anyone with the pool code to join</div>
 
                 <div className="text-sm text-slate-300">
-                  If off, only people with an invite link can join.
+                  Turn this off to require a private invite link.
                 </div>
               </div>
             </label>
 
             <label className="grid gap-2">
               <span className="text-sm font-bold text-white">
-                Max losses allowed
+                Elimination format
               </span>
 
               <select
@@ -389,7 +389,7 @@ export default function PoolSettingsPage() {
               </span>
 
               <textarea
-                className="min-h-[480px] w-full rounded-xl border border-slate-300 bg-white p-4 font-mono text-sm leading-6 text-slate-950 placeholder:text-slate-500"
+                className="min-h-[420px] w-full rounded-xl border border-slate-300 bg-white p-4 text-[15px] leading-6 text-slate-950 placeholder:text-slate-500"
                 value={rulesText}
                 onChange={(event) => setRulesText(event.target.value)}
                 placeholder="Enter the pool rules..."
