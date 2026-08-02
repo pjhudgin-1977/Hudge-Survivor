@@ -886,10 +886,6 @@ export default function PoolStandingsGridPage() {
         </table>
       </div>
 
-      <div style={{ marginTop: 32, opacity: 0.65, fontSize: 12 }}>
-        Sorting: 0-loss section → 1-loss section → Eliminated, and within each
-        section by user name + entry number.
-      </div>
       <style jsx>{`
         @media (max-width: 760px) {
           .dashboard-entry-card {
