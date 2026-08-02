@@ -239,25 +239,12 @@ export default function LoginClient({ next }: { next: string | null }) {
             <div style={newUserBoxStyle}>
               <div
                 style={{
-                  fontSize: 12,
-                  fontWeight: 900,
-                  letterSpacing: 0.3,
-                  opacity: 0.82,
-                  textTransform: "uppercase",
-                }}
-              >
-                New here?
-              </div>
-
-              <div
-                style={{
-                  marginTop: 6,
                   fontSize: 18,
                   fontWeight: 950,
                   lineHeight: 1.25,
                 }}
               >
-                Create your account first
+                New here?
               </div>
 
               <div
@@ -268,8 +255,7 @@ export default function LoginClient({ next }: { next: string | null }) {
                   opacity: 0.82,
                 }}
               >
-                New players need to create an account before joining a pool and
-                making picks.
+                Create an account to join the pool and make your picks.
               </div>
 
               <button
@@ -279,17 +265,6 @@ export default function LoginClient({ next }: { next: string | null }) {
               >
                 Create Account
               </button>
-
-              <div
-                style={{
-                  marginTop: 8,
-                  textAlign: "center",
-                  fontSize: 12,
-                  opacity: 0.76,
-                }}
-              >
-                Already signed up? Use the sign-in form below.
-              </div>
             </div>
           ) : (
             <div style={existingUserBoxStyle}>
@@ -300,7 +275,7 @@ export default function LoginClient({ next }: { next: string | null }) {
                   onClick={switchToLogin}
                   style={linkBtnStyle}
                 >
-                  Log in here
+                  Sign in
                 </button>
                 .
               </div>
