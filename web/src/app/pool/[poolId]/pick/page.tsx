@@ -424,7 +424,15 @@ export default function PoolPickPage() {
     existingPick !== selectedTeam;
 
   const submitDisabled =
-    loading || submitting || isLocked || !selectedTeam;
+    loading ||
+    submitting ||
+    isLocked ||
+    !selectedTeam ||
+    (Boolean(existingPick) && selectedTeam === existingPick);
+
+  const priorUsedTeams = usedTeams.filter(
+    (team) => team !== existingPick
+  );
 
   return (
     <main
@@ -521,7 +529,7 @@ export default function PoolPickPage() {
               color: "white",
             }}
           >
-            View My Picks
+            Pick History
           </Link>
 
           <button
@@ -544,9 +552,7 @@ export default function PoolPickPage() {
               ? "Saving…"
               : isLocked
                 ? "Picks Locked"
-                : existingPick
-                  ? "Save Pick Change"
-                  : "Submit Pick"}
+                : "Save Pick"}
           </button>
 
           <Link
@@ -568,14 +574,14 @@ export default function PoolPickPage() {
         <div style={{ marginTop: 12 }}>
           {selectedTeam ? (
             <div>
-              Selected team:{" "}
+              {pickChanged ? "Selected team" : "Current pick"}:{" "}
               <strong style={{ color: "#fdba74" }}>
                 {selectedTeam}
               </strong>
 
               {pickChanged ? (
                 <span style={{ marginLeft: 8, opacity: 0.8 }}>
-                  Current saved pick: {existingPick}
+                  Previously saved: {existingPick}
                 </span>
               ) : existingPickWasAutopick ? (
                 <span style={{ marginLeft: 8, opacity: 0.8 }}>
@@ -593,8 +599,8 @@ export default function PoolPickPage() {
             opacity: 0.75,
           }}
         >
-          Each entry has one pick per week. You may change that pick
-          until picks lock; only the most recently saved team counts.
+          You can change your pick until it locks. Your most recently
+          saved pick counts.
         </div>
 
         {statusMsg ? (
@@ -643,7 +649,7 @@ export default function PoolPickPage() {
               Used teams
             </div>
 
-            {usedTeams.length === 0 ? (
+            {priorUsedTeams.length === 0 ? (
               <div
                 style={{
                   opacity: 0.75,
@@ -661,7 +667,7 @@ export default function PoolPickPage() {
                   marginBottom: 14,
                 }}
               >
-                {usedTeams
+                {priorUsedTeams
                   .slice()
                   .sort()
                   .map((team) => (
@@ -799,9 +805,7 @@ export default function PoolPickPage() {
                             {team}
                           </span>
 
-                          {selected &&
-                          existingPickWasAutopick &&
-                          existingPick === team ? (
+                          {selected ? (
                             <span
                               style={{
                                 padding: "3px 7px",
@@ -813,7 +817,11 @@ export default function PoolPickPage() {
                                 letterSpacing: 0.5,
                               }}
                             >
-                              AUTO PICK
+                              {existingPick === team
+                                ? existingPickWasAutopick
+                                  ? "CURRENT · AUTO"
+                                  : "CURRENT PICK"
+                                : "SELECTED"}
                             </span>
                           ) : null}
                         </div>
