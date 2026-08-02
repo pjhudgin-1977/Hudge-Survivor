@@ -438,7 +438,7 @@ export default function PoolPickPage() {
     <main
       style={{
         width: "100%",
-        padding: 24,
+        padding: "14px 24px 24px",
         boxSizing: "border-box",
       }}
     >
@@ -513,14 +513,14 @@ export default function PoolPickPage() {
             display: "flex",
             flexWrap: "wrap",
             alignItems: "center",
-            gap: 10,
+            gap: 8,
           }}
         >
           <Link
             href={`/pool/${poolId}/my-picks`}
             style={{
               display: "inline-block",
-              padding: "10px 14px",
+              padding: "9px 11px",
               borderRadius: 10,
               textDecoration: "none",
               fontWeight: 800,
@@ -537,7 +537,7 @@ export default function PoolPickPage() {
             onClick={handleSubmit}
             disabled={submitDisabled}
             style={{
-              padding: "10px 16px",
+              padding: "9px 12px",
               borderRadius: 10,
               fontWeight: 800,
               background: submitDisabled ? "#64748b" : "#f97316",
@@ -559,7 +559,7 @@ export default function PoolPickPage() {
             href={`/pool/${poolId}/rules`}
             style={{
               display: "inline-block",
-              padding: "10px 14px",
+              padding: "9px 11px",
               borderRadius: 10,
               textDecoration: "none",
               fontWeight: 700,
