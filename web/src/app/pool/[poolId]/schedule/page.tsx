@@ -124,7 +124,7 @@ export default async function SchedulePage({
       <div className="mb-6">
         <h1 className="text-3xl font-bold">NFL Schedule</h1>
 
-        <p className="mt-2 text-sm text-gray-600">
+        <p className="mt-2 text-sm text-slate-300">
           All times ET. Point spreads are informational only.
         </p>
       </div>
@@ -188,9 +188,12 @@ export default async function SchedulePage({
                   </div>
 
                   <div className="text-left md:text-right">
-                    <div className="text-sm font-medium uppercase text-gray-500">
-                      {game.status ?? "scheduled"}
-                    </div>
+                    {game.status &&
+                    game.status.toLowerCase() !== "scheduled" ? (
+                      <div className="text-sm font-medium uppercase text-gray-500">
+                        {game.status}
+                      </div>
+                    ) : null}
 
                     {game.home_score !== null &&
                     game.away_score !== null ? (
