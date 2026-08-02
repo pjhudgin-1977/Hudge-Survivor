@@ -176,9 +176,7 @@ export default function CommissionerActions({
   return (
     <section className="rounded-xl border border-slate-200 bg-white p-5 text-slate-900 shadow-sm">
       <div>
-        <h2 className="text-xl font-bold">
-          Commissioner Actions
-        </h2>
+        <h2 className="text-xl font-bold">Commissioner Actions</h2>
 
         <p className="mt-1 text-sm text-slate-600">
           Run important game-day processes without leaving this page.
@@ -187,31 +185,29 @@ export default function CommissionerActions({
 
       <div className="mt-5 grid gap-4 md:grid-cols-3">
         {ACTIONS.map((config) => {
-          const isRunning =
-            runningAction === config.action;
-
+          const isRunning = runningAction === config.action;
           const result = results[config.action];
 
           return (
             <div
               key={config.action}
-              className="rounded-xl border border-slate-300 bg-slate-50 p-4"
+              className="flex flex-col rounded-xl border border-slate-300 bg-slate-50 p-4"
             >
+              <div className="font-bold text-slate-900">
+                {config.label}
+              </div>
+
+              <div className="mt-2 flex-1 text-sm text-slate-600">
+                {config.description}
+              </div>
+
               <button
                 type="button"
                 onClick={() => runAction(config)}
                 disabled={runningAction !== null}
-                className="w-full rounded-lg border border-slate-300 bg-white px-4 py-3 text-left transition hover:border-[#c83803] disabled:cursor-not-allowed disabled:opacity-60"
+                className="mt-4 w-full rounded-lg bg-[#c83803] px-4 py-3 text-center font-bold text-white transition hover:bg-[#a92f02] disabled:cursor-not-allowed disabled:opacity-60"
               >
-                <div className="font-bold text-[#c83803]">
-                  {isRunning
-                    ? config.workingLabel
-                    : config.label}
-                </div>
-
-                <div className="mt-2 text-sm text-slate-600">
-                  {config.description}
-                </div>
+                {isRunning ? config.workingLabel : config.label}
               </button>
 
               {result ? (
@@ -227,19 +223,13 @@ export default function CommissionerActions({
                     {result.isError ? "✕ Failed" : "✓ Success"}
                   </div>
 
-                  <div className="mt-1">
-                    {result.message}
-                  </div>
+                  <div className="mt-1">{result.message}</div>
 
                   <div className="mt-2 text-xs opacity-75">
                     Completed {result.completedAt}
                   </div>
                 </div>
-              ) : (
-                <div className="mt-3 text-xs text-slate-500">
-                  Not run during this visit.
-                </div>
-              )}
+              ) : null}
             </div>
           );
         })}
