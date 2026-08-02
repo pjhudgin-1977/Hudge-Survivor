@@ -37,7 +37,7 @@ export default async function ProfilePage({
     <main style={{ padding: 24, maxWidth: 720, margin: "0 auto" }}>
       <h1 style={{ fontSize: 28, fontWeight: 950 }}>Profile</h1>
       <p style={{ marginTop: 8, opacity: 0.8 }}>
-        Your nickname controls how you appear in standings and the sweat board.
+        Your screen name controls how you appear in standings and the Sweat Board.
       </p>
 
       <div
@@ -50,7 +50,7 @@ export default async function ProfilePage({
         }}
       >
         <div style={{ fontSize: 12, fontWeight: 900, opacity: 0.85 }}>
-          Current Nickname
+          Current Screen Name
         </div>
         <div style={{ marginTop: 6, fontSize: 20, fontWeight: 950 }}>
           {me.screen_name || "—"}
@@ -72,7 +72,7 @@ export default async function ProfilePage({
               textDecoration: "none",
             }}
           >
-            ✏️ Edit Nickname
+            ✏️ Edit Screen Name
           </Link>
 
           <Link

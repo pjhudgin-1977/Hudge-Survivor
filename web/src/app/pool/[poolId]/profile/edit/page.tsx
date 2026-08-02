@@ -67,11 +67,11 @@ export default function EditNicknamePage() {
 
     const nick = nickname.trim();
     if (!nick) {
-      setErr("Nickname is required.");
+      setErr("Screen name is required.");
       return;
     }
     if (nick.length > 30) {
-      setErr("Nickname must be 30 characters or less.");
+      setErr("Screen name must be 30 characters or fewer.");
       return;
     }
 
@@ -136,9 +136,9 @@ export default function EditNicknamePage() {
 
   return (
     <main style={{ padding: 24, maxWidth: 720, margin: "0 auto" }}>
-      <h1 style={{ fontSize: 28, fontWeight: 950 }}>Edit Nickname</h1>
+      <h1 style={{ fontSize: 28, fontWeight: 950 }}>Edit Screen Name</h1>
       <p style={{ marginTop: 8, opacity: 0.8 }}>
-        This name shows in standings and the sweat board.
+        This name appears in standings and the Sweat Board.
       </p>
 
       <div style={{ marginTop: 14, ...card }}>
@@ -156,7 +156,7 @@ export default function EditNicknamePage() {
             <div style={{ height: 14 }} />
 
             <div style={{ fontSize: 12, fontWeight: 900, opacity: 0.85 }}>
-              New Nickname (required)
+              New Screen Name (required)
             </div>
             <input
               style={{ ...input, marginTop: 6 }}
