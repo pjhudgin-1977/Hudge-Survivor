@@ -391,7 +391,6 @@ export default function PoolStandingsGridPage() {
                 textDecoration: "none",
                 whiteSpace: "nowrap",
               }}
-              title="Go to Latest Picks (commissioner actions)"
             >
               Commissioner View →
             </Link>
