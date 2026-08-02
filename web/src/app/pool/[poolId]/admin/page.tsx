@@ -505,12 +505,6 @@ export default async function AdminHomePage({
 
         <div className="grid gap-4 md:grid-cols-2">
           <ToolCard
-            title="Commissioner Dashboard"
-            desc="Paid toggles, reset autopicks, force picks, and standings controls."
-            href={`/pool/${poolId}/standings2`}
-          />
-
-          <ToolCard
             title="Players"
             desc="View members, payment status, strikes, and elimination status."
             href={`/pool/${poolId}/admin/players`}
