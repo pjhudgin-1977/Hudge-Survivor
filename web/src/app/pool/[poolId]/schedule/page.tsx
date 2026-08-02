@@ -125,8 +125,7 @@ export default async function SchedulePage({
         <h1 className="text-3xl font-bold">NFL Schedule</h1>
 
         <p className="mt-2 text-sm text-gray-600">
-          Full 2026 regular-season schedule. Point spreads are informational
-          only and do not affect survivor results.
+          All times ET. Point spreads are informational only.
         </p>
       </div>
 
