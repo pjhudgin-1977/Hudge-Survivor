@@ -33,6 +33,25 @@ type PoolStateRow = {
   picks_locked: boolean;
 };
 
+function formatKickoffET(kickoffAt?: string | null) {
+  if (!kickoffAt) return "";
+
+  const date = new Date(kickoffAt);
+  if (Number.isNaN(date.getTime())) return "";
+
+  const formatted = new Intl.DateTimeFormat("en-US", {
+    timeZone: "America/New_York",
+    weekday: "short",
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+    hour12: true,
+  }).format(date);
+
+  return `${formatted} ET`;
+}
+
 function normalizePhase(value: string | null | undefined) {
   const normalized = String(value ?? "").toLowerCase();
 
@@ -564,11 +583,7 @@ export default function PoolPickPage() {
                 </span>
               ) : null}
             </div>
-          ) : (
-            <div style={{ opacity: 0.75 }}>
-              Select one eligible team below.
-            </div>
-          )}
+          ) : null}
         </div>
 
         <div
@@ -826,11 +841,7 @@ export default function PoolPickPage() {
                             opacity: 0.65,
                           }}
                         >
-                          {game.kickoff_at
-                            ? new Date(
-                                game.kickoff_at
-                              ).toLocaleString()
-                            : ""}
+                          {formatKickoffET(game.kickoff_at)}
                         </div>
                       </button>
                     );
@@ -865,11 +876,7 @@ export default function PoolPickPage() {
                     key={`${game.home_team}-${game.away_team}-${index}`}
                   >
                     {game.away_team} @ {game.home_team} —{" "}
-                    {game.kickoff_at
-                      ? new Date(
-                          game.kickoff_at
-                        ).toLocaleString()
-                      : ""}
+                    {formatKickoffET(game.kickoff_at)}
                   </li>
                 ))}
               </ul>
