@@ -374,10 +374,6 @@ export default function PoolStandingsGridPage() {
           <div style={{ fontSize: 22, fontWeight: 950, letterSpacing: 0.2 }}>
             Dashboard
           </div>
-          <div style={{ opacity: 0.7, marginTop: 2, fontSize: 13 }}>
-            Grid view • 18 Regular + 4 Playoffs • A = autopick • Strike-through =
-            counted loss
-          </div>
         </div>
 
         <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
@@ -628,6 +624,17 @@ export default function PoolStandingsGridPage() {
       >
         Overall Standings
       </h2>
+
+      <div
+        style={{
+          opacity: 0.7,
+          fontSize: 13,
+          marginTop: -4,
+          marginBottom: 12,
+        }}
+      >
+        Legend: A = autopick • Strike-through = counted loss
+      </div>
 
       <div
         className="dashboard-summary-grid"
