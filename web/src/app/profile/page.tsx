@@ -238,7 +238,7 @@ export default async function ProfilePage({
             </div>
 
             <div style={{ fontSize: 13, opacity: 0.62, lineHeight: 1.4 }}>
-              Managed by your account.
+              Your email is tied to your sign-in account and can’t be changed here.
             </div>
           </div>
 
