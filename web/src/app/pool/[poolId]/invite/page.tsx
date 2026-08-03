@@ -146,32 +146,53 @@ export default async function InvitePage({
       style={{
         width: "100%",
         maxWidth: 900,
-        padding: 24,
+        margin: "0 auto",
+        padding: "36px 18px 40px",
         boxSizing: "border-box",
       }}
     >
-      <h1 style={{ fontSize: 28, fontWeight: 950 }}>
-        Invite Players
-      </h1>
+      <header
+        style={{
+          display: "flex",
+          flexWrap: "wrap",
+          alignItems: "flex-start",
+          justifyContent: "space-between",
+          gap: 14,
+        }}
+      >
+        <div>
+          <h1 style={{ margin: 0, fontSize: 28, fontWeight: 950 }}>
+            Invite Players
+          </h1>
 
-      <p style={{ marginTop: 8, opacity: 0.85 }}>
-        Share the full invite link or give the player the shorter invite
-        code.
-      </p>
+          <p style={{ marginTop: 8, marginBottom: 0, opacity: 0.82 }}>
+            Share the invite link by text or email, or give the player
+            the invite code.
+          </p>
+        </div>
+
+        <Link
+          href={`/pool/${poolId}`}
+          style={{
+            display: "inline-block",
+            padding: "9px 12px",
+            borderRadius: 10,
+            border: "1px solid rgba(255,255,255,0.22)",
+            background: "rgba(255,255,255,0.08)",
+            color: "white",
+            fontWeight: 850,
+            textDecoration: "none",
+            whiteSpace: "nowrap",
+          }}
+        >
+          Back to Dashboard
+        </Link>
+      </header>
 
       <InviteDetails
         inviteUrl={inviteUrl}
         inviteCode={inviteCode}
       />
-
-      <div style={{ marginTop: 18 }}>
-        <Link
-          href={`/pool/${poolId}`}
-          style={{ textDecoration: "underline" }}
-        >
-          Back to pool
-        </Link>
-      </div>
     </main>
   );
 }

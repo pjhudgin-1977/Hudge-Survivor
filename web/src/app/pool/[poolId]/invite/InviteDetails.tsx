@@ -47,7 +47,7 @@ export default function InviteDetails({
   return (
     <section
       style={{
-        marginTop: 16,
+        marginTop: 18,
         padding: 18,
         borderRadius: 16,
         border: "1px solid rgba(255,255,255,0.18)",
@@ -64,6 +64,7 @@ export default function InviteDetails({
       </p>
 
       <div
+        className="invite-link-row"
         style={{
           marginTop: 12,
           display: "flex",
@@ -73,14 +74,20 @@ export default function InviteDetails({
         }}
       >
         <a
+          className="invite-url"
           href={inviteUrl}
           target="_blank"
           rel="noreferrer"
           style={{
             flex: "1 1 360px",
+            minWidth: 0,
+            padding: "10px 12px",
+            borderRadius: 10,
+            border: "1px solid rgba(255,255,255,0.16)",
+            background: "rgba(255,255,255,0.05)",
             color: "#fdba74",
             fontWeight: 800,
-            textDecoration: "underline",
+            textDecoration: "none",
             overflowWrap: "anywhere",
           }}
         >
@@ -100,7 +107,7 @@ export default function InviteDetails({
             cursor: "pointer",
           }}
         >
-          {copiedItem === "link" ? "Copied!" : "Copy Invite Link"}
+          {copiedItem === "link" ? "Copied!" : "Copy Link"}
         </button>
       </div>
 
@@ -166,6 +173,25 @@ export default function InviteDetails({
         This invite stays active until the commissioner creates a new
         invite code.
       </div>
+
+      <style>{`
+        @media (max-width: 600px) {
+          .invite-link-row {
+            display: grid !important;
+          }
+
+          .invite-url {
+            width: 100%;
+            box-sizing: border-box;
+            font-size: 14px;
+            line-height: 1.45;
+          }
+
+          .invite-link-row button {
+            width: fit-content;
+          }
+        }
+      `}</style>
     </section>
   );
 }
