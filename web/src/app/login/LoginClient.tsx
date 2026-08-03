@@ -265,6 +265,18 @@ export default function LoginClient({ next }: { next: string | null }) {
               >
                 Create Account
               </button>
+
+              <div
+                style={{
+                  marginTop: 10,
+                  fontSize: 12,
+                  lineHeight: 1.4,
+                  opacity: 0.72,
+                  textAlign: "center",
+                }}
+              >
+                Your invite will be saved while you create your account.
+              </div>
             </div>
           ) : (
             <div style={existingUserBoxStyle}>
@@ -375,7 +387,8 @@ export default function LoginClient({ next }: { next: string | null }) {
                     border: "none",
                     color: "rgba(255,255,255,0.78)",
                     textDecoration: "underline",
-                    fontWeight: 800,
+                    fontSize: 13,
+                    fontWeight: 700,
                     cursor: "pointer",
                     padding: 0,
                   }}
@@ -416,7 +429,7 @@ export default function LoginClient({ next }: { next: string | null }) {
               {loading
                 ? "Please wait…"
                 : mode === "login"
-                  ? "Log in"
+                  ? "Sign in"
                   : "Create account"}
             </button>
           </form>
