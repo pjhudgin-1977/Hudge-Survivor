@@ -5,15 +5,16 @@ import { createClient } from "@/lib/supabase/server";
 export default async function ProfilePage({
   searchParams,
 }: {
-  searchParams: Promise<{ error?: string; saved?: string }>;
+  searchParams: Promise<{ saved?: string; error?: string }>;
 }) {
   const supabase = await createClient();
   const sp = await searchParams;
 
-  const { data: auth } = await supabase.auth.getUser();
-  if (!auth?.user) redirect("/login?next=/profile");
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
 
-  const user = auth.user;
+  if (!user) redirect("/login");
 
   const { data: profile } = await supabase
     .from("profiles")
@@ -21,188 +22,245 @@ export default async function ProfilePage({
     .eq("user_id", user.id)
     .maybeSingle();
 
-  const { data: firstPoolMember } = await supabase
+  const { data: poolMembers } = await supabase
     .from("pool_members")
     .select("screen_name")
     .eq("user_id", user.id)
     .order("created_at", { ascending: true })
-    .limit(1)
-    .maybeSingle();
+    .limit(1);
+
+  const firstPoolMember = poolMembers?.[0] ?? null;
 
   async function saveProfile(formData: FormData) {
     "use server";
 
     const supabase = await createClient();
 
-    const { data: auth } = await supabase.auth.getUser();
-    if (!auth?.user) redirect("/login?next=/profile");
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user) redirect("/login");
 
     const fullName = String(formData.get("full_name") ?? "").trim();
     const screenName = String(formData.get("screen_name") ?? "").trim();
 
-    const { error } = await supabase
-      .from("profiles")
-      .update({
-        full_name: fullName || null,
-        updated_at: new Date().toISOString(),
-      })
-      .eq("user_id", auth.user.id);
-
-    if (error) {
-      redirect(`/profile?error=${encodeURIComponent(error.message)}`);
+    if (!fullName || !screenName) {
+      redirect("/profile?error=Full name and screen name are required.");
     }
 
-    const nextScreenName =
-      screenName ||
-      fullName ||
-      auth.user.email?.split("@")[0]?.trim() ||
-      "Player";
-
-    const { error: poolMembersError } = await supabase
-      .from("pool_members")
-      .update({ screen_name: nextScreenName })
-      .eq("user_id", auth.user.id);
-
-    if (poolMembersError) {
-      redirect(
-        `/profile?error=${encodeURIComponent(poolMembersError.message)}`
+    const { error: profileError } = await supabase
+      .from("profiles")
+      .upsert(
+        {
+          user_id: user.id,
+          full_name: fullName,
+          email: user.email ?? null,
+        },
+        { onConflict: "user_id" }
       );
+
+    if (profileError) {
+      redirect(`/profile?error=${encodeURIComponent(profileError.message)}`);
+    }
+
+    const { error: memberError } = await supabase
+      .from("pool_members")
+      .update({ screen_name: screenName })
+      .eq("user_id", user.id);
+
+    if (memberError) {
+      redirect(`/profile?error=${encodeURIComponent(memberError.message)}`);
     }
 
     redirect("/profile?saved=1");
   }
 
+  const inputStyle: React.CSSProperties = {
+    width: "100%",
+    boxSizing: "border-box",
+    padding: "12px 14px",
+    borderRadius: 11,
+    border: "1px solid rgba(255,255,255,0.22)",
+    fontSize: 16,
+    background: "rgba(0,0,0,0.22)",
+    color: "white",
+    outline: "none",
+  };
+
+  const labelStyle: React.CSSProperties = {
+    fontWeight: 850,
+    fontSize: 15,
+  };
+
   return (
-    <main style={{ maxWidth: 720, margin: "0 auto", padding: 24 }}>
-      <Link
-        href="/"
+    <main
+      style={{
+        width: "100%",
+        maxWidth: 760,
+        margin: "0 auto",
+        padding: "32px 18px 44px",
+        boxSizing: "border-box",
+      }}
+    >
+      <header
         style={{
-          textDecoration: "none",
-          fontWeight: 900,
-          display: "inline-block",
-          marginBottom: 12,
+          display: "flex",
+          flexWrap: "wrap",
+          alignItems: "flex-start",
+          justifyContent: "space-between",
+          gap: 14,
         }}
       >
-        ← Back to Dashboard
-      </Link>
+        <div>
+          <h1 style={{ margin: 0, fontSize: 32, fontWeight: 950 }}>
+            Profile
+          </h1>
 
-      <h1 style={{ fontSize: 32, fontWeight: 900, marginBottom: 8 }}>
-        Profile
-      </h1>
+          <p style={{ margin: "8px 0 0", opacity: 0.74, lineHeight: 1.5 }}>
+            Update the name shown on your account and in pools.
+          </p>
+        </div>
 
-      <p style={{ opacity: 0.8, marginBottom: 24 }}>
-        Update your display details. Full name is your account name. Screen
-        name is how you appear in pools.
-      </p>
+        <Link
+          href="/"
+          style={{
+            display: "inline-block",
+            padding: "9px 12px",
+            borderRadius: 10,
+            border: "1px solid rgba(255,255,255,0.22)",
+            background: "rgba(255,255,255,0.08)",
+            color: "white",
+            fontWeight: 850,
+            textDecoration: "none",
+          }}
+        >
+          Back to Dashboard
+        </Link>
+      </header>
 
       {sp?.error ? (
         <div
           style={{
-            marginBottom: 16,
+            marginTop: 20,
             padding: "12px 14px",
-            borderRadius: 10,
-            background: "#3b0d0d",
-            color: "#ffd7d7",
-            fontWeight: 700,
+            borderRadius: 11,
+            border: "1px solid rgba(248,113,113,0.4)",
+            background: "rgba(127,29,29,0.22)",
+            color: "#fecaca",
+            fontWeight: 750,
           }}
         >
-          Error: {sp.error}
+          {sp.error}
         </div>
       ) : null}
 
       {sp?.saved ? (
         <div
           style={{
-            marginBottom: 16,
+            marginTop: 20,
             padding: "12px 14px",
-            borderRadius: 10,
-            background: "#0f3b24",
-            color: "#d7ffe8",
-            fontWeight: 700,
+            borderRadius: 11,
+            border: "1px solid rgba(134,239,172,0.4)",
+            background: "rgba(22,101,52,0.24)",
+            color: "#bbf7d0",
+            fontWeight: 800,
           }}
         >
-          Profile saved.
+          ✓ Profile saved.
         </div>
       ) : null}
 
-      <form action={saveProfile} style={{ display: "grid", gap: 16 }}>
-        <div style={{ display: "grid", gap: 8 }}>
-          <label htmlFor="full_name" style={{ fontWeight: 700 }}>
-            Full Name
-          </label>
-          <input
-            id="full_name"
-            name="full_name"
-            type="text"
-            defaultValue={profile?.full_name ?? ""}
-            placeholder="Patrick Hudgin"
-            style={{
-              padding: "12px 14px",
-              borderRadius: 10,
-              border: "1px solid #ccc",
-              fontSize: 16,
-              background: "rgba(0,0,0,0.2)",
-              color: "white",
-            }}
-          />
-        </div>
+      <section
+        style={{
+          marginTop: 22,
+          padding: 20,
+          borderRadius: 16,
+          border: "1px solid rgba(255,255,255,0.16)",
+          background: "rgba(10,12,18,0.58)",
+        }}
+      >
+        <form action={saveProfile} style={{ display: "grid", gap: 18 }}>
+          <div style={{ display: "grid", gap: 8 }}>
+            <label htmlFor="full_name" style={labelStyle}>
+              Full name
+            </label>
 
-        <div style={{ display: "grid", gap: 8 }}>
-          <label htmlFor="screen_name" style={{ fontWeight: 700 }}>
-            Screen Name
-          </label>
-          <input
-            id="screen_name"
-            name="screen_name"
-            type="text"
-            defaultValue={firstPoolMember?.screen_name ?? ""}
-            placeholder="Paddy3"
-            style={{
-              padding: "12px 14px",
-              borderRadius: 10,
-              border: "1px solid #ccc",
-              fontSize: 16,
-              background: "rgba(0,0,0,0.2)",
-              color: "white",
-            }}
-          />
-        </div>
+            <input
+              id="full_name"
+              name="full_name"
+              type="text"
+              defaultValue={profile?.full_name ?? ""}
+              placeholder="Patrick Hudgin"
+              autoComplete="name"
+              required
+              style={inputStyle}
+            />
+          </div>
 
-        <div style={{ display: "grid", gap: 8 }}>
-          <label style={{ fontWeight: 700 }}>
-            Email (managed by account)
-          </label>
+          <div style={{ display: "grid", gap: 8 }}>
+            <label htmlFor="screen_name" style={labelStyle}>
+              Screen name
+            </label>
 
-          <div
+            <input
+              id="screen_name"
+              name="screen_name"
+              type="text"
+              defaultValue={firstPoolMember?.screen_name ?? ""}
+              placeholder="Paddy"
+              autoComplete="nickname"
+              required
+              style={inputStyle}
+            />
+
+            <div style={{ fontSize: 13, opacity: 0.68, lineHeight: 1.4 }}>
+              This is the name other players see in your pools.
+            </div>
+          </div>
+
+          <div style={{ display: "grid", gap: 8 }}>
+            <label style={labelStyle}>Email</label>
+
+            <div
+              style={{
+                padding: "12px 14px",
+                borderRadius: 11,
+                border: "1px solid rgba(255,255,255,0.14)",
+                background: "rgba(255,255,255,0.05)",
+                color: "rgba(255,255,255,0.78)",
+                fontSize: 16,
+                fontWeight: 700,
+                overflowWrap: "anywhere",
+              }}
+            >
+              {profile?.email ?? user.email ?? ""}
+            </div>
+
+            <div style={{ fontSize: 13, opacity: 0.62, lineHeight: 1.4 }}>
+              Managed by your account.
+            </div>
+          </div>
+
+          <button
+            type="submit"
             style={{
-              padding: "12px 14px",
-              borderRadius: 10,
-              border: "1px solid #ccc",
+              marginTop: 4,
+              width: "100%",
+              padding: "12px 16px",
+              borderRadius: 11,
+              border: "1px solid #fb923c",
+              background: "#f97316",
+              color: "#000",
               fontSize: 16,
-              background: "#ffffff",
-              color: "#111111",
-              fontWeight: 600,
+              fontWeight: 950,
+              cursor: "pointer",
             }}
           >
-            {profile?.email ?? user.email ?? ""}
-          </div>
-        </div>
-
-        <button
-          type="submit"
-          style={{
-            marginTop: 8,
-            padding: "12px 16px",
-            borderRadius: 10,
-            border: "none",
-            fontSize: 16,
-            fontWeight: 800,
-            cursor: "pointer",
-          }}
-        >
-          Save Profile
-        </button>
-      </form>
+            Save Profile
+          </button>
+        </form>
+      </section>
     </main>
   );
 }
