@@ -158,7 +158,7 @@ export default function ResetPasswordClient() {
               letterSpacing: 0.2,
             }}
           >
-            Reset Password
+            {hasSession ? "Reset Password" : "Forgot Password"}
           </div>
 
           <div style={{ fontSize: 13, opacity: 0.78, marginTop: 4 }}>
@@ -249,7 +249,7 @@ export default function ResetPasswordClient() {
                   onClick={() => router.push("/login")}
                   style={linkButtonStyle}
                 >
-                  Back to login
+                  Back to Sign In
                 </button>
               </div>
             </form>
@@ -288,7 +288,7 @@ export default function ResetPasswordClient() {
                   onClick={() => router.push("/login")}
                   style={linkButtonStyle}
                 >
-                  Back to login
+                  Back to Sign In
                 </button>
               </div>
 
@@ -300,7 +300,7 @@ export default function ResetPasswordClient() {
                   lineHeight: 1.4,
                 }}
               >
-                If you don’t see the email within a minute, check spam or junk.
+                Check your spam or junk folder if the email doesn’t arrive within a few minutes.
               </div>
             </form>
           )}
