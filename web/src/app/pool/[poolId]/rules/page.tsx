@@ -66,6 +66,25 @@ type RuleSection = {
   body: string[];
 };
 
+function isRuleHeading(line: string) {
+  const trimmed = line.trim();
+
+  // Bullets are rule text, never section headings.
+  if (/^[•*-]\s+/.test(trimmed)) {
+    return false;
+  }
+
+  // Remove leading emojis or symbols before checking capitalization.
+  const headingText = trimmed
+    .replace(/^[^\p{L}\p{N}]+/u, "")
+    .trim();
+
+  return (
+    headingText.length > 0 &&
+    headingText === headingText.toUpperCase()
+  );
+}
+
 function parseRules(rulesText: string): RuleSection[] {
   const blocks = rulesText
     .split(/\n{2,}/)
@@ -84,9 +103,7 @@ function parseRules(rulesText: string): RuleSection[] {
     if (lines.length === 0) continue;
 
     const firstLine = lines[0];
-    const looksLikeHeading =
-      firstLine === firstLine.toUpperCase() ||
-      /^[^\w\s]/u.test(firstLine);
+    const looksLikeHeading = isRuleHeading(firstLine);
 
     if (looksLikeHeading) {
       const nextBlock = blocks[index + 1];
@@ -108,8 +125,7 @@ function parseRules(rulesText: string): RuleSection[] {
 
         const nextFirstLine = nextLines[0] ?? "";
         const nextLooksLikeHeading =
-          nextFirstLine === nextFirstLine.toUpperCase() ||
-          /^[^\w\s]/u.test(nextFirstLine);
+          isRuleHeading(nextFirstLine);
 
         if (!nextLooksLikeHeading) {
           sections.push({
