@@ -54,6 +54,11 @@ export default function NavBar({
       active: (p, b) => p === `${b}/schedule`,
     },
     {
+      label: "🏈 Teams Left",
+      href: `${base}/teams-left`,
+      active: (p, b) => p === `${b}/teams-left`,
+    },
+    {
       label: "💬 Message Board",
       href: `${base}/board`,
       active: (p, b) => p === `${b}/board`,
