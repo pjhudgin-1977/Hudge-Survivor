@@ -133,6 +133,15 @@ export default function PlayersTable({
     return copy;
   }, [rows, sortKey, sortDir]);
 
+  const totalEntries = rows.length;
+
+  const totalAmountPaid = rows.reduce((total, row) => {
+    if (!row.entry_fee_paid) return total;
+
+    const amount = Number(row.entry_fee_amount);
+    return Number.isFinite(amount) ? total + amount : total;
+  }, 0);
+
   const allVisibleSelected =
     sortedRows.length > 0 && sortedRows.every((r) => !!r.selected);
 
@@ -1069,6 +1078,36 @@ export default function PlayersTable({
         </tbody>
       </table>
 
+      <div
+        style={{
+          marginTop: 14,
+          padding: "14px 16px",
+          borderRadius: 12,
+          border: "1px solid rgba(255,255,255,0.18)",
+          background: "rgba(255,255,255,0.08)",
+          display: "flex",
+          justifyContent: "flex-end",
+          alignItems: "center",
+          flexWrap: "wrap",
+          gap: "18px 30px",
+          fontWeight: 900,
+        }}
+      >
+        <span>
+          Total Entries:{" "}
+          <span style={{ color: "#fbbf24" }}>{totalEntries}</span>
+        </span>
+
+        <span>
+          Amount Paid:{" "}
+          <span style={{ color: "#86efac" }}>
+            {totalAmountPaid.toLocaleString("en-US", {
+              style: "currency",
+              currency: "USD",
+            })}
+          </span>
+        </span>
+      </div>
     </div>
   );
 }
