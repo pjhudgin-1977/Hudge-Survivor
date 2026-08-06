@@ -91,6 +91,10 @@ export default function PlayersTable({
           m.entry_fee_amount === null || m.entry_fee_amount === undefined
             ? ""
             : String(m.entry_fee_amount),
+        lastSavedEntryFeeAmount:
+          m.entry_fee_amount === null || m.entry_fee_amount === undefined
+            ? ""
+            : String(m.entry_fee_amount),
         saving: false,
         removing: false,
         savedMsg: "",
@@ -331,6 +335,103 @@ export default function PlayersTable({
     }
   }
 
+
+  async function saveAmount(rowKey: string, rawValue: string) {
+    const row = rows.find((r) => r.rowKey === rowKey);
+    if (!row || row.saving || row.removing) return;
+
+    const trimmedValue = rawValue.trim();
+    const previousValue = String(row.lastSavedEntryFeeAmount ?? "");
+    const amount = trimmedValue === "" ? null : Number(trimmedValue);
+
+    if (
+      amount !== null &&
+      (!Number.isFinite(amount) || amount < 0)
+    ) {
+      setRows((prev) =>
+        prev.map((r) =>
+          r.rowKey === rowKey
+            ? {
+                ...r,
+                savedMsg: "",
+                errMsg: "Enter a valid payment amount.",
+              }
+            : r
+        )
+      );
+      return;
+    }
+
+    const normalizedValue =
+      amount === null ? "" : String(amount);
+
+    if (normalizedValue === previousValue) return;
+
+    setRows((prev) =>
+      prev.map((r) =>
+        r.rowKey === rowKey
+          ? {
+              ...r,
+              entry_fee_amount: normalizedValue,
+              saving: true,
+              savedMsg: "",
+              errMsg: "",
+            }
+          : r
+      )
+    );
+
+    try {
+      const res = await fetch(`/api/pool/${poolId}/admin/players`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          user_id: row.user_id,
+          entry_no: row.entry_no ?? 1,
+          entry_fee_amount: amount,
+        }),
+      });
+
+      const json = await res.json();
+
+      if (!res.ok) {
+        throw new Error(json?.error || "Amount update failed");
+      }
+
+      setRows((prev) =>
+        prev.map((r) =>
+          r.rowKey === rowKey
+            ? {
+                ...r,
+                entry_fee_amount: normalizedValue,
+                lastSavedEntryFeeAmount: normalizedValue,
+                saving: false,
+                savedMsg: "Amount saved",
+                errMsg: "",
+              }
+            : r
+        )
+      );
+    } catch (e: unknown) {
+      const message =
+        e instanceof Error ? e.message : "Amount update failed";
+
+      setRows((prev) =>
+        prev.map((r) =>
+          r.rowKey === rowKey
+            ? {
+                ...r,
+                entry_fee_amount: previousValue,
+                saving: false,
+                savedMsg: "",
+                errMsg: message,
+              }
+            : r
+        )
+      );
+    }
+  }
+
   async function saveRow(rowKey: string) {
     setRows((prev) =>
       prev.map((r) =>
@@ -371,7 +472,13 @@ export default function PlayersTable({
       setRows((prev) =>
         prev.map((r) =>
           r.rowKey === rowKey
-            ? { ...r, saving: false, savedMsg: "Saved!", errMsg: "" }
+            ? {
+                ...r,
+                lastSavedEntryFeeAmount: String(r.entry_fee_amount ?? ""),
+                saving: false,
+                savedMsg: "Saved!",
+                errMsg: "",
+              }
             : r
         )
       );
@@ -765,6 +872,17 @@ export default function PlayersTable({
                         )
                       )
                     }
+                    onBlur={(e) =>
+                      void saveAmount(r.rowKey, e.currentTarget.value)
+                    }
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        e.preventDefault();
+                        e.currentTarget.blur();
+                      }
+                    }}
+                    disabled={r.saving || r.removing}
+                    title="Amount saves automatically"
                     style={{
                       width: 120,
                       padding: "6px 8px",
@@ -865,7 +983,12 @@ export default function PlayersTable({
                       >
                         <button
                           type="button"
-                          onClick={() => saveRow(r.rowKey)}
+                          onClick={(e) => {
+                            e.currentTarget
+                              .closest("details")
+                              ?.removeAttribute("open");
+                            void saveRow(r.rowKey);
+                          }}
                           disabled={r.saving || r.removing}
                           style={{
                             padding: "8px 10px",
