@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import React from "react";
 import { createClient } from "@/lib/supabase/server";
 import SweatIntensityMeter from "@/app/_components/SweatIntensityMeter";
+import LiveRefresh from "./LiveRefresh";
 
 type PickRow = {
   user_id?: string | null;
@@ -46,6 +47,7 @@ type GameGroup = {
   was_tie: boolean | null;
   favorite_team: string | null;
   point_spread: number | null;
+  score_updated_at: string | null;
 
   season_year: number | null;
   week_number: number | null;
@@ -79,6 +81,22 @@ function fmtKickoff(d?: string | null) {
     timeZone: "America/New_York",
     hour: "numeric",
     minute: "2-digit",
+    hour12: true,
+    timeZoneName: "short",
+  }).format(dt);
+}
+
+function fmtScoreUpdated(d?: string | null) {
+  if (!d) return null;
+
+  const dt = new Date(d);
+  if (Number.isNaN(dt.getTime())) return null;
+
+  return new Intl.DateTimeFormat("en-US", {
+    timeZone: "America/New_York",
+    hour: "numeric",
+    minute: "2-digit",
+    second: "2-digit",
     hour12: true,
     timeZoneName: "short",
   }).format(dt);
@@ -210,13 +228,17 @@ export default async function SweatPage({
 
   const spreadMap = new Map<
     string,
-    { favorite_team: string | null; point_spread: number | null }
+    {
+      favorite_team: string | null;
+      point_spread: number | null;
+      score_updated_at: string | null;
+    }
   >();
 
   if (gameIds.length > 0) {
     const { data: spreadRows } = await supabase
       .from("games")
-      .select("id, favorite_team, point_spread")
+      .select("id, favorite_team, point_spread, score_updated_at")
       .in("id", gameIds);
 
     for (const row of spreadRows ?? []) {
@@ -226,7 +248,8 @@ export default async function SweatPage({
           typeof row.point_spread === "number"
             ? row.point_spread
             : null,
-      });
+                score_updated_at: row.score_updated_at ?? null,
+        });
     }
   }
   const gamesMap = new Map<string, GameGroup>();
@@ -253,6 +276,7 @@ export default async function SweatPage({
         was_tie: typeof r.was_tie === "boolean" ? r.was_tie : null,
         favorite_team: spread?.favorite_team ?? null,
         point_spread: spread?.point_spread ?? null,
+          score_updated_at: spread?.score_updated_at ?? null,
 
         season_year: typeof r.season_year === "number" ? r.season_year : null,
         week_number: typeof r.week_number === "number" ? r.week_number : null,
@@ -356,6 +380,17 @@ export default async function SweatPage({
 
   const poolMeta = riskLabel(poolAvg);
 
+  const hasLiveGames = games.some(
+    (g) => String(g.status ?? "").toLowerCase() === "live"
+  );
+
+  const latestScoreUpdate =
+    games
+      .map((g) => g.score_updated_at)
+      .filter((value): value is string => Boolean(value))
+      .sort()
+      .at(-1) ?? null;
+
   return (
     <main
       style={{
@@ -364,6 +399,8 @@ export default async function SweatPage({
         padding: "24px 18px 40px",
       }}
     >
+      <LiveRefresh enabled={hasLiveGames} />
+
       <header style={{ marginBottom: 18 }}>
         <h1 style={{ margin: 0, fontSize: 28, fontWeight: 900 }}>
           Sweat Board
@@ -378,6 +415,21 @@ export default async function SweatPage({
         >
           😌 Chill · 😅 Sweat · 😱 Panic · ✅ Done · ☠️ Out
         </div>
+
+        {latestScoreUpdate ? (
+          <div
+            style={{
+              marginTop: 6,
+              fontSize: 12,
+              fontWeight: 800,
+              opacity: 0.72,
+            }}
+          >
+            {hasLiveGames ? "● LIVE · " : ""}
+            Scores updated {fmtScoreUpdated(latestScoreUpdate)}
+            {hasLiveGames ? " · Auto-refreshing every 30 seconds" : ""}
+          </div>
+        ) : null}
       </header>
 
       <div className="sweat-summary-grid">
