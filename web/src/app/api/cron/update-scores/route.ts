@@ -127,6 +127,41 @@ export async function GET(req: Request) {
   try {
     const supabase = getAdminSupabase();
 
+    // Avoid calling The Odds API when there are no games near kickoff.
+    // We look back 24 hours to catch games that may have finished but
+    // have not yet been marked final, and 2 hours ahead for upcoming games.
+    const precheckNow = Date.now();
+
+    const candidateWindowStart = new Date(
+      precheckNow - 24 * 60 * 60 * 1000
+    ).toISOString();
+
+    const candidateWindowEnd = new Date(
+      precheckNow + 2 * 60 * 60 * 1000
+    ).toISOString();
+
+    const { data: candidateGames, error: candidateError } = await supabase
+      .from("games")
+      .select("id")
+      .gte("kickoff_at", candidateWindowStart)
+      .lte("kickoff_at", candidateWindowEnd)
+      .neq("status", "final")
+      .limit(1);
+
+    if (candidateError) {
+      throw candidateError;
+    }
+
+    if (!candidateGames || candidateGames.length === 0) {
+      return NextResponse.json({
+        ok: true,
+        score_api_called: false,
+        reason: "No active or recently unfinished games",
+        candidate_games: 0,
+        duration_ms: Date.now() - start,
+      });
+    }
+
     const url = new URL(
       "https://api.the-odds-api.com/v4/sports/americanfootball_nfl/scores"
     );
