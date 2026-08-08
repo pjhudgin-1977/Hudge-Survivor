@@ -103,6 +103,42 @@ export default function LoginClient({ next }: { next: string | null }) {
       return;
     }
 
+    if (mode === "signup") {
+      setLoading(true);
+
+      try {
+        const response = await fetch("/api/auth/email-exists", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            email: emailAddress,
+          }),
+        });
+
+        const result = await response.json();
+
+        if (!response.ok || !result?.ok) {
+          setLoading(false);
+          setErr(result?.error ?? "Could not check email. Please try again.");
+          return;
+        }
+
+        if (result.exists) {
+          setLoading(false);
+          setErr(
+            "An account already exists for this email. Please sign in or reset your password."
+          );
+          return;
+        }
+      } catch {
+        setLoading(false);
+        setErr("Could not check email. Please try again.");
+        return;
+      }
+    }
+
     if (!password) {
       setErr("Password is required.");
       return;
@@ -158,6 +194,14 @@ export default function LoginClient({ next }: { next: string | null }) {
         setErr(error.message);
         return;
       }
+
+
+        if (data.user && data.user.identities?.length === 0) {
+          setErr(
+            "An account already exists for this email. Please sign in or reset your password."
+          );
+          return;
+        }
 
       if (!data.session) {
         setMsg(
