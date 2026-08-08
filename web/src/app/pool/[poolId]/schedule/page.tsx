@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
+import LiveRefresh from "./LiveRefresh";
 
 type PageProps = {
   params: Promise<{
@@ -24,6 +25,7 @@ type Game = {
   favorite_team: string | null;
   point_spread: number | null;
   spread_last_updated: string | null;
+  score_updated_at: string | null;
 };
 
 function formatKickoff(kickoffAt: string) {
@@ -37,6 +39,21 @@ function formatKickoff(kickoffAt: string) {
   }).format(new Date(kickoffAt));
 
   return `${formatted} ET`;
+}
+
+function formatScoreUpdated(value: string | null) {
+  if (!value) return null;
+
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return null;
+
+  return new Intl.DateTimeFormat("en-US", {
+    hour: "numeric",
+    minute: "2-digit",
+    second: "2-digit",
+    timeZone: "America/New_York",
+    timeZoneName: "short",
+  }).format(date);
 }
 
 function formatSpread(game: Game) {
@@ -106,7 +123,8 @@ export default async function SchedulePage({
         was_tie,
         favorite_team,
         point_spread,
-        spread_last_updated
+        spread_last_updated,
+        score_updated_at
       `
     )
     .eq("season_year", 2026)
@@ -129,14 +147,34 @@ export default async function SchedulePage({
 
   const safeGames = (games ?? []) as Game[];
 
+  const hasLiveGames = safeGames.some(
+    (game) => game.status?.toLowerCase() === "live"
+  );
+
+  const latestScoreUpdate =
+    safeGames
+      .map((game) => game.score_updated_at)
+      .filter((value): value is string => Boolean(value))
+      .sort()
+      .at(-1) ?? null;
+
   return (
     <main className="mx-auto max-w-5xl px-6 pb-6 pt-4 md:p-6">
+      <LiveRefresh enabled={hasLiveGames} />
       <div className="mb-5">
         <h1 className="text-3xl font-bold">NFL Schedule</h1>
 
         <p className="mt-2 text-sm text-slate-300">
           All times ET. Point spreads are informational only.
         </p>
+
+        {latestScoreUpdate ? (
+          <p className="mt-1 text-xs font-semibold text-slate-300">
+            {hasLiveGames ? "● LIVE · " : ""}
+            Scores updated {formatScoreUpdated(latestScoreUpdate)}
+            {hasLiveGames ? " · Auto-refreshing every 30 seconds" : ""}
+          </p>
+        ) : null}
       </div>
 
       <div className="mb-5">
@@ -228,26 +266,37 @@ export default async function SchedulePage({
                   </div>
 
                   <div className="text-left md:text-right">
-                    {game.status &&
-                    game.status.toLowerCase() !== "scheduled" ? (
-                      <div className="text-sm font-medium uppercase text-gray-500">
-                        {game.status}
-                      </div>
-                    ) : null}
+                    {game.status?.toLowerCase() === "live" ? (
+                  <div className="text-sm font-extrabold uppercase text-orange-600">
+                    ● LIVE
+                  </div>
+                ) : game.status?.toLowerCase() === "final" ? (
+                  <div className="text-sm font-extrabold uppercase text-slate-700">
+                    FINAL
+                  </div>
+                ) : null}
 
-                    {game.home_score !== null &&
-                    game.away_score !== null ? (
-                      <div className="mt-1 text-sm">
-                        {game.away_team} {game.away_score} —{" "}
-                        {game.home_team} {game.home_score}
-                      </div>
-                    ) : null}
+                {game.home_score !== null &&
+                game.away_score !== null ? (
+                  <div className="mt-1 text-xl font-extrabold text-slate-900">
+                    {game.away_team} {game.away_score} —{" "}
+                    {game.home_team} {game.home_score}
+                  </div>
+                ) : null}
 
-                    {result ? (
-                      <div className="mt-1 text-sm font-semibold text-gray-800">
-                        {result}
-                      </div>
-                    ) : null}
+                {game.score_updated_at &&
+                game.status?.toLowerCase() === "live" ? (
+                  <div className="mt-1 text-xs text-gray-500">
+                    Updated {formatScoreUpdated(game.score_updated_at)}
+                  </div>
+                ) : null}
+
+                {result &&
+                game.status?.toLowerCase() === "final" ? (
+                  <div className="mt-1 text-sm font-semibold text-gray-800">
+                    {result}
+                  </div>
+                ) : null}
                   </div>
                 </div>
               );
