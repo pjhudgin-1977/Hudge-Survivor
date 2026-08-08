@@ -278,9 +278,34 @@ export default async function SchedulePage({
 
                 {game.home_score !== null &&
                 game.away_score !== null ? (
-                  <div className="mt-1 text-xl font-extrabold text-slate-900">
-                    {game.away_team} {game.away_score} —{" "}
-                    {game.home_team} {game.home_score}
+                  <div className="mt-1 text-xl text-slate-900">
+                    <span
+                      className={
+                        game.status?.toLowerCase() === "final" &&
+                        game.winner_team === game.away_team
+                          ? "font-extrabold"
+                          : game.status?.toLowerCase() === "final"
+                            ? "font-semibold text-slate-500"
+                            : "font-extrabold"
+                      }
+                    >
+                      {game.away_team} {game.away_score}
+                    </span>
+
+                    <span className="mx-2 text-slate-400">—</span>
+
+                    <span
+                      className={
+                        game.status?.toLowerCase() === "final" &&
+                        game.winner_team === game.home_team
+                          ? "font-extrabold"
+                          : game.status?.toLowerCase() === "final"
+                            ? "font-semibold text-slate-500"
+                            : "font-extrabold"
+                      }
+                    >
+                      {game.home_team} {game.home_score}
+                    </span>
                   </div>
                 ) : null}
 
