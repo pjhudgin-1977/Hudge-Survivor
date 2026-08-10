@@ -425,7 +425,7 @@ export default function LoginClient({ next }: { next: string | null }) {
               >
                 <button
                   type="button"
-                  onClick={() => router.push("/reset-password")}
+                  onClick={() => router.push("/reset-password?mode=request")}
                   style={{
                     background: "transparent",
                     border: "none",

@@ -25,6 +25,7 @@ export default function ResetPasswordClient() {
   const [msg, setMsg] = useState<string | null>(null);
 
   const emailFromQuery = useMemo(() => sp.get("email") ?? "", [sp]);
+  const requestMode = sp.get("mode") === "request";
 
   useEffect(() => {
     if (emailFromQuery) {
@@ -38,7 +39,7 @@ export default function ResetPasswordClient() {
     supabase.auth.getSession().then(({ data }) => {
       if (!active) return;
 
-      setHasSession(Boolean(data.session));
+      setHasSession(requestMode ? false : Boolean(data.session));
       setReady(true);
     });
 
@@ -63,7 +64,7 @@ export default function ResetPasswordClient() {
     try {
       const redirectTo =
         typeof window !== "undefined"
-          ? `${window.location.origin}/auth/callback?next=/reset-password`
+          ? `${window.location.origin}/reset-password`
           : undefined;
 
       const { error } = await supabase.auth.resetPasswordForEmail(
