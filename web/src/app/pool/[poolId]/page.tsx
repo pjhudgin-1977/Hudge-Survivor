@@ -214,7 +214,8 @@ export default function PoolStandingsGridPage() {
       const eliminated = Boolean(m.is_eliminated) || losses >= 2;
       const entryNo = Number(m.entry_no ?? 1);
 
-      const baseScreen = String(m.screen_name ?? "").trim() || "—";
+      const baseScreenRaw = String(m.screen_name ?? "").trim() || "—";
+      const baseScreen = baseScreenRaw.replace(/\s*\(Entry\s+\d+\)$/i, "");
       const hasMultipleEntries = (entryCountsByUser[m.user_id] ?? 0) > 1;
       const screen = hasMultipleEntries
         ? `${baseScreen} #${entryNo}`
