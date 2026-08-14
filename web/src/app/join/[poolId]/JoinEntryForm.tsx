@@ -84,6 +84,13 @@ export default function JoinEntryForm({
       return;
     }
 
+    if (entryNo > 1) {
+      const confirmed = window.confirm(
+        `You already have an entry in this pool. Are you sure you want to create Entry ${entryNo}?`
+      );
+      if (!confirmed) return;
+    }
+
     setSubmitting(true);
 
     try {
