@@ -139,8 +139,12 @@ export default async function PaymentPage({
         ) : (
           entries.map((entry) => {
             const entryNo = Number(entry.entry_no ?? 1);
-            const screenName =
+            const rawScreenName =
               String(entry.screen_name ?? "").trim() || "Player";
+            const screenName = rawScreenName.replace(
+              /\s*\(Entry\s+\d+\)$/i,
+              ""
+            );
 
             const savedAmount = Number(entry.entry_fee_amount);
             const amount =
