@@ -279,6 +279,23 @@ export default function LoginClient({ next }: { next: string | null }) {
         </div>
 
         <div style={{ padding: 18 }}>
+          {safeNext?.startsWith("/join/") ? (
+            <div
+              style={{
+                marginBottom: 16,
+                padding: "12px 14px",
+                borderRadius: 12,
+                border: "1px solid rgba(249,115,22,0.45)",
+                background: "rgba(249,115,22,0.12)",
+                fontSize: 14,
+                fontWeight: 850,
+                lineHeight: 1.45,
+              }}
+            >
+              You’ve been invited to join the Hudge Survivor Pool. Sign in or create an account below to continue.
+            </div>
+          ) : null}
+
           {mode === "login" ? (
             <div style={newUserBoxStyle}>
               <div
