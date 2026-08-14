@@ -289,7 +289,7 @@ export default function PoolStandingsGridPage() {
     if (addingEntry) return;
 
     const confirmed = window.confirm(
-      "Create a new entry for this pool?\n\nThis will add another paid/unpaid entry slot for you."
+      "Create a new entry for this pool?\n\nThis will create a new paid entry for you."
     );
     if (!confirmed) return;
 
