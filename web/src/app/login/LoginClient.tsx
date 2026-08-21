@@ -297,7 +297,7 @@ export default function LoginClient({ next }: { next: string | null }) {
           ) : null}
 
           {mode === "login" ? (
-            <div style={newUserBoxStyle}>
+            <div style={existingUserBoxStyle}>
               <div
                 style={{
                   fontSize: 18,
@@ -305,7 +305,7 @@ export default function LoginClient({ next }: { next: string | null }) {
                   lineHeight: 1.25,
                 }}
               >
-                New here?
+                Already joined?
               </div>
 
               <div
@@ -313,30 +313,10 @@ export default function LoginClient({ next }: { next: string | null }) {
                   marginTop: 6,
                   fontSize: 13,
                   lineHeight: 1.45,
-                  opacity: 0.82,
+                  opacity: 0.88,
                 }}
               >
-                Create an account to join the pool and make your picks.
-              </div>
-
-              <button
-                type="button"
-                onClick={switchToSignup}
-                style={createAccountButtonStyle}
-              >
-                Create Account
-              </button>
-
-              <div
-                style={{
-                  marginTop: 10,
-                  fontSize: 12,
-                  lineHeight: 1.4,
-                  opacity: 0.72,
-                  textAlign: "center",
-                }}
-              >
-                Your invite will be saved while you create your account.
+                Sign in below to get back to your pool and make your picks.
               </div>
             </div>
           ) : (
@@ -494,6 +474,39 @@ export default function LoginClient({ next }: { next: string | null }) {
                   : "Create account"}
             </button>
           </form>
+
+          {mode === "login" ? (
+            <div style={newUserBoxStyle}>
+              <div
+                style={{
+                  fontSize: 18,
+                  fontWeight: 950,
+                  lineHeight: 1.25,
+                }}
+              >
+                New here?
+              </div>
+
+              <div
+                style={{
+                  marginTop: 6,
+                  fontSize: 13,
+                  lineHeight: 1.45,
+                  opacity: 0.82,
+                }}
+              >
+                Create an account only if this is your first time joining the pool.
+              </div>
+
+              <button
+                type="button"
+                onClick={switchToSignup}
+                style={createAccountButtonStyle}
+              >
+                Create Account
+              </button>
+            </div>
+          ) : null}
         </div>
       </div>
     </main>
