@@ -25,6 +25,7 @@ export default function LoginClient({ next }: { next: string | null }) {
   const [nickname, setNickname] = useState("");
 
   const [showPw, setShowPw] = useState(false);
+  const [showIphoneHelp, setShowIphoneHelp] = useState(false);
 
   const [err, setErr] = useState<string | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
@@ -505,6 +506,48 @@ export default function LoginClient({ next }: { next: string | null }) {
               >
                 Create Account
               </button>
+            </div>
+          ) : null}
+
+          {mode === "login" ? (
+            <div style={{ marginTop: 14 }}>
+              <button
+                type="button"
+                onClick={() => setShowIphoneHelp((value) => !value)}
+                style={{
+                  width: "100%",
+                  padding: "10px 12px",
+                  borderRadius: 12,
+                  border: "1px solid rgba(255,255,255,0.16)",
+                  background: "rgba(255,255,255,0.05)",
+                  color: "white",
+                  fontWeight: 850,
+                  cursor: "pointer",
+                }}
+              >
+                📱 Add to iPhone Home Screen
+              </button>
+
+              {showIphoneHelp ? (
+                <div
+                  style={{
+                    marginTop: 10,
+                    padding: "12px 14px",
+                    borderRadius: 12,
+                    background: "rgba(255,255,255,0.04)",
+                    fontSize: 13,
+                    lineHeight: 1.55,
+                    opacity: 0.9,
+                  }}
+                >
+                  <div>1. Open this site in Safari.</div>
+                  <div>2. Tap the Share button.</div>
+                  <div>3. Choose “Add to Home Screen,” then tap “Add.”</div>
+                  <div style={{ marginTop: 8, opacity: 0.75 }}>
+                    This creates an app-style icon on your iPhone Home Screen.
+                  </div>
+                </div>
+              ) : null}
             </div>
           ) : null}
         </div>
