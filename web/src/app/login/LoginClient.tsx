@@ -551,6 +551,7 @@ const logoStyle: React.CSSProperties = {
 };
 
 const newUserBoxStyle: React.CSSProperties = {
+  marginTop: 18,
   marginBottom: 18,
   padding: "14px 14px 15px",
   borderRadius: 16,
