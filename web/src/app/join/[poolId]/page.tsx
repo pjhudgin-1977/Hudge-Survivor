@@ -105,8 +105,11 @@ export default async function JoinPoolPage({
     );
   }
 
-  const newEntryNo = nextEntryNo(existingRows ?? []);
+  if ((existingRows ?? []).length > 0) {
+    redirect(`/pool/${preview.pool_id}`);
+  }
 
+  const newEntryNo = nextEntryNo(existingRows ?? []);
   if (newEntryNo == null) {
     return (
       <main style={{ padding: 24, maxWidth: 720 }}>
