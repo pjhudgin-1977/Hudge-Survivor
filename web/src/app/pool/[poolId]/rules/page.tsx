@@ -201,30 +201,46 @@ export default async function RulesPage({
         padding: "24px 18px 48px",
       }}
     >
-      <Link
-        href={`/pool/${poolId}`}
+      <header
         style={{
-          display: "inline-block",
-          marginBottom: 12,          color: "white",
-          textDecoration: "none",
-          fontWeight: 900,
-          opacity: 0.9,
+          marginBottom: 22,
+          display: "flex",
+          flexWrap: "wrap",
+          alignItems: "flex-start",
+          justifyContent: "space-between",
+          gap: 14,
         }}
       >
-        ← Back to Dashboard
-      </Link>
+        <div>
+          <h1
+            style={{
+              margin: 0,
+              fontSize: 32,
+              fontWeight: 950,
+              letterSpacing: 0.2,
+            }}
+          >
+            Pool Rules
+          </h1>
 
-      <header style={{ marginBottom: 22 }}>
-        <h1
+        </div>
+
+        <Link
+          href={`/pool/${poolId}`}
           style={{
-            margin: 0,
-            fontSize: 32,
-            fontWeight: 950,
-            letterSpacing: 0.2,
+            display: "inline-block",
+            padding: "9px 12px",
+            borderRadius: 10,
+            border: "1px solid rgba(255,255,255,0.22)",
+            background: "rgba(255,255,255,0.08)",
+            color: "white",
+            fontWeight: 850,
+            textDecoration: "none",
+            whiteSpace: "nowrap",
           }}
         >
-          Pool Rules
-        </h1>
+          Back to Dashboard
+        </Link>
 
         <p
           style={{

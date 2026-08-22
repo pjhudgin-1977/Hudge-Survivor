@@ -226,11 +226,36 @@ export default function BoardPage() {
 
   return (
     <main style={{ maxWidth: 900, margin: "0 auto", padding: 24 }}>
-      <Link href={`/pool/${poolId}`}>← Back to Dashboard</Link>
+      <header
+        style={{
+          display: "flex",
+          flexWrap: "wrap",
+          alignItems: "flex-start",
+          justifyContent: "space-between",
+          gap: 14,
+        }}
+      >
+        <h1 style={{ margin: 0, fontSize: 32, fontWeight: 900 }}>
+          Pool Message Board
+        </h1>
 
-      <h1 style={{ marginTop: 18, fontSize: 32, fontWeight: 900 }}>
-        Pool Message Board
-      </h1>
+        <Link
+          href={`/pool/${poolId}`}
+          style={{
+            display: "inline-block",
+            padding: "9px 12px",
+            borderRadius: 10,
+            border: "1px solid rgba(255,255,255,0.22)",
+            background: "rgba(255,255,255,0.08)",
+            color: "white",
+            fontWeight: 850,
+            textDecoration: "none",
+            whiteSpace: "nowrap",
+          }}
+        >
+          Back to Dashboard
+        </Link>
+      </header>
 
       <div
         style={{
