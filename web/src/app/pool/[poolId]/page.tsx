@@ -588,8 +588,17 @@ export default function PoolStandingsGridPage() {
                     opacity: addingEntry ? 0.65 : 1,
                   }}
                 >
-                  {addingEntry ? "Adding..." : "+ Add Entry"}
+                  {addingEntry ? "Adding..." : "+ Add another paid entry"}
                 </button>
+                <div
+                  style={{
+                    marginTop: 5,
+                    fontSize: 11,
+                    opacity: 0.68,
+                  }}
+                >
+                  Limit 3 entries per user
+                </div>
               </div>
             )}
           </div>
