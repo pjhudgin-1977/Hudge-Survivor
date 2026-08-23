@@ -17,6 +17,7 @@ export default function NavBar({
 }) {  const pathname = usePathname();
   const router = useRouter();
   const [open, setOpen] = useState(false);
+  const [showIphoneHelp, setShowIphoneHelp] = useState(false);
   const menuRef = useRef<HTMLDivElement | null>(null);
 
   const parts = pathname.split("/").filter(Boolean);
@@ -226,6 +227,42 @@ export default function NavBar({
                 </a>
               );
             })}
+
+            <button
+              type="button"
+              onClick={() => setShowIphoneHelp((value) => !value)}
+              style={{
+                display: "block",
+                width: "100%",
+                padding: "12px 14px",
+                color: "white",
+                fontWeight: 700,
+                border: "none",
+                borderTop: "1px solid rgba(255,255,255,0.08)",
+                background: "transparent",
+                textAlign: "left",
+                cursor: "pointer",
+              }}
+            >
+              📱 Add to iPhone Home Screen
+            </button>
+
+            {showIphoneHelp ? (
+              <div
+                style={{
+                  padding: "10px 14px 12px",
+                  fontSize: 12,
+                  lineHeight: 1.5,
+                  color: "rgba(255,255,255,0.82)",
+                  background: "rgba(255,255,255,0.04)",
+                  borderTop: "1px solid rgba(255,255,255,0.08)",
+                }}
+              >
+                <div>1. Open this site in Safari.</div>
+                <div>2. Tap the Share button.</div>
+                <div>3. Choose “Add to Home Screen,” then tap “Add.”</div>
+              </div>
+            ) : null}
 
             <button
               type="button"
