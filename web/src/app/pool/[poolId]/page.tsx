@@ -426,7 +426,7 @@ export default function PoolStandingsGridPage() {
 
           <div
             style={{
-              fontSize: 16,
+              fontSize: 19,
               fontWeight: 850,
               lineHeight: 1.5,
               color: "white",
