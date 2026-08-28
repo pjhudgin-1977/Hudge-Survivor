@@ -44,6 +44,49 @@ export default function InviteDetails({
     }
   }
 
+  async function copyInviteMessage() {
+    const plainText = `You’re invited to the Hudge Survivor Pool! 🏈
+
+Tap this link to join:
+${inviteUrl}
+
+If the link doesn’t work, enter invite code: ${inviteCode}
+
+Already joined? Just sign in — do not create another account or entry.`;
+
+    const htmlText = `
+      <p><strong>You’re invited to the Hudge Survivor Pool! 🏈</strong></p>
+      <p>Tap this link to join:<br>
+      <a href="${inviteUrl}">${inviteUrl}</a></p>
+      <p>If the link doesn’t work, enter invite code: <strong>${inviteCode}</strong></p>
+      <p>Already joined? Just sign in — do not create another account or entry.</p>
+    `;
+
+    try {
+      if (navigator.clipboard && window.ClipboardItem) {
+        const item = new ClipboardItem({
+          "text/plain": new Blob([plainText], { type: "text/plain" }),
+          "text/html": new Blob([htmlText], { type: "text/html" }),
+        });
+
+        await navigator.clipboard.write([item]);
+      } else {
+        await navigator.clipboard.writeText(plainText);
+      }
+
+      setCopiedItem("message");
+
+      if (timerRef.current) clearTimeout(timerRef.current);
+
+      timerRef.current = setTimeout(() => {
+        setCopiedItem(null);
+        timerRef.current = null;
+      }, 3000);
+    } catch {
+      await copyText(plainText, "message");
+    }
+  }
+
   return (
     <section
       style={{
@@ -128,19 +171,7 @@ export default function InviteDetails({
 
         <button
           type="button"
-          onClick={() =>
-            copyText(
-              `You’re invited to the Hudge Survivor Pool! 🏈
-
-Tap this link to join:
-${inviteUrl}
-
-If the link doesn’t work, enter invite code: ${inviteCode}
-
-Already joined? Just sign in — do not create another account or entry.`,
-              "message"
-            )
-          }
+          onClick={copyInviteMessage}
           style={{
             marginTop: 12,
             padding: "10px 14px",
