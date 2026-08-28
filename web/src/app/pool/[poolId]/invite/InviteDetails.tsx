@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 
-type CopiedItem = "link" | "code" | null;
+type CopiedItem = "link" | "code" | "message" | null;
 
 export default function InviteDetails({
   inviteUrl,
@@ -113,6 +113,51 @@ export default function InviteDetails({
 
       <div
         style={{
+          marginTop: 18,
+          paddingTop: 18,
+          borderTop: "1px solid rgba(255,255,255,0.12)",
+        }}
+      >
+        <div style={{ fontSize: 14, fontWeight: 800 }}>
+          Recommended invite message
+        </div>
+
+        <p style={{ marginTop: 5, marginBottom: 0, opacity: 0.75 }}>
+          Copy this complete message to text or email to a player.
+        </p>
+
+        <button
+          type="button"
+          onClick={() =>
+            copyText(
+              `You’re invited to the Hudge Survivor Pool! 🏈
+
+Tap this link to join:
+${inviteUrl}
+
+If the link doesn’t work, enter invite code: ${inviteCode}
+
+Already joined? Just sign in — do not create another account or entry.`,
+              "message"
+            )
+          }
+          style={{
+            marginTop: 12,
+            padding: "10px 14px",
+            borderRadius: 10,
+            border: "1px solid #fb923c",
+            background: "#f97316",
+            color: "#000",
+            fontWeight: 900,
+            cursor: "pointer",
+          }}
+        >
+          {copiedItem === "message" ? "Copied!" : "Copy Invite Message"}
+        </button>
+      </div>
+
+      <div
+        style={{
           marginTop: 20,
           paddingTop: 18,
           borderTop: "1px solid rgba(255,255,255,0.12)",
@@ -167,11 +212,6 @@ export default function InviteDetails({
             {copiedItem === "code" ? "Copied!" : "Copy Code"}
           </button>
         </div>
-      </div>
-
-      <div style={{ marginTop: 18, fontSize: 13, opacity: 0.7 }}>
-        This invite stays active until the commissioner creates a new
-        invite code.
       </div>
 
       <style>{`
