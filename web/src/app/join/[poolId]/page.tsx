@@ -74,8 +74,13 @@ export default async function JoinPoolPage({
         <h1 style={{ fontSize: 26, fontWeight: 950 }}>Join Pool</h1>
         <p style={{ marginTop: 10 }}>Invalid or expired invite link.</p>
         <p style={{ marginTop: 10 }}>
-          Ask the commissioner for a fresh invite link.
+          Try entering your invite code manually.
         </p>
+        <div style={{ marginTop: 14 }}>
+          <Link href="/join" style={{ textDecoration: "underline" }}>
+            Enter invite code manually
+          </Link>
+        </div>
       </main>
     );
   }
