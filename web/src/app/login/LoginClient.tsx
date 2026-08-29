@@ -73,17 +73,7 @@ export default function LoginClient({ next }: { next: string | null }) {
       return;
     }
 
-    const { data: member } = await supabase
-      .from("pool_members")
-      .select("pool_id")
-      .limit(1)
-      .maybeSingle();
-
-    if (member?.pool_id) {
-      router.push(`/pool/${member.pool_id}`);
-    } else {
-      router.push("/dashboard?onboarding=joinonly");
-    }
+    router.push("/dashboard");
   }
 
   async function onSubmit(e: React.FormEvent) {
