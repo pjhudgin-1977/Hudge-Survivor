@@ -98,6 +98,27 @@ export default function PoolPickPage() {
   const [phase, setPhase] = useState<string | null>(null);
   const [weekNumber, setWeekNumber] = useState<number | null>(null);
 
+  function gameHasStartedForTeam(team: string | null) {
+    if (!team) return false;
+
+    const game = games.find(
+      (g) => g.home_team === team || g.away_team === team
+    );
+
+    if (!game?.kickoff_at) return false;
+
+    return new Date(game.kickoff_at).getTime() <= Date.now();
+  }
+
+  const existingPickGameStarted =
+    gameHasStartedForTeam(existingPick);
+
+  const selectedTeamGameStarted =
+    gameHasStartedForTeam(selectedTeam);
+
+  const entryPickLocked =
+    isLocked || existingPickGameStarted;
+
   const weeklyTeams = useMemo(() => {
     const teams = new Set<string>();
 
@@ -331,6 +352,16 @@ export default function PoolPickPage() {
       return;
     }
 
+    if (existingPickGameStarted) {
+      setStatusMsg("🔒 This entry is locked because its selected game has started.");
+      return;
+    }
+
+    if (selectedTeamGameStarted) {
+      setStatusMsg("🔒 That team's game has already started.");
+      return;
+    }
+
     if (!poolMemberUserId) {
       setStatusMsg("Missing pool member. Try refreshing.");
       return;
@@ -426,7 +457,8 @@ export default function PoolPickPage() {
   const submitDisabled =
     loading ||
     submitting ||
-    isLocked ||
+    entryPickLocked ||
+    selectedTeamGameStarted ||
     !selectedTeam ||
     (Boolean(existingPick) && selectedTeam === existingPick);
 
@@ -752,13 +784,24 @@ export default function PoolPickPage() {
                                 game.point_spread
                               )}`;
 
+                    const teamGameStarted =
+                      gameHasStartedForTeam(team);
+
                     return (
                       <button
                         key={`${team}-${game.home_team}-${game.away_team}-${game.kickoff_at}`}
                         type="button"
-                        disabled={isLocked || submitting}
+                        disabled={
+                          entryPickLocked ||
+                          submitting ||
+                          teamGameStarted
+                        }
                         onClick={() => {
-                          if (isLocked || submitting) {
+                          if (
+                            entryPickLocked ||
+                            submitting ||
+                            teamGameStarted
+                          ) {
                             return;
                           }
 

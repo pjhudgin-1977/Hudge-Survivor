@@ -591,22 +591,39 @@ export default function PoolStandingsGridPage() {
                     className="dashboard-entry-action"
                     style={{ textAlign: "right" }}
                   >
-                    <Link
-                      href={`/pool/${poolId}/pick?entry=${entry.entry_no}`}
-                      style={{
-                        display: "inline-block",
-                        padding: "8px 12px",
-                        borderRadius: 10,
-                        textDecoration: "none",
-                        fontWeight: 900,
-                        border: "1px solid rgba(255,255,255,0.18)",
-                        background: "rgba(255,128,0,0.18)",
-                        color: "white",
-                        whiteSpace: "nowrap",
-                      }}
-                    >
-                      Make Pick
-                    </Link>
+                    {latestGameStarted ? (
+                      <span
+                        style={{
+                          display: "inline-block",
+                          padding: "8px 12px",
+                          borderRadius: 10,
+                          fontWeight: 900,
+                          border: "1px solid rgba(255,255,255,0.14)",
+                          background: "rgba(100,116,139,0.28)",
+                          color: "#cbd5e1",
+                          whiteSpace: "nowrap",
+                        }}
+                      >
+                        🔒 Pick Locked
+                      </span>
+                    ) : (
+                      <Link
+                        href={`/pool/${poolId}/pick?entry=${entry.entry_no}`}
+                        style={{
+                          display: "inline-block",
+                          padding: "8px 12px",
+                          borderRadius: 10,
+                          textDecoration: "none",
+                          fontWeight: 900,
+                          border: "1px solid rgba(255,255,255,0.18)",
+                          background: "rgba(255,128,0,0.18)",
+                          color: "white",
+                          whiteSpace: "nowrap",
+                        }}
+                      >
+                        Make Pick
+                      </Link>
+                    )}
                   </div>
                 </div>
               );
