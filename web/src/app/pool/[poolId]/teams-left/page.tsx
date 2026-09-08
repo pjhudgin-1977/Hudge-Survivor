@@ -50,7 +50,70 @@ type PickRow = {
   entry_no: number | null;
   picked_team: string | null;
   phase: string | null;
+  week_number: number | null;
 };
+
+function sundayOnePmEt(reference: Date) {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: "America/New_York",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    weekday: "short",
+  }).formatToParts(reference);
+
+  const get = (type: string) =>
+    parts.find((p) => p.type === type)?.value ?? "";
+
+  const weekday = get("weekday");
+  const year = Number(get("year"));
+  const month = Number(get("month"));
+  const day = Number(get("day"));
+
+  const weekdayIndex = {
+    Sun: 0,
+    Mon: 1,
+    Tue: 2,
+    Wed: 3,
+    Thu: 4,
+    Fri: 5,
+    Sat: 6,
+  }[weekday as "Sun" | "Mon" | "Tue" | "Wed" | "Thu" | "Fri" | "Sat"];
+
+  const daysUntilSunday = (7 - weekdayIndex) % 7;
+  const sundayDay = day + daysUntilSunday;
+
+  for (let utcHour = 16; utcHour <= 19; utcHour++) {
+    const candidate = new Date(
+      Date.UTC(year, month - 1, sundayDay, utcHour, 0, 0)
+    );
+
+    const easternParts = new Intl.DateTimeFormat("en-US", {
+      timeZone: "America/New_York",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: false,
+    }).formatToParts(candidate);
+
+    const part = (type: string) =>
+      easternParts.find((p) => p.type === type)?.value ?? "";
+
+    if (
+      Number(part("year")) === year &&
+      Number(part("month")) === month &&
+      Number(part("day")) === sundayDay &&
+      Number(part("hour")) === 13 &&
+      Number(part("minute")) === 0
+    ) {
+      return candidate;
+    }
+  }
+
+  return null;
+}
 
 function normalizePhase(value: string | null | undefined) {
   const phase = String(value ?? "").toLowerCase();
@@ -85,28 +148,31 @@ export default async function TeamsLeftPage({
 
   const { data: nextGame } = await supabase
     .from("games")
-    .select("phase")
+    .select("phase, week_number, kickoff_at")
     .gte("kickoff_at", nowIso)
     .order("kickoff_at", { ascending: true })
     .limit(1)
     .maybeSingle();
 
   let phase = normalizePhase(nextGame?.phase);
+  let currentWeek = Number(nextGame?.week_number ?? 0);
 
   if (!nextGame) {
     const { data: lastGame } = await supabase
       .from("games")
-      .select("phase")
+      .select("phase, week_number, kickoff_at")
       .order("kickoff_at", { ascending: false })
       .limit(1)
       .maybeSingle();
 
     phase = normalizePhase(lastGame?.phase);
+    currentWeek = Number(lastGame?.week_number ?? 0);
   }
 
   const [
     { data: memberData, error: memberError },
     { data: pickData, error: pickError },
+    { data: gameData, error: gameError },
   ] = await Promise.all([
     supabase
       .from("pool_members")
@@ -114,12 +180,16 @@ export default async function TeamsLeftPage({
       .eq("pool_id", poolId),
     supabase
       .from("picks")
-      .select("user_id, entry_no, picked_team, phase")
+      .select("user_id, entry_no, picked_team, phase, week_number")
       .eq("pool_id", poolId)
       .not("picked_team", "is", null),
+    supabase
+      .from("games")
+      .select("week_number, phase, kickoff_at, home_team, away_team"),
   ]);
 
-  const error = memberError?.message || pickError?.message || "";
+  const error =
+    memberError?.message || pickError?.message || gameError?.message || "";
   const members = (memberData ?? []) as MemberRow[];
   const picks = (pickData ?? []) as PickRow[];
 
@@ -132,12 +202,50 @@ export default async function TeamsLeftPage({
     );
   }
 
+  const currentWeekReference =
+    nextGame?.kickoff_at
+      ? new Date(nextGame.kickoff_at)
+      : new Date();
+
+  const currentWeekLock = sundayOnePmEt(currentWeekReference);
+
+  const currentWeekIsPublic =
+    currentWeekLock !== null &&
+    Date.now() >= currentWeekLock.getTime();
+
   const usedByEntry = new Map<string, Set<string>>();
 
   for (const pick of picks) {
     if (normalizePhase(pick.phase) !== phase) continue;
 
     const team = String(pick.picked_team ?? "").trim().toUpperCase();
+
+    if (
+      Number(pick.week_number ?? 0) === currentWeek &&
+      !currentWeekIsPublic
+    ) {
+      const selectedGame = (gameData ?? []).find((game) => {
+        const sameWeek =
+          Number(game.week_number ?? 0) === Number(pick.week_number ?? 0);
+        const samePhase =
+          normalizePhase(game.phase) === normalizePhase(pick.phase);
+
+        return (
+          sameWeek &&
+          samePhase &&
+          (String(game.home_team ?? "").toUpperCase() === team ||
+            String(game.away_team ?? "").toUpperCase() === team)
+        );
+      });
+
+      const selectedGameStarted =
+        Boolean(selectedGame?.kickoff_at) &&
+        new Date(selectedGame!.kickoff_at).getTime() <= Date.now();
+
+      if (!selectedGameStarted) {
+        continue;
+      }
+    }
     if (!team) continue;
 
     const key = `${pick.user_id}|${Number(pick.entry_no ?? 1)}`;

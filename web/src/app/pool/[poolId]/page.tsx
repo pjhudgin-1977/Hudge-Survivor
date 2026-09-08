@@ -16,6 +16,14 @@ type PickRow = {
   counted_in_losses: boolean | null;
 };
 
+type GameRow = {
+  week_number: number;
+  phase: string;
+  kickoff_at: string;
+  home_team: string | null;
+  away_team: string | null;
+};
+
 type MemberRow = {
   user_id: string;
   entry_no: number;
@@ -61,6 +69,7 @@ export default function PoolStandingsGridPage() {
     {}
   );
   const [picks, setPicks] = useState<PickRow[]>([]);
+  const [games, setGames] = useState<GameRow[]>([]);
 
   const [addingEntry, setAddingEntry] = useState(false);
   const [isCommissioner, setIsCommissioner] = useState(false);
@@ -151,6 +160,14 @@ export default function PoolStandingsGridPage() {
 
         if (pkErr) throw pkErr;
 
+        const { data: gameRows, error: gameErr } = await supabase
+          .from("games")
+          .select("week_number, phase, kickoff_at, home_team, away_team")
+          .eq("season_year", 2026);
+
+        if (gameErr) throw gameErr;
+
+        setGames((gameRows ?? []) as GameRow[]);
         setMembers(mem);
         setProfilesById(profMap);
         setPicks((pk ?? []) as PickRow[]);
@@ -471,7 +488,31 @@ export default function PoolStandingsGridPage() {
                 );
 
               const latestPick = entryPicks[0];
-              const latestTeam = String(latestPick?.picked_team ?? "").trim() || "—";
+
+              const latestTeamRaw =
+                String(latestPick?.picked_team ?? "").trim() || "—";
+
+              const latestGame = latestPick
+                ? games.find((g) => {
+                    const sameWeek =
+                      Number(g.week_number) === Number(latestPick.week_number);
+                    const samePhase =
+                      normalizePhase(g.phase) === normalizePhase(latestPick.phase);
+                    const team = latestTeamRaw;
+
+                    return (
+                      sameWeek &&
+                      samePhase &&
+                      (g.home_team === team || g.away_team === team)
+                    );
+                  })
+                : null;
+
+              const latestGameStarted =
+                latestGame?.kickoff_at &&
+                new Date(latestGame.kickoff_at).getTime() <= Date.now();
+
+              const latestTeam = latestTeamRaw;
 
               const statusText = entry.eliminated
                 ? "❌ Eliminated"
@@ -696,6 +737,8 @@ export default function PoolStandingsGridPage() {
 
       <div className="dashboard-standings-mobile">
         {rows.map((r) => {
+          const isMe = r.user_id === myUserId;
+
           const mobileStatus = r.eliminated
             ? "Eliminated"
             : r.losses === 1
@@ -815,9 +858,36 @@ export default function PoolStandingsGridPage() {
                       `${r.user_id}|${r.entry_no}|${c.phase}|${c.week}`;
                     const pick = pickMap[key];
 
-                    const team = String(
+                    const teamRaw = String(
                       pick?.picked_team ?? ""
                     ).trim();
+
+                    const game = pick
+                      ? games.find((g) => {
+                          const sameWeek =
+                            Number(g.week_number) === Number(pick.week_number);
+                          const samePhase =
+                            normalizePhase(g.phase) === normalizePhase(pick.phase);
+
+                          return (
+                            sameWeek &&
+                            samePhase &&
+                            (g.home_team === teamRaw || g.away_team === teamRaw)
+                          );
+                        })
+                      : null;
+
+                    const gameStarted =
+                      Boolean(game?.kickoff_at) &&
+                      new Date(game!.kickoff_at).getTime() <= Date.now();
+
+                    const team =
+                      !teamRaw
+                        ? ""
+                        : isMe || gameStarted
+                        ? teamRaw
+                        : "IN";
+
                     const auto = Boolean(pick?.was_autopick);
                     const strike =
                       pick?.counted_in_losses === true;
@@ -940,6 +1010,8 @@ export default function PoolStandingsGridPage() {
 
           <tbody>
             {rows.map((r) => {
+              const isMe = r.user_id === myUserId;
+
               const rowBg = r.eliminated
                 ? "rgba(255,255,255,0.04)"
                 : r.losses === 1
@@ -1036,7 +1108,34 @@ export default function PoolStandingsGridPage() {
                     const k = `${r.user_id}|${r.entry_no}|${c.phase}|${c.week}`;
                     const p = pickMap[k];
 
-                    const team = String(p?.picked_team ?? "").trim();
+                    const teamRaw = String(p?.picked_team ?? "").trim();
+
+                    const game = p
+                      ? games.find((g) => {
+                          const sameWeek =
+                            Number(g.week_number) === Number(p.week_number);
+                          const samePhase =
+                            normalizePhase(g.phase) === normalizePhase(p.phase);
+
+                          return (
+                            sameWeek &&
+                            samePhase &&
+                            (g.home_team === teamRaw || g.away_team === teamRaw)
+                          );
+                        })
+                      : null;
+
+                    const gameStarted =
+                      Boolean(game?.kickoff_at) &&
+                      new Date(game!.kickoff_at).getTime() <= Date.now();
+
+                    const team =
+                      !teamRaw
+                        ? ""
+                        : isMe || gameStarted
+                        ? teamRaw
+                        : "IN";
+
                     const auto = Boolean(p?.was_autopick);
                     const strike = p?.counted_in_losses === true;
                     const text = team ? `${team}${auto ? " A" : ""}` : "";

@@ -112,6 +112,15 @@ function formatSpread(g: GameGroup) {
   return `Spread: ${g.favorite_team} ${g.point_spread}`;
 }
 
+function hasGameStarted(kickoffAt?: string | null) {
+  if (!kickoffAt) return false;
+
+  const kickoff = new Date(kickoffAt);
+  if (Number.isNaN(kickoff.getTime())) return false;
+
+  return Date.now() >= kickoff.getTime();
+}
+
 function isFinalStatus(status?: string | null) {
   const s = String(status ?? "").toLowerCase();
   return (
@@ -217,6 +226,117 @@ export default async function SweatPage({
   }
 
   const list = (rows ?? []) as PickRow[];
+
+  const sundayOnePmEt = (() => {
+    const weekKickoffs = list
+      .map((row) => row.kickoff_at)
+      .filter((value): value is string => Boolean(value))
+      .map((value) => new Date(value))
+      .filter((d) => !Number.isNaN(d.getTime()));
+
+    if (weekKickoffs.length === 0) return null;
+
+    const reference = weekKickoffs[0];
+
+    const parts = new Intl.DateTimeFormat("en-US", {
+      timeZone: "America/New_York",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      weekday: "short",
+    }).formatToParts(reference);
+
+    const get = (type: string) =>
+      parts.find((p) => p.type === type)?.value ?? "";
+
+    const weekday = get("weekday");
+    const year = Number(get("year"));
+    const month = Number(get("month"));
+    const day = Number(get("day"));
+
+    const weekdayIndex = {
+      Sun: 0,
+      Mon: 1,
+      Tue: 2,
+      Wed: 3,
+      Thu: 4,
+      Fri: 5,
+      Sat: 6,
+    }[weekday as "Sun" | "Mon" | "Tue" | "Wed" | "Thu" | "Fri" | "Sat"];
+
+    const daysUntilSunday = (7 - weekdayIndex) % 7;
+
+    const sundayDay = day + daysUntilSunday;
+
+    for (let utcHour = 16; utcHour <= 19; utcHour++) {
+      const candidate = new Date(
+        Date.UTC(year, month - 1, sundayDay, utcHour, 0, 0)
+      );
+
+      const easternParts = new Intl.DateTimeFormat("en-US", {
+        timeZone: "America/New_York",
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: false,
+      }).formatToParts(candidate);
+
+      const part = (type: string) =>
+        easternParts.find((p) => p.type === type)?.value ?? "";
+
+      if (
+        Number(part("year")) === year &&
+        Number(part("month")) === month &&
+        Number(part("day")) === sundayDay &&
+        Number(part("hour")) === 13 &&
+        Number(part("minute")) === 0
+      ) {
+        return candidate;
+      }
+    }
+
+    return null;
+  })();
+
+  const sweatBoardOpen =
+    sundayOnePmEt !== null && Date.now() >= sundayOnePmEt.getTime();
+
+  if (!sweatBoardOpen) {
+    return (
+      <main
+        style={{
+          maxWidth: 720,
+          margin: "0 auto",
+          padding: "48px 20px",
+          textAlign: "center",
+        }}
+      >
+        <h1 style={{ fontSize: 28, fontWeight: 900, margin: 0 }}>
+          Sweat Board
+        </h1>
+
+        <div
+          style={{
+            marginTop: 22,
+            padding: 24,
+            borderRadius: 16,
+            border: "1px solid rgba(255,255,255,0.14)",
+            background: "rgba(255,255,255,0.04)",
+          }}
+        >
+          <div style={{ fontSize: 24, fontWeight: 900 }}>
+            🔒 Sweat Board opens Sunday at 1:00 PM ET
+          </div>
+
+          <div style={{ marginTop: 10, opacity: 0.72 }}>
+            Picks remain private until the weekly lock.
+          </div>
+        </div>
+      </main>
+    );
+  }
 
   const gameIds = Array.from(
     new Set(
@@ -339,6 +459,10 @@ export default async function SweatPage({
   }
 
   const popularityTotal = popularity.reduce((a, b) => a + b.count, 0);
+
+  const popularityCanReveal = popularityContext
+    ? hasGameStarted(popularityContext.kickoff_at)
+    : false;
 
   let poolAvg = 0;
   let poolCount = 0;
@@ -468,7 +592,11 @@ export default async function SweatPage({
             ) : null}
           </div>
 
-          {popularityTotal === 0 ? (
+          {!popularityCanReveal ? (
+            <div style={{ opacity: 0.72, fontSize: 13 }}>
+              Pick popularity will be revealed after games begin.
+            </div>
+          ) : popularityTotal === 0 ? (
             <div style={{ opacity: 0.72, fontSize: 13 }}>
               Pick popularity will appear after picks are submitted.
             </div>
@@ -655,7 +783,7 @@ export default async function SweatPage({
                           </strong>
                           <span style={{ opacity: 0.72 }}>
                             {" "}
-                            · Pick: {p.pick_team ?? "—"}
+                            · Pick: {hasGameStarted(nextGame.kickoff_at) ? (p.pick_team ?? "—") : "IN"}
                             {p.isAuto ? " · AUTO" : ""}
                           </span>
                         </div>
@@ -840,7 +968,7 @@ export default async function SweatPage({
                             >
                               Pick:{" "}
                               <strong>
-                                {p.pick_team ?? "—"}
+                                {hasGameStarted(g.kickoff_at) ? (p.pick_team ?? "—") : "IN"}
                                 {p.is_auto ? " · AUTO" : ""}
                               </strong>
 
