@@ -5,6 +5,9 @@ import { useEffect, useMemo, useState } from "react";
 import { useParams } from "next/navigation";
 import { createClient } from "@/lib/supabaseClient";
 
+const HUDGE_POOL_ID = "4931be58-aa45-4c89-aa36-2f0aa1061f45";
+const JOIN_DEADLINE = new Date("2026-09-13T17:00:00.000Z").getTime();
+
 type PickRow = {
   user_id: string;
   entry_no: number;
@@ -74,12 +77,34 @@ export default function PoolStandingsGridPage() {
   const [addingEntry, setAddingEntry] = useState(false);
   const [isCommissioner, setIsCommissioner] = useState(false);
   const [seasonStarted, setSeasonStarted] = useState(false);
+  const [entryRegistrationClosed, setEntryRegistrationClosed] = useState(false);
 
   useEffect(() => {
     try {
       setIsCommissioner(sessionStorage.getItem("hudge_is_commissioner") === "1");
     } catch {}
   }, []);
+
+  useEffect(() => {
+    if (poolId !== HUDGE_POOL_ID) {
+      setEntryRegistrationClosed(false);
+      return;
+    }
+
+    const checkDeadline = () => {
+      setEntryRegistrationClosed(Date.now() >= JOIN_DEADLINE);
+    };
+
+    checkDeadline();
+
+    const remaining = JOIN_DEADLINE - Date.now();
+
+    if (remaining <= 0) return;
+
+    const timer = window.setTimeout(checkDeadline, remaining + 1000);
+
+    return () => window.clearTimeout(timer);
+  }, [poolId]);
 
   useEffect(() => {
     const supabase = createClient();
@@ -276,7 +301,9 @@ export default function PoolStandingsGridPage() {
   const myEntries = rows.filter((r) => r.user_id === myUserId);
   const myPaidCount = myEntries.filter((r) => r.entry_fee_paid).length;
   const canAddEntry =
-    Boolean(myUserId) && myEntries.length < 3 && !seasonStarted;
+    Boolean(myUserId) &&
+    myEntries.length < 3 &&
+    (poolId === HUDGE_POOL_ID ? !entryRegistrationClosed : !seasonStarted);
 
   const headerStyle: React.CSSProperties = {
     position: "sticky",
@@ -300,10 +327,18 @@ export default function PoolStandingsGridPage() {
   async function addEntry() {
     if (!myUserId) return;
     if (myEntries.length >= 3) return;
-    if (seasonStarted) {
+
+    if (poolId === HUDGE_POOL_ID && Date.now() >= JOIN_DEADLINE) {
+      setEntryRegistrationClosed(true);
+      alert("Pool registration is closed.");
+      return;
+    }
+
+    if (poolId !== HUDGE_POOL_ID && seasonStarted) {
       alert("New entries can only be added before the season starts.");
       return;
     }
+
     if (addingEntry) return;
 
     const confirmed = window.confirm(
