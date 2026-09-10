@@ -943,6 +943,8 @@ export default function PoolStandingsGridPage() {
                     const auto = Boolean(pick?.was_autopick);
                     const strike =
                       pick?.counted_in_losses === true;
+                    const win =
+                      String(pick?.result ?? "").toLowerCase() === "win";
 
                     return (
                       <div
@@ -977,6 +979,7 @@ export default function PoolStandingsGridPage() {
                             textDecoration: strike
                               ? "line-through"
                               : "none",
+                            color: win ? "#22c55e" : undefined,
                           }}
                         >
                           {team
@@ -1190,6 +1193,7 @@ export default function PoolStandingsGridPage() {
 
                     const auto = Boolean(p?.was_autopick);
                     const strike = p?.counted_in_losses === true;
+                    const win = String(p?.result ?? "").toLowerCase() === "win";
                     const text = team ? `${team}${auto ? " A" : ""}` : "";
 
                     return (
@@ -1206,6 +1210,7 @@ export default function PoolStandingsGridPage() {
                           fontWeight: 950,
                           opacity: team ? 0.95 : 0.35,
                           textDecoration: strike ? "line-through" : "none",
+                          color: win ? "#22c55e" : undefined,
                         }}
                       >
                         {text || "—"}
