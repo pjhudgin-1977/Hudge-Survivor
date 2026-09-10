@@ -256,6 +256,28 @@ export default function PoolStandingsGridPage() {
       const eliminated = Boolean(m.is_eliminated) || losses >= 2;
       const entryNo = Number(m.entry_no ?? 1);
 
+      const entryPicks = picks
+        .filter(
+          (p) =>
+            p.user_id === m.user_id &&
+            Number(p.entry_no ?? 1) === entryNo
+        )
+        .sort(
+          (a, b) =>
+            Number(a.week_number ?? 0) - Number(b.week_number ?? 0)
+        );
+
+      const hasWin = entryPicks.some(
+        (p) => String(p.result ?? "").toLowerCase() === "win"
+      );
+
+      const lossWeeks = entryPicks
+        .filter((p) => String(p.result ?? "").toLowerCase() === "loss")
+        .map((p) => Number(p.week_number ?? 999));
+
+      const firstLossWeek = lossWeeks[0] ?? 999;
+      const secondLossWeek = lossWeeks[1] ?? 999;
+
       const baseScreenRaw = String(m.screen_name ?? "").trim() || "—";
       const baseScreen = baseScreenRaw.replace(/\s*\(Entry\s+\d+\)$/i, "");
       const hasMultipleEntries = (entryCountsByUser[m.user_id] ?? 0) > 1;
@@ -264,7 +286,21 @@ export default function PoolStandingsGridPage() {
         : baseScreen;
       const fullLine = nameInitialLine(profilesById[m.user_id]?.full_name);
 
-      const section = eliminated ? 2 : losses === 0 ? 0 : 1;
+      const section =
+        losses === 0
+          ? hasWin
+            ? 0
+            : 1
+          : losses === 1
+          ? 2
+          : 3;
+
+      const lossSortWeek =
+        losses === 1
+          ? firstLossWeek
+          : losses >= 2
+          ? secondLossWeek
+          : 0;
 
       return {
         row_key: `${m.user_id}|${entryNo}`,
@@ -275,6 +311,7 @@ export default function PoolStandingsGridPage() {
         losses,
         eliminated,
         section,
+        lossSortWeek,
         sortName: `${norm(baseScreen)}|${String(entryNo).padStart(3, "0")}`,
         entry_fee_paid: Boolean(m.entry_fee_paid),
       };
@@ -282,13 +319,16 @@ export default function PoolStandingsGridPage() {
 
     list.sort((a, b) => {
       if (a.section !== b.section) return a.section - b.section;
+      if (a.lossSortWeek !== b.lossSortWeek) {
+        return a.lossSortWeek - b.lossSortWeek;
+      }
       if (a.sortName < b.sortName) return -1;
       if (a.sortName > b.sortName) return 1;
       return 0;
     });
 
     return list;
-  }, [members, profilesById]);
+  }, [members, profilesById, picks]);
 
   const totalEntries = rows.length;
   const aliveEntries = rows.filter((r) => !r.eliminated).length;
