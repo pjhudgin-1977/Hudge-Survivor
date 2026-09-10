@@ -116,12 +116,15 @@ serve(async (req) => {
         continue;
       }
 
-      const homeAbbr = String(
-        home?.team?.abbreviation ?? ""
+      const normalizeTeam = (abbr: string) =>
+        abbr === "WSH" ? "WAS" : abbr;
+
+      const homeAbbr = normalizeTeam(
+        String(home?.team?.abbreviation ?? "")
       );
 
-      const awayAbbr = String(
-        away?.team?.abbreviation ?? ""
+      const awayAbbr = normalizeTeam(
+        String(away?.team?.abbreviation ?? "")
       );
 
       if (!homeAbbr || !awayAbbr) {
