@@ -4,6 +4,9 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabaseClient";
 
+const HUDGE_POOL_ID = "4931be58-aa45-4c89-aa36-2f0aa1061f45";
+const JOIN_DEADLINE = new Date("2026-09-13T17:00:00.000Z").getTime();
+
 export default function JoinEntryForm({
   poolId,
   inviteCode,
@@ -19,7 +22,29 @@ export default function JoinEntryForm({
   const [screenName, setScreenName] = useState("");
   const [loadingProfile, setLoadingProfile] = useState(true);
   const [submitting, setSubmitting] = useState(false);
+  const [registrationClosed, setRegistrationClosed] = useState(false);
   const [error, setError] = useState("");
+
+  useEffect(() => {
+    if (poolId !== HUDGE_POOL_ID) {
+      setRegistrationClosed(false);
+      return;
+    }
+
+    const checkDeadline = () => {
+      setRegistrationClosed(Date.now() >= JOIN_DEADLINE);
+    };
+
+    checkDeadline();
+
+    const remaining = JOIN_DEADLINE - Date.now();
+
+    if (remaining <= 0) return;
+
+    const timer = window.setTimeout(checkDeadline, remaining + 1000);
+
+    return () => window.clearTimeout(timer);
+  }, [poolId]);
 
   useEffect(() => {
     let active = true;
@@ -61,6 +86,12 @@ export default function JoinEntryForm({
     e.preventDefault();
     setError("");
 
+    if (poolId === HUDGE_POOL_ID && Date.now() >= JOIN_DEADLINE) {
+      setRegistrationClosed(true);
+      setError("Pool registration is closed.");
+      return;
+    }
+
     const trimmedFullName = fullName.trim();
     const trimmedScreenName = screenName.trim();
 
@@ -88,6 +119,7 @@ export default function JoinEntryForm({
       const confirmed = window.confirm(
         `You already have an entry in this pool. Are you sure you want to create Entry ${entryNo}?`
       );
+
       if (!confirmed) return;
     }
 
@@ -126,7 +158,8 @@ export default function JoinEntryForm({
     fullName.trim().length >= 2 &&
     screenName.trim().length >= 2 &&
     !loadingProfile &&
-    !submitting;
+    !submitting &&
+    !registrationClosed;
 
   return (
     <form onSubmit={handleSubmit} style={{ marginTop: 18, maxWidth: 420 }}>
@@ -145,7 +178,7 @@ export default function JoinEntryForm({
         placeholder="Example: Ryan Hudgin"
         maxLength={100}
         autoFocus
-        disabled={submitting}
+        disabled={submitting || registrationClosed}
         autoComplete="name"
         style={{
           width: "100%",
@@ -155,6 +188,7 @@ export default function JoinEntryForm({
           background: "rgba(0,0,0,0.2)",
           color: "white",
           fontSize: 16,
+          opacity: registrationClosed ? 0.6 : 1,
         }}
       />
 
@@ -175,9 +209,11 @@ export default function JoinEntryForm({
         type="text"
         value={screenName}
         onChange={(e) => setScreenName(e.target.value)}
-        placeholder={loadingProfile ? "Loading saved screen name…" : "Example: RyanH"}
+        placeholder={
+          loadingProfile ? "Loading saved screen name…" : "Example: RyanH"
+        }
         maxLength={30}
-        disabled={submitting || loadingProfile}
+        disabled={submitting || loadingProfile || registrationClosed}
         autoComplete="nickname"
         style={{
           width: "100%",
@@ -187,13 +223,19 @@ export default function JoinEntryForm({
           background: "rgba(0,0,0,0.2)",
           color: "white",
           fontSize: 16,
-          opacity: loadingProfile ? 0.7 : 1,
+          opacity: loadingProfile || registrationClosed ? 0.6 : 1,
         }}
       />
 
       <div style={{ marginTop: 6, fontSize: 12, opacity: 0.7 }}>
         We saved this from account creation. You can change it before joining.
       </div>
+
+      {registrationClosed ? (
+        <div style={{ marginTop: 12, fontWeight: 800 }}>
+          Pool registration is closed.
+        </div>
+      ) : null}
 
       {error ? (
         <div style={{ marginTop: 10, color: "#fca5a5", fontWeight: 700 }}>
@@ -215,11 +257,13 @@ export default function JoinEntryForm({
           cursor: canSubmit ? "pointer" : "not-allowed",
         }}
       >
-        {submitting
-          ? "Joining..."
-          : loadingProfile
-            ? "Loading..."
-            : `Join Pool as Entry ${entryNo}`}
+        {registrationClosed
+          ? "Pool Registration Closed"
+          : submitting
+            ? "Joining..."
+            : loadingProfile
+              ? "Loading..."
+              : `Join Pool as Entry ${entryNo}`}
       </button>
     </form>
   );

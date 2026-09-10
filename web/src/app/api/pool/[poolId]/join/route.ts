@@ -4,6 +4,9 @@ import { createClient } from "@/lib/supabase/server";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
+const HUDGE_POOL_ID = "4931be58-aa45-4c89-aa36-2f0aa1061f45";
+const JOIN_DEADLINE = new Date("2026-09-13T17:00:00.000Z");
+
 export async function POST(
   req: Request,
   { params }: { params: Promise<{ poolId: string }> }
@@ -11,6 +14,13 @@ export async function POST(
   try {
     const supabase = await createClient();
     const { poolId } = await params;
+
+    if (poolId === HUDGE_POOL_ID && new Date() >= JOIN_DEADLINE) {
+      return NextResponse.json(
+        { error: "Pool registration is closed." },
+        { status: 403 }
+      );
+    }
 
     const {
       data: { user },

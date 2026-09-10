@@ -3,6 +3,9 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import JoinEntryForm from "./JoinEntryForm";
 
+const HUDGE_POOL_ID = "4931be58-aa45-4c89-aa36-2f0aa1061f45";
+const JOIN_DEADLINE = new Date("2026-09-13T17:00:00.000Z").getTime();
+
 function isInviteCode(value: string) {
   return /^HUDGE-[A-Z0-9]{4}$/i.test(value);
 }
@@ -35,9 +38,11 @@ export default async function JoinPoolPage({
     return (
       <main style={{ padding: 24, maxWidth: 720 }}>
         <h1 style={{ fontSize: 26, fontWeight: 950 }}>Join Pool</h1>
+
         <p style={{ marginTop: 10 }}>
           A valid HUDGE invite code is required.
         </p>
+
         <div style={{ marginTop: 14 }}>
           <Link href="/join" style={{ textDecoration: "underline" }}>
             Enter an invite code
@@ -58,7 +63,9 @@ export default async function JoinPoolPage({
     return (
       <main style={{ padding: 24, maxWidth: 720 }}>
         <h1 style={{ fontSize: 26, fontWeight: 950 }}>Join Pool</h1>
+
         <p style={{ marginTop: 10 }}>Could not validate invite link.</p>
+
         <pre style={{ marginTop: 12, whiteSpace: "pre-wrap" }}>
           {previewError.message}
         </pre>
@@ -66,19 +73,51 @@ export default async function JoinPoolPage({
     );
   }
 
-  const preview = Array.isArray(previewRows) ? previewRows[0] : previewRows;
+  const preview = Array.isArray(previewRows)
+    ? previewRows[0]
+    : previewRows;
 
   if (!preview?.pool_id) {
     return (
       <main style={{ padding: 24, maxWidth: 720 }}>
         <h1 style={{ fontSize: 26, fontWeight: 950 }}>Join Pool</h1>
+
         <p style={{ marginTop: 10 }}>Invalid or expired invite link.</p>
+
         <p style={{ marginTop: 10 }}>
           Try entering your invite code manually.
         </p>
+
         <div style={{ marginTop: 14 }}>
           <Link href="/join" style={{ textDecoration: "underline" }}>
             Enter invite code manually
+          </Link>
+        </div>
+      </main>
+    );
+  }
+
+  if (
+    preview.pool_id === HUDGE_POOL_ID &&
+    Date.now() >= JOIN_DEADLINE
+  ) {
+    return (
+      <main style={{ padding: 24, maxWidth: 720 }}>
+        <h1 style={{ fontSize: 26, fontWeight: 950 }}>
+          Pool Registration Closed
+        </h1>
+
+        <p style={{ marginTop: 12, opacity: 0.85 }}>
+          Registration for {preview.pool_name} is now closed.
+        </p>
+
+        <p style={{ marginTop: 8, opacity: 0.75 }}>
+          The registration deadline was Sunday, September 13 at 1:00 PM ET.
+        </p>
+
+        <div style={{ marginTop: 18 }}>
+          <Link href="/" style={{ textDecoration: "underline" }}>
+            Go to home
           </Link>
         </div>
       </main>
@@ -102,7 +141,9 @@ export default async function JoinPoolPage({
     return (
       <main style={{ padding: 24, maxWidth: 720 }}>
         <h1 style={{ fontSize: 26, fontWeight: 950 }}>Join Pool</h1>
+
         <p style={{ marginTop: 10 }}>Could not check membership.</p>
+
         <pre style={{ marginTop: 12, whiteSpace: "pre-wrap" }}>
           {existingError.message}
         </pre>
@@ -115,13 +156,16 @@ export default async function JoinPoolPage({
   }
 
   const newEntryNo = nextEntryNo(existingRows ?? []);
+
   if (newEntryNo == null) {
     return (
       <main style={{ padding: 24, maxWidth: 720 }}>
         <h1 style={{ fontSize: 26, fontWeight: 950 }}>Join Pool</h1>
+
         <p style={{ marginTop: 10 }}>
           You already have the maximum of 3 entries in this pool.
         </p>
+
         <div style={{ marginTop: 14 }}>
           <Link
             href={`/pool/${preview.pool_id}`}
