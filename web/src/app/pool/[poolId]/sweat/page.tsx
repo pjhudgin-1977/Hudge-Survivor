@@ -331,7 +331,6 @@ export default async function SweatPage({
           </div>
 
           <div style={{ marginTop: 10, opacity: 0.72 }}>
-            Picks remain private until the weekly lock.
           </div>
         </div>
       </main>
