@@ -220,10 +220,7 @@ export default async function TeamsLeftPage({
 
     const team = String(pick.picked_team ?? "").trim().toUpperCase();
 
-    if (
-      Number(pick.week_number ?? 0) === currentWeek &&
-      !currentWeekIsPublic
-    ) {
+    if (Number(pick.week_number ?? 0) === currentWeek) {
       const selectedGame = (gameData ?? []).find((game) => {
         const sameWeek =
           Number(game.week_number ?? 0) === Number(pick.week_number ?? 0);
