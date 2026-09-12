@@ -148,23 +148,25 @@ export default async function TeamsLeftPage({
 
   const { data: nextGame } = await supabase
     .from("games")
-    .select("phase, week_number, kickoff_at")
+    .select("season_year, phase, week_number, kickoff_at")
     .gte("kickoff_at", nowIso)
     .order("kickoff_at", { ascending: true })
     .limit(1)
     .maybeSingle();
 
+  let seasonYear = Number(nextGame?.season_year ?? 0);
   let phase = normalizePhase(nextGame?.phase);
   let currentWeek = Number(nextGame?.week_number ?? 0);
 
   if (!nextGame) {
     const { data: lastGame } = await supabase
       .from("games")
-      .select("phase, week_number, kickoff_at")
+      .select("season_year, phase, week_number, kickoff_at")
       .order("kickoff_at", { ascending: false })
       .limit(1)
       .maybeSingle();
 
+    seasonYear = Number(lastGame?.season_year ?? 0);
     phase = normalizePhase(lastGame?.phase);
     currentWeek = Number(lastGame?.week_number ?? 0);
   }
@@ -185,7 +187,7 @@ export default async function TeamsLeftPage({
       .not("picked_team", "is", null),
     supabase
       .from("games")
-      .select("week_number, phase, kickoff_at, home_team, away_team"),
+      .select("season_year, week_number, phase, kickoff_at, home_team, away_team"),
   ]);
 
   const error =
@@ -222,12 +224,15 @@ export default async function TeamsLeftPage({
 
     if (Number(pick.week_number ?? 0) === currentWeek) {
       const selectedGame = (gameData ?? []).find((game) => {
+        const sameSeason =
+          Number(game.season_year ?? 0) === seasonYear;
         const sameWeek =
           Number(game.week_number ?? 0) === Number(pick.week_number ?? 0);
         const samePhase =
           normalizePhase(game.phase) === normalizePhase(pick.phase);
 
         return (
+          sameSeason &&
           sameWeek &&
           samePhase &&
           (String(game.home_team ?? "").toUpperCase() === team ||
