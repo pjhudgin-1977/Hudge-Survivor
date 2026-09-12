@@ -11,6 +11,20 @@ type PageProps = {
   }>;
 };
 
+type PoolPick = {
+  user_id: string;
+  entry_no: number | null;
+  week_number: number;
+  phase: string | null;
+  picked_team: string | null;
+  result: string | null;
+};
+
+type PoolMember = {
+  user_id: string;
+  entry_no: number | null;
+};
+
 type Game = {
   id: string;
   week_number: number;
@@ -107,6 +121,20 @@ export default async function SchedulePage({
       ? requestedWeek
       : currentPoolWeek;
 
+  const [
+    { data: allPicks, error: picksError },
+    { data: poolMembers, error: membersError },
+  ] = await Promise.all([
+    supabase
+      .from("picks")
+      .select("user_id, entry_no, week_number, phase, picked_team, result")
+      .eq("pool_id", poolId),
+    supabase
+      .from("pool_members")
+      .select("user_id, entry_no")
+      .eq("pool_id", poolId),
+  ]);
+
   const { data: games, error } = await supabase
     .from("games")
     .select(
@@ -133,19 +161,88 @@ export default async function SchedulePage({
     .order("kickoff_at", { ascending: true })
     .order("away_team", { ascending: true });
 
-  if (error) {
+  if (error || picksError || membersError) {
+    const loadError = error || picksError || membersError;
+
     return (
       <main className="mx-auto max-w-5xl p-6 text-slate-900">
         <h1 className="text-2xl font-bold">NFL Schedule</h1>
 
         <p className="mt-4 rounded-lg border border-red-300 bg-red-50 p-4 text-red-800">
-          Could not load schedule: {error.message}
+          Could not load schedule: {loadError?.message}
         </p>
       </main>
     );
   }
 
   const safeGames = (games ?? []) as Game[];
+  const safePicks = (allPicks ?? []) as PoolPick[];
+  const safeMembers = (poolMembers ?? []) as PoolMember[];
+
+  const regularPicks = safePicks.filter(
+    (pick) => String(pick.phase ?? "").toLowerCase() === "regular"
+  );
+
+  const selectedWeekPicks = regularPicks.filter(
+    (pick) => Number(pick.week_number) === selectedWeek
+  );
+
+  const weekWins = selectedWeekPicks.filter(
+    (pick) => String(pick.result ?? "").toLowerCase() === "win"
+  ).length;
+
+  const weekLosses = selectedWeekPicks.filter(
+    (pick) => String(pick.result ?? "").toLowerCase() === "loss"
+  ).length;
+
+  const weekInProgress = selectedWeekPicks.filter(
+    (pick) => String(pick.result ?? "").toLowerCase() === "pending"
+  ).length;
+
+  const pickByEntry = new Map<string, PoolPick>();
+
+  for (const pick of selectedWeekPicks) {
+    const key = `${pick.user_id}|${Number(pick.entry_no ?? 1)}`;
+    pickByEntry.set(key, pick);
+  }
+
+  let weekEliminated = 0;
+  let weekMissing = 0;
+
+  for (const member of safeMembers) {
+    const entryNo = Number(member.entry_no ?? 1);
+    const key = `${member.user_id}|${entryNo}`;
+
+    const entryLossWeeks = regularPicks
+      .filter(
+        (pick) =>
+          pick.user_id === member.user_id &&
+          Number(pick.entry_no ?? 1) === entryNo &&
+          String(pick.result ?? "").toLowerCase() === "loss"
+      )
+      .map((pick) => Number(pick.week_number))
+      .sort((a, b) => a - b);
+
+    const secondLossWeek = entryLossWeeks[1];
+
+    if (secondLossWeek === selectedWeek) {
+      weekEliminated += 1;
+    }
+
+    const lossesBeforeWeek = entryLossWeeks.filter(
+      (week) => week < selectedWeek
+    ).length;
+
+    const wasAliveEnteringWeek = lossesBeforeWeek < 2;
+    const selectedPick = pickByEntry.get(key);
+
+    if (
+      wasAliveEnteringWeek &&
+      !String(selectedPick?.picked_team ?? "").trim()
+    ) {
+      weekMissing += 1;
+    }
+  }
 
   const hasLiveGames = safeGames.some(
     (game) => game.status?.toLowerCase() === "live"
@@ -235,6 +332,28 @@ export default async function SchedulePage({
           <p className="text-sm text-gray-600">
             {safeGames.length} games
           </p>
+
+          <div className="mt-4 grid grid-cols-5 gap-2 overflow-x-auto">
+            {[
+              ["Wins", weekWins],
+              ["Losses", weekLosses],
+              ["Eliminated", weekEliminated],
+              ["In Progress", weekInProgress],
+              ["Missing Picks", weekMissing],
+            ].map(([label, value]) => (
+              <div
+                key={String(label)}
+                className="min-w-[90px] rounded-lg bg-slate-100 px-3 py-2 text-center"
+              >
+                <div className="whitespace-nowrap text-[11px] font-bold uppercase tracking-wide text-slate-500">
+                  {label}
+                </div>
+                <div className="mt-1 text-xl font-black text-slate-900">
+                  {value}
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
 
         {safeGames.length === 0 ? (
