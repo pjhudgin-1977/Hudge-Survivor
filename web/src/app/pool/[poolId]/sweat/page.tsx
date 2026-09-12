@@ -210,10 +210,37 @@ export default async function SweatPage({
 
   const me = userRes.user;
 
+  const { data: poolState, error: poolStateError } = await supabase
+    .from("pool_state")
+    .select("season_year, week_type, week_number")
+    .eq("pool_id", poolId)
+    .maybeSingle();
+
+  if (poolStateError || !poolState) {
+    return (
+      <main style={{ padding: 24 }}>
+        <h1 style={{ fontSize: 28, fontWeight: 800 }}>Sweat Board</h1>
+        <p style={{ marginTop: 12, color: "crimson" }}>
+          Could not determine the current pool week.
+        </p>
+      </main>
+    );
+  }
+
+  const currentSeasonYear = Number(poolState.season_year);
+  const currentWeek = Number(poolState.week_number);
+  const currentPhase =
+    String(poolState.week_type ?? "").toUpperCase() === "REG"
+      ? "regular"
+      : "playoffs";
+
   const { data: rows, error } = await supabase
     .from("v_sweat_game_board")
     .select("*")
     .eq("pool_id", poolId)
+    .eq("season_year", currentSeasonYear)
+    .eq("week_number", currentWeek)
+    .eq("phase", currentPhase)
     .order("kickoff_at", { ascending: true });
 
   if (error) {
