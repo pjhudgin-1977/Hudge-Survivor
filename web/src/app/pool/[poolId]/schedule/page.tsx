@@ -337,9 +337,9 @@ export default async function SchedulePage({
             {[
               ["Wins", weekWins],
               ["Losses", weekLosses],
-              ["Eliminated", weekEliminated],
-              ["In Progress", weekInProgress],
-              ["Missing Picks", weekMissing],
+              ["Out", weekEliminated],
+              ["Pending", weekInProgress],
+              ["Missing", weekMissing],
             ].map(([label, value]) => (
               <div
                 key={String(label)}
