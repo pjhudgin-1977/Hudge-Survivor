@@ -73,6 +73,9 @@ export default function PoolStandingsGridPage() {
   );
   const [picks, setPicks] = useState<PickRow[]>([]);
   const [games, setGames] = useState<GameRow[]>([]);
+  const [currentSeasonYear, setCurrentSeasonYear] = useState<number | null>(null);
+  const [currentWeek, setCurrentWeek] = useState<number | null>(null);
+  const [currentPhase, setCurrentPhase] = useState<string | null>(null);
 
   const [addingEntry, setAddingEntry] = useState(false);
   const [isCommissioner, setIsCommissioner] = useState(false);
@@ -177,6 +180,24 @@ export default function PoolStandingsGridPage() {
           }
         }
 
+        const { data: poolState, error: poolStateErr } = await supabase
+          .from("pool_state")
+          .select("season_year, week_type, week_number")
+          .eq("pool_id", poolId)
+          .maybeSingle();
+
+        if (poolStateErr) throw poolStateErr;
+
+        if (poolState) {
+          setCurrentSeasonYear(Number(poolState.season_year));
+          setCurrentWeek(Number(poolState.week_number));
+          setCurrentPhase(
+            String(poolState.week_type ?? "").toUpperCase() === "REG"
+              ? "regular"
+              : "playoffs"
+          );
+        }
+
         const { data: pk, error: pkErr } = await supabase
           .from("picks")
           .select(
@@ -189,7 +210,7 @@ export default function PoolStandingsGridPage() {
         const { data: gameRows, error: gameErr } = await supabase
           .from("games")
           .select("week_number, phase, kickoff_at, home_team, away_team")
-          .eq("season_year", 2026);
+          .eq("season_year", Number(poolState?.season_year ?? 2026));
 
         if (gameErr) throw gameErr;
 
@@ -338,6 +359,47 @@ export default function PoolStandingsGridPage() {
   ).length;
   const eliminatedEntries = rows.filter((r) => r.eliminated).length;
   const paidEntries = rows.filter((r) => r.entry_fee_paid).length;
+
+  const currentWeekPicks =
+    currentWeek !== null && currentPhase
+      ? picks.filter(
+          (p) =>
+            Number(p.week_number) === currentWeek &&
+            normalizePhase(p.phase) === currentPhase
+        )
+      : [];
+
+  const currentWeekWins = currentWeekPicks.filter(
+    (p) => String(p.result ?? "").toLowerCase() === "win"
+  ).length;
+
+  const currentWeekLosses = currentWeekPicks.filter(
+    (p) => String(p.result ?? "").toLowerCase() === "loss"
+  ).length;
+
+  const currentWeekInProgress = currentWeekPicks.filter(
+    (p) => String(p.result ?? "").toLowerCase() === "pending"
+  ).length;
+
+  const currentWeekEliminated = rows.filter((r) => {
+    if (!r.eliminated || currentWeek === null || !currentPhase) return false;
+
+    const pick = pickMap[
+      `${r.user_id}|${r.entry_no}|${currentPhase}|${currentWeek}`
+    ];
+
+    return String(pick?.result ?? "").toLowerCase() === "loss";
+  }).length;
+
+  const currentWeekMissing = rows.filter((r) => {
+    if (r.eliminated || currentWeek === null || !currentPhase) return false;
+
+    const pick = pickMap[
+      `${r.user_id}|${r.entry_no}|${currentPhase}|${currentWeek}`
+    ];
+
+    return !pick?.picked_team;
+  }).length;
 
   const myEntries = rows.filter((r) => r.user_id === myUserId);
   const myPaidCount = myEntries.filter((r) => r.entry_fee_paid).length;
@@ -958,6 +1020,77 @@ export default function PoolStandingsGridPage() {
           <div style={snapshotValueStyle}>{totalEntries}</div>
         </div>
       </div>
+
+      {currentWeek !== null ? (
+        <div
+          style={{
+            marginBottom: 18,
+            padding: "12px 14px",
+            borderRadius: 14,
+            border: "1px solid rgba(255,255,255,0.14)",
+            background: "rgba(255,255,255,0.035)",
+          }}
+        >
+          <div
+            style={{
+              fontSize: 13,
+              fontWeight: 900,
+              marginBottom: 9,
+              opacity: 0.82,
+            }}
+          >
+            CURRENT WEEK · WEEK {currentWeek}
+          </div>
+
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(5, minmax(90px, 1fr))",
+              gap: 8,
+              overflowX: "auto",
+            }}
+          >
+            {[
+              ["Wins", currentWeekWins],
+              ["Losses", currentWeekLosses],
+              ["Eliminated", currentWeekEliminated],
+              ["In Progress", currentWeekInProgress],
+              ["Missing Picks", currentWeekMissing],
+            ].map(([label, value]) => (
+              <div
+                key={String(label)}
+                style={{
+                  minWidth: 90,
+                  padding: "9px 10px",
+                  borderRadius: 10,
+                  background: "rgba(255,255,255,0.055)",
+                  textAlign: "center",
+                }}
+              >
+                <div
+                  style={{
+                    fontSize: 11,
+                    fontWeight: 850,
+                    opacity: 0.68,
+                    whiteSpace: "nowrap",
+                  }}
+                >
+                  {label}
+                </div>
+                <div
+                  style={{
+                    marginTop: 3,
+                    fontSize: 20,
+                    fontWeight: 950,
+                  }}
+                >
+                  {value}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      ) : null}
 
       <div className="dashboard-standings-mobile">
         {rows.map((r) => {
