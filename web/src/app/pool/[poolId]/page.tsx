@@ -78,6 +78,7 @@ export default function PoolStandingsGridPage() {
   const [isCommissioner, setIsCommissioner] = useState(false);
   const [seasonStarted, setSeasonStarted] = useState(false);
   const [entryRegistrationClosed, setEntryRegistrationClosed] = useState(false);
+  const [showUnpaidReminder, setShowUnpaidReminder] = useState(false);
 
   useEffect(() => {
     try {
@@ -340,6 +341,7 @@ export default function PoolStandingsGridPage() {
 
   const myEntries = rows.filter((r) => r.user_id === myUserId);
   const myPaidCount = myEntries.filter((r) => r.entry_fee_paid).length;
+  const myUnpaidEntries = myEntries.filter((r) => !r.entry_fee_paid);
   const canAddEntry =
     Boolean(myUserId) &&
     myEntries.length < 3 &&
@@ -420,6 +422,31 @@ export default function PoolStandingsGridPage() {
     }
   }
 
+
+  useEffect(() => {
+    if (loading || !myUserId || myUnpaidEntries.length === 0) return;
+
+    try {
+      const key = `hudge_unpaid_reminder_dismissed_${poolId}_${myUserId}`;
+      const dismissed = sessionStorage.getItem(key) === "1";
+
+      if (!dismissed) {
+        setShowUnpaidReminder(true);
+      }
+    } catch {
+      setShowUnpaidReminder(true);
+    }
+  }, [loading, myUserId, myUnpaidEntries.length, poolId]);
+
+  function dismissUnpaidReminder() {
+    setShowUnpaidReminder(false);
+
+    try {
+      const key = `hudge_unpaid_reminder_dismissed_${poolId}_${myUserId}`;
+      sessionStorage.setItem(key, "1");
+    } catch {}
+  }
+
   if (loading) {
     return (
       <div style={{ padding: 16 }}>
@@ -454,6 +481,111 @@ export default function PoolStandingsGridPage() {
 
   return (
     <div style={{ padding: 16 }}>
+
+      {showUnpaidReminder && myUnpaidEntries.length > 0 && (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            zIndex: 1000,
+            background: "rgba(0,0,0,0.72)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: 18,
+          }}
+        >
+          <div
+            style={{
+              width: "100%",
+              maxWidth: 460,
+              borderRadius: 18,
+              border: "1px solid rgba(255,255,255,0.18)",
+              background: "#111827",
+              padding: 22,
+              boxShadow: "0 20px 60px rgba(0,0,0,0.45)",
+            }}
+          >
+            <div style={{ fontSize: 22, fontWeight: 950, marginBottom: 10 }}>
+              Hey {myUnpaidEntries[0]?.screen_name ?? "there"} — quick reminder
+            </div>
+
+            <div style={{ fontSize: 16, lineHeight: 1.55, opacity: 0.92 }}>
+              {myUnpaidEntries.length === 1 ? (
+                <>
+                  Your Survivor Pool entry is still marked <strong>unpaid</strong>.
+                  Please send <strong>$20</strong> via Venmo when you get a chance.
+                </>
+              ) : (
+                <>
+                  You have <strong>{myUnpaidEntries.length} unpaid entries</strong>.
+                  Please send <strong>${myUnpaidEntries.length * 20}</strong> via Venmo
+                  when you get a chance.
+                </>
+              )}
+            </div>
+
+            <div
+              style={{
+                marginTop: 14,
+                fontSize: 14,
+                opacity: 0.78,
+                lineHeight: 1.5,
+              }}
+            >
+              {myUnpaidEntries.map((entry) => (
+                <div key={`unpaid-${entry.row_key}`}>
+                  {entry.screen_name} — $20
+                </div>
+              ))}
+            </div>
+
+            <div
+              style={{
+                display: "flex",
+                gap: 10,
+                marginTop: 20,
+                flexWrap: "wrap",
+              }}
+            >
+              <a
+                href="https://account.venmo.com/u/Patrick-Hudgin"
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  padding: "11px 16px",
+                  borderRadius: 10,
+                  fontWeight: 950,
+                  textDecoration: "none",
+                  background: "#3b82f6",
+                  color: "white",
+                }}
+              >
+                Pay with Venmo
+              </a>
+
+              <button
+                onClick={dismissUnpaidReminder}
+                style={{
+                  padding: "11px 16px",
+                  borderRadius: 10,
+                  border: "1px solid rgba(255,255,255,0.22)",
+                  background: "rgba(255,255,255,0.06)",
+                  color: "white",
+                  fontWeight: 900,
+                  cursor: "pointer",
+                }}
+              >
+                I’ll pay later
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div
         style={{
           display: "flex",
