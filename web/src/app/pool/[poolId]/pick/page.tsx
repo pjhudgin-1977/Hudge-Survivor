@@ -760,8 +760,10 @@ export default function PoolPickPage() {
                 ];
 
                 return teams
-                  .filter((team) =>
-                    eligibleTeams.includes(team)
+                  .filter(
+                    (team) =>
+                      eligibleTeams.includes(team) ||
+                      team === existingPick
                   )
                   .map((team) => {
                     const selected = selectedTeam === team;
