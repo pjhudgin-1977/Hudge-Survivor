@@ -2,7 +2,7 @@ import React from "react";
 
 type Props = {
   // Minimal inputs (works even if you don't have spreads / win prob yet)
-  status?: string | null; // e.g. "scheduled" | "in_progress" | "final" (whatever your DB uses)
+  status?: string | null; // e.g. "scheduled" | "in_progress" | "final"
   kickoffAt?: string | null; // ISO string
   homeTeam?: string | null;
   awayTeam?: string | null;
@@ -10,7 +10,7 @@ type Props = {
   homeScore?: number | null;
   awayScore?: number | null;
 
-  // Optional: if you have these later, we can plug them in
+  // Optional live-game context
   quarter?: number | null;
   clock?: string | null;
 };
@@ -36,23 +36,39 @@ function isFinal(status?: string | null) {
 
 function hasStarted(status?: string | null, kickoffAt?: string | null) {
   const s = String(status ?? "").toLowerCase();
-  if (s.includes("in_progress") || s.includes("live") || s.includes("playing")) return true;
+
+  if (
+    s.includes("in_progress") ||
+    s.includes("live") ||
+    s.includes("playing")
+  ) {
+    return true;
+  }
+
   if (isFinal(status)) return true;
 
   const k = parseDate(kickoffAt);
   if (!k) return false;
+
   return Date.now() >= k.getTime();
 }
 
 function computeLevel(p: Props): Level {
-  // If game is final: no sweat
+  // Final game: no sweat
   if (isFinal(p.status)) {
-    return { key: "DONE", label: "Done", value: 0, hint: "Game complete" };
+    return {
+      key: "DONE",
+      label: "Done",
+      value: 0,
+      hint: "Game complete",
+    };
   }
 
   const started = hasStarted(p.status, p.kickoffAt);
+
   const haveScores =
-    typeof p.homeScore === "number" && typeof p.awayScore === "number";
+    typeof p.homeScore === "number" &&
+    typeof p.awayScore === "number";
 
   // Pre-game: always chill until the game actually starts
   if (!started || !haveScores) {
@@ -64,7 +80,7 @@ function computeLevel(p: Props): Level {
     };
   }
 
-  // Live: intensity based on picked-team margin (also simple + reliable)
+  // Live: determine picked-team margin
   const pick = String(p.pickTeam ?? "");
   const home = String(p.homeTeam ?? "");
   const away = String(p.awayTeam ?? "");
@@ -80,30 +96,211 @@ function computeLevel(p: Props): Level {
     oppScore = p.homeScore ?? null;
   }
 
-  // If we can't map pickTeam to home/away, fall back to close-game logic
+  const quarter = p.quarter ?? 1;
+
+  // If we cannot map the pick to home/away,
+  // still avoid overreacting early in the game.
   if (pickScore == null || oppScore == null) {
-    const diff = Math.abs((p.homeScore ?? 0) - (p.awayScore ?? 0));
-    if (diff <= 3) return { key: "PANIC", label: "Panic", value: 85, hint: "One-score game" };
-    if (diff <= 10) return { key: "SWEAT", label: "Sweat", value: 55, hint: "Close game" };
-    return { key: "CHILL", label: "Chill", value: 25, hint: "Comfortable margin" };
+    const diff = Math.abs(
+      (p.homeScore ?? 0) - (p.awayScore ?? 0)
+    );
+
+    if (quarter <= 1) {
+      return {
+        key: "CHILL",
+        label: "Chill",
+        value: 35,
+        hint: "Early game",
+      };
+    }
+
+    if (quarter === 2) {
+      if (diff <= 10) {
+        return {
+          key: "SWEAT",
+          label: "Sweat",
+          value: 55,
+          hint: "Close game",
+        };
+      }
+
+      return {
+        key: "CHILL",
+        label: "Chill",
+        value: 30,
+        hint: "Comfortable margin",
+      };
+    }
+
+    if (quarter === 3) {
+      if (diff <= 7) {
+        return {
+          key: "SWEAT",
+          label: "Sweat",
+          value: 65,
+          hint: "Close game",
+        };
+      }
+
+      return {
+        key: "CHILL",
+        label: "Chill",
+        value: 30,
+        hint: "Comfortable margin",
+      };
+    }
+
+    // Q4 fallback
+    if (diff <= 3) {
+      return {
+        key: "PANIC",
+        label: "Panic",
+        value: 85,
+        hint: "Very close late",
+      };
+    }
+
+    if (diff <= 10) {
+      return {
+        key: "SWEAT",
+        label: "Sweat",
+        value: 65,
+        hint: "Close late",
+      };
+    }
+
+    return {
+      key: "CHILL",
+      label: "Chill",
+      value: 30,
+      hint: "Comfortable margin",
+    };
   }
 
   const margin = pickScore - oppScore;
 
-  // Losing or tied = panic (tie counts as loss in your rules, so panic is correct)
-  if (margin <= 0) return { key: "PANIC", label: "Panic", value: 95, hint: margin === 0 ? "Tied (counts as loss)" : "Behind" };
-  if (margin <= 7) return { key: "SWEAT", label: "Sweat", value: 65, hint: "One-score lead" };
-  return { key: "CHILL", label: "Chill", value: 30, hint: "Multi-score lead" };
+  // Q1: never Panic
+  if (quarter <= 1) {
+    if (margin <= -7) {
+      return {
+        key: "SWEAT",
+        label: "Sweat",
+        value: 60,
+        hint: "Trailing early",
+      };
+    }
+
+    if (margin <= 7) {
+      return {
+        key: "CHILL",
+        label: "Chill",
+        value: 35,
+        hint: "Early close game",
+      };
+    }
+
+    return {
+      key: "CHILL",
+      label: "Chill",
+      value: 20,
+      hint: "Early lead",
+    };
+  }
+
+  // Q2: Panic only for a meaningful deficit
+  if (quarter === 2) {
+    if (margin <= -14) {
+      return {
+        key: "PANIC",
+        label: "Panic",
+        value: 85,
+        hint: "Down two scores",
+      };
+    }
+
+    if (margin <= 7) {
+      return {
+        key: "SWEAT",
+        label: "Sweat",
+        value: 60,
+        hint: "Close game",
+      };
+    }
+
+    return {
+      key: "CHILL",
+      label: "Chill",
+      value: 25,
+      hint: "Comfortable lead",
+    };
+  }
+
+  // Q3: tighter thresholds
+  if (quarter === 3) {
+    if (margin <= -10) {
+      return {
+        key: "PANIC",
+        label: "Panic",
+        value: 90,
+        hint: "Trailing late",
+      };
+    }
+
+    if (margin <= 7) {
+      return {
+        key: "SWEAT",
+        label: "Sweat",
+        value: 70,
+        hint: "Close game",
+      };
+    }
+
+    return {
+      key: "CHILL",
+      label: "Chill",
+      value: 30,
+      hint: "Lead",
+    };
+  }
+
+  // Q4: current score matters most
+  if (margin <= 0) {
+    return {
+      key: "PANIC",
+      label: "Panic",
+      value: 95,
+      hint: margin === 0 ? "Tied late" : "Behind late",
+    };
+  }
+
+  if (margin <= 7) {
+    return {
+      key: "SWEAT",
+      label: "Sweat",
+      value: 75,
+      hint: "One-score lead late",
+    };
+  }
+
+  return {
+    key: "CHILL",
+    label: "Chill",
+    value: 30,
+    hint: "Multi-score lead",
+  };
 }
 
 export default function SweatIntensityMeter(props: Props) {
   const level = computeLevel(props);
 
-  // Color-blind friendly: label + icon + bar width (not color-dependent)
   const icon =
-    level.key === "DONE" ? "✅" :
-    level.key === "CHILL" ? "😌" :
-    level.key === "SWEAT" ? "😅" : "😱";
+    level.key === "DONE"
+      ? "✅"
+      : level.key === "CHILL"
+      ? "😌"
+      : level.key === "SWEAT"
+      ? "😅"
+      : "😱";
 
   const barColor =
     level.key === "CHILL"
@@ -114,7 +311,6 @@ export default function SweatIntensityMeter(props: Props) {
       ? "#ef4444"
       : "#64748b";
 
-  // Color-blind friendly: icon + label + bar width + stronger contrast
   return (
     <div
       title={level.hint}
@@ -125,9 +321,23 @@ export default function SweatIntensityMeter(props: Props) {
         minWidth: 180,
       }}
     >
-      <span style={{ width: 22, textAlign: "center" }}>{icon}</span>
+      <span
+        style={{
+          width: 22,
+          textAlign: "center",
+        }}
+      >
+        {icon}
+      </span>
 
-      <div style={{ display: "flex", flexDirection: "column", gap: 5, width: 150 }}>
+      <div
+        style={{
+          display: "flex",
+          flexDirection: "column",
+          gap: 5,
+          width: 150,
+        }}
+      >
         <div
           style={{
             display: "flex",
@@ -137,12 +347,16 @@ export default function SweatIntensityMeter(props: Props) {
           }}
         >
           <strong>{level.label}</strong>
+
           {props.quarter ? (
             <span style={{ opacity: 0.75 }}>
-              Q{props.quarter}{props.clock ? ` ${props.clock}` : ""}
+              Q{props.quarter}
+              {props.clock ? ` ${props.clock}` : ""}
             </span>
           ) : (
-            <span style={{ opacity: 0.75 }}>{level.key === "DONE" ? "" : ""}</span>
+            <span style={{ opacity: 0.75 }}>
+              {level.key === "DONE" ? "" : ""}
+            </span>
           )}
         </div>
 
@@ -159,7 +373,10 @@ export default function SweatIntensityMeter(props: Props) {
           <div
             style={{
               height: "100%",
-              width: `${Math.max(0, Math.min(100, level.value))}%`,
+              width: `${Math.max(
+                0,
+                Math.min(100, level.value)
+              )}%`,
               background: barColor,
               borderRadius: 999,
               boxShadow: `0 0 10px ${barColor}`,
