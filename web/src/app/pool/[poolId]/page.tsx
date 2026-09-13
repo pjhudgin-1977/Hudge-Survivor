@@ -1238,10 +1238,12 @@ export default function PoolStandingsGridPage() {
                       Boolean(game?.kickoff_at) &&
                       new Date(game!.kickoff_at).getTime() <= Date.now();
 
+                    const sundayDeadlinePassed = Date.now() >= JOIN_DEADLINE;
+
                     const team =
                       !teamRaw
                         ? ""
-                        : isMe || gameStarted
+                        : isMe || sundayDeadlinePassed || gameStarted
                         ? teamRaw
                         : "IN";
 
@@ -1489,10 +1491,12 @@ export default function PoolStandingsGridPage() {
                       Boolean(game?.kickoff_at) &&
                       new Date(game!.kickoff_at).getTime() <= Date.now();
 
+                    const sundayDeadlinePassed = Date.now() >= JOIN_DEADLINE;
+
                     const team =
                       !teamRaw
                         ? ""
-                        : isMe || gameStarted
+                        : isMe || sundayDeadlinePassed || gameStarted
                         ? teamRaw
                         : "IN";
 
