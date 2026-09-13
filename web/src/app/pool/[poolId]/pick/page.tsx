@@ -85,6 +85,7 @@ export default function PoolPickPage() {
   const [poolMemberUserId, setPoolMemberUserId] = useState<
     string | null
   >(null);
+  const [entryNumbers, setEntryNumbers] = useState<number[]>([1]);
 
   const [games, setGames] = useState<GameRow[]>([]);
   const [usedTeams, setUsedTeams] = useState<string[]>([]);
@@ -217,13 +218,12 @@ export default function PoolPickPage() {
         setWeekNumber(poolState.week_number);
         setIsLocked(Boolean(poolState.picks_locked));
 
-        const { data: member, error: memberError } = await supabase
+        const { data: memberRows, error: memberError } = await supabase
           .from("pool_members")
           .select("user_id, entry_no, screen_name")
           .eq("pool_id", poolId)
           .eq("user_id", user.id)
-          .eq("entry_no", entryNo)
-          .maybeSingle();
+          .order("entry_no", { ascending: true });
 
         if (cancelled) {
           return;
@@ -235,6 +235,16 @@ export default function PoolPickPage() {
           );
           return;
         }
+
+        const actualEntryNumbers = (memberRows ?? [])
+          .map((row) => Number(row.entry_no))
+          .filter((number) => Number.isFinite(number) && number >= 1);
+
+        setEntryNumbers(actualEntryNumbers);
+
+        const member = (memberRows ?? []).find(
+          (row) => Number(row.entry_no) === entryNo
+        );
 
         if (!member) {
           setStatusMsg(
@@ -497,7 +507,7 @@ export default function PoolPickPage() {
               flexWrap: "wrap",
             }}
           >
-            {Array.from({ length: Math.max(1, entries.length) }, (_, i) => i + 1).map((number) => {
+            {entryNumbers.map((number) => {
               const active = entryNo === number;
 
               return (
