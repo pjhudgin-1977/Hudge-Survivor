@@ -181,6 +181,69 @@ function riskScoreForPick(g: GameGroup, pickTeam: string | null, stillAlive: boo
   return 30;
 }
 
+function pregameRiskForPick(
+  g: GameGroup,
+  pickTeam: string | null
+) {
+  const pick = String(pickTeam ?? "");
+  const favorite = String(g.favorite_team ?? "");
+  const spread =
+    typeof g.point_spread === "number"
+      ? Math.abs(g.point_spread)
+      : null;
+
+  if (!pick || spread === null || !favorite) return 50;
+
+  // Bigger favorites are safer; underdogs are riskier.
+  const adjustment = Math.min(40, spread * 4);
+
+  if (pick === favorite) {
+    return Math.max(10, Math.round(50 - adjustment));
+  }
+
+  return Math.min(90, Math.round(50 + adjustment));
+}
+
+function gameRiskScore(
+  g: GameGroup,
+  totalAliveEntries: number
+) {
+  const activePicks = g.picks.filter((p) => p.still_alive);
+
+  if (activePicks.length === 0) return 0;
+  if (isComplete(g)) return 0;
+
+  const gameStarted =
+    hasGameStarted(g.kickoff_at) || isComplete(g);
+
+  const pickRisks = activePicks.map((p) =>
+    gameStarted
+      ? riskScoreForPick(g, p.pick_team, p.still_alive)
+      : pregameRiskForPick(g, p.pick_team)
+  );
+
+  const averagePickRisk =
+    pickRisks.reduce((sum, score) => sum + score, 0) /
+    pickRisks.length;
+
+  const exposurePct =
+    totalAliveEntries > 0
+      ? activePicks.length / totalAliveEntries
+      : 0;
+
+  // 60% danger of the picks, 40% percentage of pool exposed.
+  return Math.max(
+    0,
+    Math.min(
+      100,
+      Math.round(
+        averagePickRisk * 0.6 +
+          exposurePct * 100 * 0.4
+      )
+    )
+  );
+}
+
 function riskLabel(score: number) {
   if (score >= 85) return { icon: "😱", label: "Panic" };
   if (score >= 55) return { icon: "😅", label: "Sweat" };
@@ -530,6 +593,59 @@ export default async function SweatPage({
 
   const poolMeta = riskLabel(poolAvg);
 
+  const totalAliveEntries = games.reduce(
+    (total, g) =>
+      total + g.picks.filter((p) => p.still_alive).length,
+    0
+  );
+
+  const gameRisks = games
+    .filter(
+      (g) =>
+        !isComplete(g) &&
+        g.picks.some((p) => p.still_alive)
+    )
+    .map((g) => ({
+      game: g,
+      score: gameRiskScore(g, totalAliveEntries),
+    }))
+    .sort((a, b) => b.score - a.score);
+
+  const highestRiskGame = gameRisks[0]?.game ?? null;
+  const highestRiskScore = gameRisks[0]?.score ?? 0;
+  const highestRiskMeta = riskLabel(highestRiskScore);
+
+  const highestRiskStarted = highestRiskGame
+    ? hasGameStarted(highestRiskGame.kickoff_at) ||
+      isComplete(highestRiskGame)
+    : false;
+
+  const highestRiskSweats = highestRiskGame
+    ? highestRiskGame.picks
+        .filter((p) => p.still_alive)
+        .map((p) => ({
+          score: highestRiskStarted
+            ? riskScoreForPick(
+                highestRiskGame,
+                p.pick_team,
+                p.still_alive
+              )
+            : pregameRiskForPick(
+                highestRiskGame,
+                p.pick_team
+              ),
+          screen_name: p.screen_name,
+          pick_team: p.pick_team,
+          isMe: !!(
+            p.user_id &&
+            me.id &&
+            p.user_id === me.id
+          ),
+          isAuto: p.is_auto,
+        }))
+        .sort((a, b) => b.score - a.score)
+    : [];
+
   const hasLiveGames = games.some(
     (g) => String(g.status ?? "").toLowerCase() === "live"
   );
@@ -694,7 +810,7 @@ export default async function SweatPage({
         >
           <div style={{ fontSize: 14, opacity: 0.72 }}>Pool Sweat</div>
 
-          {nextGame ? (
+          {highestRiskGame ? (
             <>
               <div
                 style={{
@@ -705,28 +821,20 @@ export default async function SweatPage({
                   gap: 12,
                 }}
               >
-                {nextGameStarted ? (
-                  <>
-                    <div style={{ fontSize: 22, fontWeight: 950 }}>
-                      {poolMeta.icon} {poolMeta.label}
-                    </div>
-
-                    <div style={{ fontSize: 16, fontWeight: 900 }}>
-                      Sweat score: {poolAvg} / 100
-                    </div>
-                  </>
-                ) : (
+                <>
                   <div style={{ fontSize: 22, fontWeight: 950 }}>
-                    Not started
+                    {highestRiskMeta.icon} {highestRiskMeta.label}
                   </div>
-                )}
+
+                  <div style={{ fontSize: 16, fontWeight: 900 }}>
+                    Game risk: {highestRiskScore} / 100
+                  </div>
+                </>
               </div>
 
-              {nextGameStarted ? (
-                <div style={{ marginTop: 5, fontSize: 12, opacity: 0.68 }}>
-                  Higher scores mean greater risk of losing the current pick.
-                </div>
-              ) : null}
+              <div style={{ marginTop: 5, fontSize: 12, opacity: 0.68 }}>
+                Risk combines pick danger and how much of the pool is exposed.
+              </div>
 
               <div
                 style={{
@@ -744,20 +852,20 @@ export default async function SweatPage({
                     opacity: 0.62,
                   }}
                 >
-                  Next game
+                  Highest risk game
                 </div>
 
                 <div style={{ marginTop: 5, fontWeight: 850 }}>
-                  {nextGame.away_team ?? "AWAY"} at{" "}
-                  {nextGame.home_team ?? "HOME"}
+                  {highestRiskGame.away_team ?? "AWAY"} at{" "}
+                  {highestRiskGame.home_team ?? "HOME"}
                 </div>
 
                 <div style={{ marginTop: 3, fontSize: 13, opacity: 0.72 }}>
-                  {fmtKickoff(nextGame.kickoff_at)}
+                  {fmtKickoff(highestRiskGame.kickoff_at)}
                 </div>
 
                 <div style={{ marginTop: 3, fontSize: 13, opacity: 0.8 }}>
-                  {formatSpread(nextGame)}
+                  {formatSpread(highestRiskGame)}
                 </div>
               </div>
 
@@ -778,18 +886,18 @@ export default async function SweatPage({
                     marginBottom: 8,
                   }}
                 >
-                  {nextGameStarted ? "Most at risk" : "Entries in this game"}
+                  {highestRiskStarted ? "Most at risk" : "Entries in this game"}
                 </div>
 
-                {topSweats.length === 0 ? (
+                {highestRiskSweats.length === 0 ? (
                   <div style={{ opacity: 0.72, fontSize: 13 }}>
                     No active picks yet.
                   </div>
                 ) : (
                   <div style={{ display: "grid", gap: 8 }}>
-                    {(nextGameStarted
-                      ? topSweats.slice(0, 3)
-                      : topSweats
+                    {(highestRiskStarted
+                      ? highestRiskSweats.slice(0, 3)
+                      : highestRiskSweats
                     ).map((p, idx) => (
                       <div
                         key={`${p.screen_name}:${idx}`}
@@ -803,18 +911,18 @@ export default async function SweatPage({
                       >
                         <div>
                           <strong>
-                            {nextGameStarted ? `${idx + 1}. ` : ""}
+                            {highestRiskStarted ? `${idx + 1}. ` : ""}
                             {p.screen_name}
                             {p.isMe ? " (You)" : ""}
                           </strong>
                           <span style={{ opacity: 0.72 }}>
                             {" "}
-                            · Pick: {hasGameStarted(nextGame.kickoff_at) ? (p.pick_team ?? "—") : "IN"}
+                            · Pick: {p.pick_team ?? "—"}
                             {p.isAuto ? " · AUTO" : ""}
                           </span>
                         </div>
 
-                        {nextGameStarted ? (
+                        {highestRiskStarted ? (
                           <strong>Risk: {p.score}</strong>
                         ) : null}
                       </div>
@@ -863,6 +971,9 @@ export default async function SweatPage({
             </div>
           ) : (
             games.map((g) => {
+              const gameRisk = gameRiskScore(g, totalAliveEntries);
+              const gameMeta = riskLabel(gameRisk);
+
               const scoreLine =
                 typeof g.home_score === "number" &&
                 typeof g.away_score === "number"
@@ -941,6 +1052,35 @@ export default async function SweatPage({
                         {formatSpread(g)}
                       </div>
                     </div>
+
+                    <div
+                      style={{
+                        textAlign: "right",
+                        minWidth: 88,
+                      }}
+                    >
+                      <div
+                        style={{
+                          fontSize: 11,
+                          fontWeight: 900,
+                          textTransform: "uppercase",
+                          letterSpacing: 0.4,
+                          opacity: 0.62,
+                        }}
+                      >
+                        Game Risk
+                      </div>
+
+                      <div
+                        style={{
+                          marginTop: 4,
+                          fontSize: 16,
+                          fontWeight: 900,
+                        }}
+                      >
+                        {gameMeta.icon} {gameRisk}/100
+                      </div>
+                    </div>
                   </div>
 
                   <div
@@ -994,7 +1134,7 @@ export default async function SweatPage({
                             >
                               Pick:{" "}
                               <strong>
-                                {hasGameStarted(g.kickoff_at) ? (p.pick_team ?? "—") : "IN"}
+                                {p.pick_team ?? "—"}
                                 {p.is_auto ? " · AUTO" : ""}
                               </strong>
 
