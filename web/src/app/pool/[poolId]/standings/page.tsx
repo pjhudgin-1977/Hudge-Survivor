@@ -76,6 +76,38 @@ export default function StandingsPage() {
         return;
       }
 
+      const { data: poolState, error: poolStateErr } = await supabase
+        .from("pool_state")
+        .select("season_year, week_type, week_number")
+        .eq("pool_id", poolId)
+        .maybeSingle();
+
+      if (poolStateErr || !poolState) {
+        setErr(poolStateErr?.message ?? "Could not determine current pool week.");
+        setLoading(false);
+        return;
+      }
+
+      const currentSeasonYear = Number(poolState.season_year);
+      const currentWeek = Number(poolState.week_number);
+      const currentPhase =
+        String(poolState.week_type ?? "").toUpperCase() === "REG"
+          ? "regular"
+          : "playoffs";
+
+      const { data: currentGames, error: gamesErr } = await supabase
+        .from("games")
+        .select("home_team, away_team, kickoff_at")
+        .eq("season_year", currentSeasonYear)
+        .eq("week_number", currentWeek)
+        .eq("phase", currentPhase);
+
+      if (gamesErr) {
+        setErr(gamesErr.message);
+        setLoading(false);
+        return;
+      }
+
       const { data: members, error: memErr } = await supabase
         .from("pool_members")
 .select("user_id, entry_no, screen_name, losses, is_eliminated, profiles(full_name)")        .eq("pool_id", poolId)
@@ -134,6 +166,31 @@ if (profErr) {
 
         const screenBase = String(r.screen_name ?? "").trim() || "Player";
         const lp = latestByEntry.get(`${String(r.user_id)}|${entryNo}`) ?? null;
+
+        let latestPickTeam = lp?.picked_team ?? null;
+
+        const isCurrentWeekPick =
+          lp &&
+          Number(lp.week_number) === currentWeek &&
+          String(lp.phase ?? "").toLowerCase() === currentPhase;
+
+        if (latestPickTeam && isCurrentWeekPick) {
+          const selectedGame = (currentGames ?? []).find((g: any) => {
+            const home = String(g.home_team ?? "").toUpperCase();
+            const away = String(g.away_team ?? "").toUpperCase();
+            const team = String(latestPickTeam ?? "").toUpperCase();
+            return home === team || away === team;
+          });
+
+          const gameStarted =
+            Boolean(selectedGame?.kickoff_at) &&
+            new Date(selectedGame!.kickoff_at).getTime() <= Date.now();
+
+          if (!gameStarted) {
+            latestPickTeam = "IN";
+          }
+        }
+
 const full_name =
   (profiles ?? []).find((p: any) => String(p.user_id) === String(r.user_id))?.full_name ?? null;
         return {
@@ -145,7 +202,7 @@ const full_name =
           strikes_left,
           status,
 
-          latest_pick_team: lp?.picked_team ?? null,
+          latest_pick_team: latestPickTeam,
           latest_pick_week: lp?.week_number ?? null,
           latest_pick_phase: lp?.phase ?? null,
           latest_pick_result: lp?.result ?? null,
