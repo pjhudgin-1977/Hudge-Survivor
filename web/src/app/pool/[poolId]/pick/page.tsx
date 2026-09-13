@@ -497,7 +497,7 @@ export default function PoolPickPage() {
               flexWrap: "wrap",
             }}
           >
-            {[1, 2, 3].map((number) => {
+            {Array.from({ length: Math.max(1, entries.length) }, (_, i) => i + 1).map((number) => {
               const active = entryNo === number;
 
               return (
