@@ -244,7 +244,7 @@ export default async function TeamsLeftPage({
         Boolean(selectedGame?.kickoff_at) &&
         new Date(selectedGame!.kickoff_at).getTime() <= Date.now();
 
-      if (!selectedGameStarted) {
+      if (!currentWeekIsPublic && !selectedGameStarted) {
         continue;
       }
     }
