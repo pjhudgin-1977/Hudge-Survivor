@@ -509,6 +509,12 @@ export default async function AdminHomePage({
             desc="Review games, kickoff times, results, and current spreads."
             href={`/pool/${poolId}/schedule?week=${weekNumber}`}
           />
+
+          <ToolCard
+            title="Private Messages"
+            desc="Read private messages sent to the commissioner."
+            href={`/pool/${poolId}/admin/messages`}
+          />
         </div>
       </section>
     </main>

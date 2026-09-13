@@ -76,6 +76,7 @@ export default function NavBar({
   { label: "Invite", href: `${base}/invite` },
   { label: "Profile", href: "/profile" },
   { label: "Payments", href: `${base}/payment` },
+  { label: "Contact Commissioner", href: `${base}/contact` },
   ...(isCommissioner
     ? [{ label: "Admin", href: `${base}/admin` }]
     : []),
