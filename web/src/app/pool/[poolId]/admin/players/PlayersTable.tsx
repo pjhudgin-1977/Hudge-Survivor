@@ -502,6 +502,65 @@ export default function PlayersTable({
     }
   }
 
+  async function commissionerEditPick(rowKey: string) {
+    const row = rows.find((r) => r.rowKey === rowKey);
+    if (!row) return;
+
+    const teamInput = window.prompt(
+      `Commissioner Edit Pick\n\n${row.screen_name || row.full_name || "Player"} — Entry #${row.entry_no ?? 1}\n\nEnter team abbreviation (example: PHI, KC, BUF):`
+    );
+
+    if (!teamInput) return;
+
+    const pickedTeam = teamInput.trim().toUpperCase();
+
+    const reason = window.prompt(
+      "Reason for commissioner override:",
+      "Pick submitted directly to commissioner"
+    );
+
+    if (!reason?.trim()) {
+      alert("A reason is required.");
+      return;
+    }
+
+    const confirmed = window.confirm(
+      `Override this entry's current-week pick to ${pickedTeam}?\n\nThis bypasses the normal pick lock and will be recorded in the commissioner audit log.`
+    );
+
+    if (!confirmed) return;
+
+    try {
+      const res = await fetch(`/api/pool/${poolId}/admin/players`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          user_id: row.user_id,
+          entry_no: row.entry_no ?? 1,
+          picked_team: pickedTeam,
+          reason: reason.trim(),
+        }),
+      });
+
+      const json = await res.json();
+
+      if (!res.ok) {
+        throw new Error(json?.error || "Commissioner override failed");
+      }
+
+      alert(
+        `Pick updated successfully.\n\n${json.old_team || "No previous pick"} → ${json.new_team}`
+      );
+
+      window.location.reload();
+    } catch (e: unknown) {
+      const message =
+        e instanceof Error ? e.message : "Commissioner override failed";
+
+      alert(message);
+    }
+  }
+
   function exportSelectedEmails() {
     const emails = Array.from(
       new Set(
@@ -1014,6 +1073,32 @@ export default function PlayersTable({
                           }}
                         >
                           Save Changes
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.currentTarget
+                              .closest("details")
+                              ?.removeAttribute("open");
+                            void commissionerEditPick(r.rowKey);
+                          }}
+                          disabled={r.removing || r.saving}
+                          style={{
+                            padding: "8px 10px",
+                            borderRadius: 8,
+                            border: "none",
+                            background: "rgba(59,130,246,0.22)",
+                            color: "#bfdbfe",
+                            fontWeight: 800,
+                            textAlign: "left",
+                            cursor:
+                              r.removing || r.saving
+                                ? "not-allowed"
+                                : "pointer",
+                          }}
+                        >
+                          Commissioner Edit Pick
                         </button>
 
                         <button
