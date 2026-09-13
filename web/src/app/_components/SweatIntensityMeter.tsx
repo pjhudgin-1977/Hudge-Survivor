@@ -54,20 +54,14 @@ function computeLevel(p: Props): Level {
   const haveScores =
     typeof p.homeScore === "number" && typeof p.awayScore === "number";
 
-  // Pre-game: intensity based on time-to-kickoff (simple + reliable)
+  // Pre-game: always chill until the game actually starts
   if (!started || !haveScores) {
-    const k = parseDate(p.kickoffAt);
-    if (!k) {
-      return { key: "SWEAT", label: "Sweat", value: 55, hint: "Kickoff time unknown" };
-    }
-    const mins = Math.round((k.getTime() - Date.now()) / 60000);
-
-    if (mins > 180) return { key: "CHILL", label: "Chill", value: 20, hint: "Plenty of time" };
-    if (mins > 60) return { key: "SWEAT", label: "Sweat", value: 50, hint: "Getting close" };
-    if (mins >= 0) return { key: "PANIC", label: "Panic", value: 75, hint: "Almost kickoff" };
-
-    // If kickoff passed but scores not present yet
-    return { key: "SWEAT", label: "Sweat", value: 60, hint: "Kickoff passed" };
+    return {
+      key: "CHILL",
+      label: "Chill",
+      value: 20,
+      hint: "Game has not started",
+    };
   }
 
   // Live: intensity based on picked-team margin (also simple + reliable)
