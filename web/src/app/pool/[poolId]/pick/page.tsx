@@ -497,7 +497,7 @@ export default function PoolPickPage() {
               flexWrap: "wrap",
             }}
           >
-            {[1, 2].map((number) => {
+            {[1, 2, 3].map((number) => {
               const active = entryNo === number;
 
               return (
