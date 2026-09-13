@@ -111,7 +111,16 @@ export default function SweatIntensityMeter(props: Props) {
     level.key === "CHILL" ? "😌" :
     level.key === "SWEAT" ? "😅" : "😱";
 
-  // Keep styling simple (works with or without Tailwind)
+  const barColor =
+    level.key === "CHILL"
+      ? "#22c55e"
+      : level.key === "SWEAT"
+      ? "#f59e0b"
+      : level.key === "PANIC"
+      ? "#ef4444"
+      : "#64748b";
+
+  // Color-blind friendly: icon + label + bar width + stronger contrast
   return (
     <div
       title={level.hint}
@@ -124,8 +133,15 @@ export default function SweatIntensityMeter(props: Props) {
     >
       <span style={{ width: 22, textAlign: "center" }}>{icon}</span>
 
-      <div style={{ display: "flex", flexDirection: "column", gap: 4, width: 140 }}>
-        <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12 }}>
+      <div style={{ display: "flex", flexDirection: "column", gap: 5, width: 150 }}>
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            fontSize: 12,
+            alignItems: "center",
+          }}
+        >
           <strong>{level.label}</strong>
           {props.quarter ? (
             <span style={{ opacity: 0.75 }}>
@@ -138,18 +154,22 @@ export default function SweatIntensityMeter(props: Props) {
 
         <div
           style={{
-            height: 10,
+            height: 12,
             borderRadius: 999,
-            border: "1px solid rgba(0,0,0,0.25)",
+            border: "1px solid rgba(255,255,255,0.18)",
             overflow: "hidden",
-            background: "rgba(0,0,0,0.06)",
+            background: "rgba(255,255,255,0.14)",
+            boxShadow: "inset 0 1px 2px rgba(0,0,0,0.45)",
           }}
         >
           <div
             style={{
               height: "100%",
               width: `${Math.max(0, Math.min(100, level.value))}%`,
-              background: "rgba(0,0,0,0.65)",
+              background: barColor,
+              borderRadius: 999,
+              boxShadow: `0 0 10px ${barColor}`,
+              transition: "width 300ms ease",
             }}
           />
         </div>
