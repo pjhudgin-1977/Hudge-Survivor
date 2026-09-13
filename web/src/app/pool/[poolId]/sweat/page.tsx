@@ -860,6 +860,23 @@ export default async function SweatPage({
                   {highestRiskGame.home_team ?? "HOME"}
                 </div>
 
+                {highestRiskStarted &&
+                typeof highestRiskGame.away_score === "number" &&
+                typeof highestRiskGame.home_score === "number" ? (
+                  <div
+                    style={{
+                      marginTop: 5,
+                      fontSize: 20,
+                      fontWeight: 950,
+                    }}
+                  >
+                    {highestRiskGame.away_team ?? "AWAY"}{" "}
+                    {highestRiskGame.away_score} —{" "}
+                    {highestRiskGame.home_team ?? "HOME"}{" "}
+                    {highestRiskGame.home_score}
+                  </div>
+                ) : null}
+
                 <div style={{ marginTop: 3, fontSize: 13, opacity: 0.72 }}>
                   {fmtKickoff(highestRiskGame.kickoff_at)}
                 </div>
