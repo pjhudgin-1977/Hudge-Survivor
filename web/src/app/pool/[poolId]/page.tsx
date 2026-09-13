@@ -1290,7 +1290,7 @@ export default function PoolStandingsGridPage() {
                           }}
                         >
                           {team
-                            ? `${team}${auto ? " A" : ""}`
+                            ? `${team}${auto ? " a" : ""}`
                             : "—"}
                         </div>
                       </div>
@@ -1503,7 +1503,7 @@ export default function PoolStandingsGridPage() {
                     const auto = Boolean(p?.was_autopick);
                     const strike = p?.counted_in_losses === true;
                     const win = String(p?.result ?? "").toLowerCase() === "win";
-                    const text = team ? `${team}${auto ? " A" : ""}` : "";
+                    const text = team ? `${team}${auto ? " a" : ""}` : "";
 
                     return (
                       <td
