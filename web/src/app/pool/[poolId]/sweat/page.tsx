@@ -617,8 +617,11 @@ const nextPopularityWeekStart = sundayOnePmEt
             (popWeek - currentWeek) * 7 * 24 * 60 * 60 * 1000
         );
 
-  let popularity: { team: string; count: number }[] = [];
-
+let popularity: {
+  team: string;
+  count: number;
+  status: "win" | "loss" | "pending";
+}[] = [];
   if (popWeek != null && popPhase) {
     const { data: popRows } = await supabase
       .from("v_pick_popularity")
@@ -626,16 +629,47 @@ const nextPopularityWeekStart = sundayOnePmEt
       .eq("pool_id", poolId)
       .eq("week_number", popWeek)
       .eq("phase", popPhase);
+const { data: popPickRows } = await supabase
+  .from("picks")
+  .select("picked_team, result")
+  .eq("pool_id", poolId)
+  .eq("week_number", popWeek)
+  .eq("phase", popPhase);
+  const raw = (popRows ?? []) as PopularityRow[];
 
-    const raw = (popRows ?? []) as PopularityRow[];
+const statusByTeam = new Map<
+  string,
+  "win" | "loss" | "pending"
+>();
 
-    popularity = raw
-      .filter((r) => r.picked_team)
-      .map((r) => ({
-        team: String(r.picked_team),
-        count: Number(r.pick_count ?? 0),
-      }))
-      .sort((a, b) => b.count - a.count);
+for (const pick of popPickRows ?? []) {
+  const team = String(pick.picked_team ?? "").trim();
+  if (!team) continue;
+
+  const result = String(pick.result ?? "").toLowerCase();
+  const current = statusByTeam.get(team);
+
+  if (result === "loss") {
+    statusByTeam.set(team, "loss");
+  } else if (result === "win" && current !== "loss") {
+    statusByTeam.set(team, "win");
+  } else if (!current) {
+    statusByTeam.set(team, "pending");
+  }
+}
+
+popularity = raw
+  .filter((r) => r.picked_team)
+  .map((r) => {
+    const team = String(r.picked_team);
+
+    return {
+      team,
+      count: Number(r.pick_count ?? 0),
+      status: statusByTeam.get(team) ?? "pending",
+    };
+  })
+  .sort((a, b) => b.count - a.count);
   }
 
   const popularityTotal = popularity.reduce((a, b) => a + b.count, 0);
@@ -843,13 +877,28 @@ const nextPopularityWeekStart = sundayOnePmEt
                     key={r.team}
                     style={{
                       display: "grid",
-                      gridTemplateColumns: "48px minmax(100px, 1fr) 78px",
-                      gap: 10,
+gridTemplateColumns: "88px minmax(100px, 1fr) 78px",                      gap: 10,
                       alignItems: "center",
                     }}
                   >
-                    <div style={{ fontWeight: 900 }}>{r.team}</div>
+<div>
+  <div style={{ fontWeight: 900 }}>{r.team}</div>
 
+  <div
+    style={{
+      marginTop: 2,
+      fontSize: 11,
+      fontWeight: 800,
+      opacity: 0.78,
+    }}
+  >
+    {r.status === "loss"
+      ? "❌ LOSS"
+      : r.status === "win"
+        ? "✅ WIN"
+        : "⏳ PENDING"}
+  </div>
+</div>
                     <div
                       style={{
                         width: "100%",
