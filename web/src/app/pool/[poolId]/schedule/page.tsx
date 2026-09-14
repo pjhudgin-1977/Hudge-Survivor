@@ -93,7 +93,61 @@ function formatResult(game: Game) {
 
   return null;
 }
+function sundayOnePmEtForGames(games: Game[]) {
+  const sundayGame = games.find((game) => {
+    const kickoff = new Date(game.kickoff_at);
 
+    return (
+      new Intl.DateTimeFormat("en-US", {
+        timeZone: "America/New_York",
+        weekday: "short",
+      }).format(kickoff) === "Sun"
+    );
+  });
+
+  if (!sundayGame) return null;
+
+  const kickoff = new Date(sundayGame.kickoff_at);
+
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: "America/New_York",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(kickoff);
+
+  const get = (type: string) =>
+    parts.find((part) => part.type === type)?.value ?? "";
+
+  const year = Number(get("year"));
+  const month = Number(get("month"));
+  const day = Number(get("day"));
+
+  for (const utcHour of [17, 18]) {
+    const candidate = new Date(
+      Date.UTC(year, month - 1, day, utcHour, 0, 0)
+    );
+
+    const easternParts = new Intl.DateTimeFormat("en-US", {
+      timeZone: "America/New_York",
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: false,
+    }).formatToParts(candidate);
+
+    const part = (type: string) =>
+      easternParts.find((p) => p.type === type)?.value ?? "";
+
+    if (
+      Number(part("hour")) === 13 &&
+      Number(part("minute")) === 0
+    ) {
+      return candidate;
+    }
+  }
+
+  return null;
+}
 export default async function SchedulePage({
   params,
   searchParams,
@@ -284,7 +338,13 @@ const weekPopularityTotal = weekPopularity.reduce(
       weekMissing += 1;
     }
   }
+const selectedWeekRevealAt = sundayOnePmEtForGames(safeGames);
 
+const popularityCanReveal =
+  selectedWeek < currentPoolWeek ||
+  (selectedWeek === currentPoolWeek &&
+    selectedWeekRevealAt !== null &&
+    Date.now() >= selectedWeekRevealAt.getTime());
   const hasLiveGames = safeGames.some(
     (game) => game.status?.toLowerCase() === "live"
   );
@@ -405,11 +465,15 @@ const weekPopularityTotal = weekPopularity.reduce(
       </p>
     </div>
   </div>
+{!popularityCanReveal ? (
+  <p className="mt-4 text-sm text-slate-500">
+    Pick popularity will be revealed Sunday at 1:00 PM ET.
+  </p>
+) : weekPopularity.length === 0 ? (
+  <p className="mt-4 text-sm text-slate-500">
+    No picks recorded for this week.
+  </p>
 
-  {weekPopularity.length === 0 ? (
-    <p className="mt-4 text-sm text-slate-500">
-      No picks recorded for this week.
-    </p>
   ) : (
     <div className="mt-4 space-y-3">
       {weekPopularity.map((row) => {
@@ -443,7 +507,7 @@ const weekPopularityTotal = weekPopularity.reduce(
             <div className="h-3 overflow-hidden rounded-full bg-slate-200">
               <div
                 className="h-full rounded-full bg-[#c83803]"
-                style={{ width: `${pct}%` }}
+       style={{ width: `${pct}%` }}
               />
             </div>
           </div>
