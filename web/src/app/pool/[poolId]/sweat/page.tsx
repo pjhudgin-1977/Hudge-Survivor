@@ -120,6 +120,63 @@ function hasGameStarted(kickoffAt?: string | null) {
 
   return Date.now() >= kickoff.getTime();
 }
+function easternWednesday8amForSunday(
+  sundayOnePmEt: Date,
+  weekOffset: number
+) {
+  const targetSunday = new Date(
+    sundayOnePmEt.getTime() + weekOffset * 7 * 24 * 60 * 60 * 1000
+  );
+
+  const wednesdayAnchor = new Date(
+    targetSunday.getTime() - 4 * 24 * 60 * 60 * 1000
+  );
+
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: "America/New_York",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(wednesdayAnchor);
+
+  const get = (type: string) =>
+    parts.find((p) => p.type === type)?.value ?? "";
+
+  const year = Number(get("year"));
+  const month = Number(get("month"));
+  const day = Number(get("day"));
+
+  for (let utcHour = 12; utcHour <= 13; utcHour++) {
+    const candidate = new Date(
+      Date.UTC(year, month - 1, day, utcHour, 0, 0)
+    );
+
+    const easternParts = new Intl.DateTimeFormat("en-US", {
+      timeZone: "America/New_York",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: false,
+    }).formatToParts(candidate);
+
+    const part = (type: string) =>
+      easternParts.find((p) => p.type === type)?.value ?? "";
+
+    if (
+      Number(part("year")) === year &&
+      Number(part("month")) === month &&
+      Number(part("day")) === day &&
+      Number(part("hour")) === 8 &&
+      Number(part("minute")) === 0
+    ) {
+      return candidate;
+    }
+  }
+
+  return null;
+}
 
 function isFinalStatus(status?: string | null) {
   const s = String(status ?? "").toLowerCase();
@@ -522,9 +579,43 @@ export default async function SweatPage({
     games[0] ??
     null;
 
-  const popularityContext = nextGame ?? games[0] ?? null;
-  const popWeek = popularityContext?.week_number ?? null;
-  const popPhase = popularityContext?.phase ?? null;
+    const nowMs = Date.now();
+
+  // Popularity "week" rolls over Wednesday morning.
+  // This also handles pool_state being advanced early or late.
+  const popularityWeekStart = sundayOnePmEt
+  ? easternWednesday8amForSunday(sundayOnePmEt, 0)?.getTime() ?? null
+  : null;
+
+const nextPopularityWeekStart = sundayOnePmEt
+  ? easternWednesday8amForSunday(sundayOnePmEt, 1)?.getTime() ?? null
+  : null;
+
+  let popWeek = currentWeek;
+
+  if (
+    popularityWeekStart !== null &&
+    nowMs < popularityWeekStart &&
+    currentWeek > 1
+  ) {
+    popWeek = currentWeek - 1;
+  } else if (
+    nextPopularityWeekStart !== null &&
+    nowMs >= nextPopularityWeekStart &&
+    currentWeek < 18
+  ) {
+    popWeek = currentWeek + 1;
+  }
+
+  const popPhase = currentPhase;
+
+  const popSundayOnePm =
+    sundayOnePmEt === null
+      ? null
+      : new Date(
+          sundayOnePmEt.getTime() +
+            (popWeek - currentWeek) * 7 * 24 * 60 * 60 * 1000
+        );
 
   let popularity: { team: string; count: number }[] = [];
 
@@ -549,10 +640,8 @@ export default async function SweatPage({
 
   const popularityTotal = popularity.reduce((a, b) => a + b.count, 0);
 
-  const popularityCanReveal = popularityContext
-    ? hasGameStarted(popularityContext.kickoff_at)
-    : false;
-
+ const popularityCanReveal =
+  popSundayOnePm !== null && nowMs >= popSundayOnePm.getTime();
   let poolAvg = 0;
   let poolCount = 0;
 
