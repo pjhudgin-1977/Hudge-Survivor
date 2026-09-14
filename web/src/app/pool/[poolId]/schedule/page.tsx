@@ -186,7 +186,48 @@ export default async function SchedulePage({
   const selectedWeekPicks = regularPicks.filter(
     (pick) => Number(pick.week_number) === selectedWeek
   );
+const popularityMap = new Map<
+  string,
+  { count: number; wins: number; losses: number; pending: number }
+>();
 
+for (const pick of selectedWeekPicks) {
+  const team = String(pick.picked_team ?? "").trim();
+  if (!team) continue;
+
+  const row = popularityMap.get(team) ?? {
+    count: 0,
+    wins: 0,
+    losses: 0,
+    pending: 0,
+  };
+
+  row.count += 1;
+
+  const result = String(pick.result ?? "").toLowerCase();
+
+  if (result === "win") {
+    row.wins += 1;
+  } else if (result === "loss") {
+    row.losses += 1;
+  } else {
+    row.pending += 1;
+  }
+
+  popularityMap.set(team, row);
+}
+
+const weekPopularity = Array.from(popularityMap.entries())
+  .map(([team, stats]) => ({
+    team,
+    ...stats,
+  }))
+  .sort((a, b) => b.count - a.count || a.team.localeCompare(b.team));
+
+const weekPopularityTotal = weekPopularity.reduce(
+  (sum, row) => sum + row.count,
+  0
+);
   const weekWins = selectedWeekPicks.filter(
     (pick) => String(pick.result ?? "").toLowerCase() === "win"
   ).length;
@@ -355,7 +396,62 @@ export default async function SchedulePage({
             ))}
           </div>
         </div>
+<div className="border-b p-4">
+  <div className="flex flex-wrap items-end justify-between gap-2">
+    <div>
+      <h3 className="text-lg font-bold">🔥 Pick Popularity</h3>
+      <p className="text-sm text-slate-500">
+        Week {selectedWeek} · {weekPopularityTotal} picks
+      </p>
+    </div>
+  </div>
 
+  {weekPopularity.length === 0 ? (
+    <p className="mt-4 text-sm text-slate-500">
+      No picks recorded for this week.
+    </p>
+  ) : (
+    <div className="mt-4 space-y-3">
+      {weekPopularity.map((row) => {
+        const pct =
+          weekPopularityTotal > 0
+            ? Math.round((row.count / weekPopularityTotal) * 100)
+            : 0;
+
+        const status =
+          row.losses > 0
+            ? "❌ LOSS"
+            : row.wins > 0
+              ? "✅ WIN"
+              : "⏳ PENDING";
+
+        return (
+          <div key={row.team}>
+            <div className="mb-1 flex items-center justify-between gap-3 text-sm">
+              <div className="flex items-center gap-2">
+                <span className="font-bold text-slate-900">{row.team}</span>
+                <span className="text-xs font-bold text-slate-600">
+                  {status}
+                </span>
+              </div>
+
+              <span className="font-semibold text-slate-700">
+                {row.count} · {pct}%
+              </span>
+            </div>
+
+            <div className="h-3 overflow-hidden rounded-full bg-slate-200">
+              <div
+                className="h-full rounded-full bg-[#c83803]"
+                style={{ width: `${pct}%` }}
+              />
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  )}
+</div>
         {safeGames.length === 0 ? (
           <p className="p-4 text-gray-600">
             No games found for this week.
