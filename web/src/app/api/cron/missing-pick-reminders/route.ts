@@ -6,6 +6,7 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 const TEST_EMAIL = "pjhudgin@gmail.com";
+const COMMISSIONER_EMAIL = "pjhudgin@gmail.com";
 
 function getAdminSupabase() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -477,6 +478,10 @@ export async function GET(req: Request) {
           from:
             "Hudge Survivor <reminders@mail.hudgesurvivorpool.com>",
           to: [email],
+          cc:
+            email.toLowerCase() === COMMISSIONER_EMAIL.toLowerCase()
+              ? undefined
+              : [COMMISSIONER_EMAIL],
           subject:
             `${poolName} — Don't forget your Week ${weekNumber} ${plural}`,
           html: makeEmailHtml({
