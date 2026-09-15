@@ -138,30 +138,30 @@ export default function PoolPickPage() {
   }, [weeklyTeams, usedTeams]);
 
   const sortedGames = useMemo(() => {
-  return games.slice().sort((a, b) => {
-    const aKickoff = new Date(a.kickoff_at).getTime();
-    const bKickoff = new Date(b.kickoff_at).getTime();
+    return games.slice().sort((a, b) => {
+      const aSpread =
+        a.point_spread === null ? -1 : Math.abs(Number(a.point_spread));
+      const bSpread =
+        b.point_spread === null ? -1 : Math.abs(Number(b.point_spread));
 
-    // Day/date first, then kickoff time.
-    if (aKickoff !== bKickoff) {
-      return aKickoff - bKickoff;
-    }
+      // Biggest favorite first, regardless of kickoff time.
+      if (aSpread !== bSpread) {
+        return bSpread - aSpread;
+      }
 
-    // For games at the same kickoff time, show the biggest favorite first.
-    const aSpread =
-      a.point_spread === null ? -1 : Math.abs(Number(a.point_spread));
-    const bSpread =
-      b.point_spread === null ? -1 : Math.abs(Number(b.point_spread));
+      // If spreads are the same, earlier kickoff first.
+      const aKickoff = new Date(a.kickoff_at).getTime();
+      const bKickoff = new Date(b.kickoff_at).getTime();
 
-    if (aSpread !== bSpread) {
-      return bSpread - aSpread;
-    }
+      if (aKickoff !== bKickoff) {
+        return aKickoff - bKickoff;
+      }
 
-    return `${a.away_team}-${a.home_team}`.localeCompare(
-      `${b.away_team}-${b.home_team}`
-    );
-  });
-}, [games]);
+      return `${a.away_team}-${a.home_team}`.localeCompare(
+        `${b.away_team}-${b.home_team}`
+      );
+    });
+  }, [games]);
   function showTemporaryMessage(message: string) {
     setStatusMsg(message);
 
