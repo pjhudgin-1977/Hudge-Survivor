@@ -433,6 +433,11 @@ export async function GET(req: Request) {
     let sent = 0;
     let skippedDuplicates = 0;
 
+    const sentRecipients: Array<{
+      email: string;
+      entries: MissingEntry[];
+    }> = [];
+
     const failures: Array<{
       email: string;
       error: string;
@@ -478,10 +483,6 @@ export async function GET(req: Request) {
           from:
             "Hudge Survivor <reminders@mail.hudgesurvivorpool.com>",
           to: [email],
-          cc:
-            email.toLowerCase() === COMMISSIONER_EMAIL.toLowerCase()
-              ? undefined
-              : [COMMISSIONER_EMAIL],
           subject:
             `${poolName} — Don't forget your Week ${weekNumber} ${plural}`,
           html: makeEmailHtml({
@@ -510,7 +511,87 @@ export async function GET(req: Request) {
         });
       } else {
         sent++;
+        sentRecipients.push({
+          email,
+          entries: recipient.entries,
+        });
       }
+    }
+
+    // Send one commissioner summary after all participant reminders.
+    // This replaces the previous CC-on-every-email behavior.
+    const commissionerLines =
+      sentRecipients.length === 0
+        ? "<li>No reminder emails were sent.</li>"
+        : sentRecipients
+            .map((recipient) => {
+              const entryList = recipient.entries
+                .map(
+                  (entry) =>
+                    `${escapeHtml(entry.screenName)} (Entry #${entry.entryNo})`
+                )
+                .join(", ");
+
+              return `<li><strong>${escapeHtml(
+                recipient.email
+              )}</strong> — ${entryList}</li>`;
+            })
+            .join("");
+
+    const failureLines =
+      failures.length === 0
+        ? ""
+        : `
+          <h3>Failures</h3>
+          <ul>
+            ${failures
+              .map(
+                (failure) =>
+                  `<li><strong>${escapeHtml(
+                    failure.email
+                  )}</strong> — ${escapeHtml(failure.error)}</li>`
+              )
+              .join("")}
+          </ul>
+        `;
+
+    const { error: commissionerError } =
+      await resend.emails.send({
+        from:
+          "Hudge Survivor <reminders@mail.hudgesurvivorpool.com>",
+        to: [COMMISSIONER_EMAIL],
+        subject:
+          `${poolName} — Week ${weekNumber} reminder summary`,
+        html: `
+          <div style="font-family:Arial,sans-serif;max-width:700px;margin:0 auto;color:#111827;">
+            <h2>🏈 ${escapeHtml(poolName)} — Week ${weekNumber} reminder summary</h2>
+            <p>
+              Reminder run complete.
+            </p>
+            <ul>
+              <li><strong>${sent}</strong> participant reminder email${sent === 1 ? "" : "s"} sent</li>
+              <li><strong>${skippedDuplicates}</strong> duplicate${skippedDuplicates === 1 ? "" : "s"} skipped</li>
+              <li><strong>${failures.length}</strong> failure${failures.length === 1 ? "" : "s"}</li>
+            </ul>
+
+            <h3>Recipients</h3>
+            <ul>
+              ${commissionerLines}
+            </ul>
+
+            ${failureLines}
+          </div>
+        `,
+      });
+
+    if (commissionerError) {
+      failures.push({
+        email: COMMISSIONER_EMAIL,
+        error:
+          typeof commissionerError.message === "string"
+            ? commissionerError.message
+            : "Unknown Resend error sending commissioner summary",
+      });
     }
 
     return NextResponse.json({
@@ -523,6 +604,9 @@ export async function GET(req: Request) {
       entries_missing_picks: entriesMissing,
       emails_sent: sent,
       skipped_duplicates: skippedDuplicates,
+      commissioner_summary_sent: !failures.some(
+        (failure) => failure.email === COMMISSIONER_EMAIL
+      ),
       failures,
       duration_ms: Date.now() - startedAt,
     });
