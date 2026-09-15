@@ -76,6 +76,7 @@ export default function PoolStandingsGridPage() {
   const [currentSeasonYear, setCurrentSeasonYear] = useState<number | null>(null);
   const [currentWeek, setCurrentWeek] = useState<number | null>(null);
   const [currentPhase, setCurrentPhase] = useState<string | null>(null);
+  const [currentPicksLocked, setCurrentPicksLocked] = useState(false);
 
   const [addingEntry, setAddingEntry] = useState(false);
   const [isCommissioner, setIsCommissioner] = useState(false);
@@ -182,7 +183,7 @@ export default function PoolStandingsGridPage() {
 
         const { data: poolState, error: poolStateErr } = await supabase
           .from("pool_state")
-          .select("season_year, week_type, week_number")
+          .select("season_year, week_type, week_number, picks_locked")
           .eq("pool_id", poolId)
           .maybeSingle();
 
@@ -191,6 +192,7 @@ export default function PoolStandingsGridPage() {
         if (poolState) {
           setCurrentSeasonYear(Number(poolState.season_year));
           setCurrentWeek(Number(poolState.week_number));
+          setCurrentPicksLocked(Boolean(poolState.picks_locked));
           setCurrentPhase(
             String(poolState.week_type ?? "").toUpperCase() === "REG"
               ? "regular"
@@ -761,26 +763,6 @@ export default function PoolStandingsGridPage() {
               const latestTeamRaw =
                 String(latestPick?.picked_team ?? "").trim() || "—";
 
-              const latestGame = latestPick
-                ? games.find((g) => {
-                    const sameWeek =
-                      Number(g.week_number) === Number(latestPick.week_number);
-                    const samePhase =
-                      normalizePhase(g.phase) === normalizePhase(latestPick.phase);
-                    const team = latestTeamRaw;
-
-                    return (
-                      sameWeek &&
-                      samePhase &&
-                      (g.home_team === team || g.away_team === team)
-                    );
-                  })
-                : null;
-
-              const latestGameStarted =
-                latestGame?.kickoff_at &&
-                new Date(latestGame.kickoff_at).getTime() <= Date.now();
-
               const latestTeam = latestTeamRaw;
 
               const statusText = entry.eliminated
@@ -860,7 +842,7 @@ export default function PoolStandingsGridPage() {
                     className="dashboard-entry-action"
                     style={{ textAlign: "right" }}
                   >
-                    {latestGameStarted ? (
+                    {currentPicksLocked ? (
                       <span
                         style={{
                           display: "inline-block",
