@@ -137,6 +137,32 @@ export default function PoolPickPage() {
     return weeklyTeams.filter((team) => !used.has(team));
   }, [weeklyTeams, usedTeams]);
 
+  const sortedGames = useMemo(() => {
+    return games.slice().sort((a, b) => {
+      const aKickoff = new Date(a.kickoff_at).getTime();
+      const bKickoff = new Date(b.kickoff_at).getTime();
+
+      // Day/date first, then kickoff time.
+      if (aKickoff !== bKickoff) {
+        return aKickoff - bKickoff;
+      }
+
+      // For games at the same kickoff time, show the biggest favorite first.
+      const aSpread =
+        a.point_spread === null ? -1 : Math.abs(Number(a.point_spread));
+      const bSpread =
+        b.point_spread === null ? -1 : Math.abs(Number(b.point_spread));
+
+      if (aSpread !== bSpread) {
+        return bSpread - aSpread;
+      }
+
+      return `${a.away_team}-${a.home_team}`.localeCompare(
+        `${b.away_team}-${b.home_team}`
+      );
+    });
+  }, [games]);
+
   function showTemporaryMessage(message: string) {
     setStatusMsg(message);
 
@@ -758,157 +784,181 @@ export default function PoolPickPage() {
               style={{
                 display: "grid",
                 gridTemplateColumns:
-                  "repeat(auto-fit, minmax(150px, 1fr))",
+                  "repeat(auto-fit, minmax(min(310px, 100%), 1fr))",
                 gap: 14,
                 marginTop: 12,
               }}
             >
-              {games.flatMap((game) => {
-                const teams = [
-                  game.home_team,
-                  game.away_team,
-                ];
+              {sortedGames.map((game) => {
+                const favoriteIsInGame =
+                  Boolean(game.favorite_team) &&
+                  (game.favorite_team === game.home_team ||
+                    game.favorite_team === game.away_team);
 
-                return teams
-                  .filter(
-                    (team) =>
-                      eligibleTeams.includes(team) ||
-                      team === existingPick
-                  )
-                  .map((team) => {
-                    const selected = selectedTeam === team;
-                    const opponent =
-                      team === game.home_team
+                const teams = favoriteIsInGame
+                  ? [
+                      game.favorite_team as string,
+                      game.favorite_team === game.home_team
                         ? game.away_team
-                        : game.home_team;
-                    const homeTeam =
-                      team === game.home_team;
+                        : game.home_team,
+                    ]
+                  : [game.home_team, game.away_team];
 
-                    const spreadLabel =
-                      game.point_spread === null
-                        ? null
-                        : game.point_spread === 0 ||
-                            !game.favorite_team
-                          ? "Pick 'em"
-                          : game.favorite_team === team
-                            ? `${team} ${game.point_spread}`
-                            : `${team} +${Math.abs(
-                                game.point_spread
-                              )}`;
+                const visibleTeams = teams.filter(
+                  (team) =>
+                    eligibleTeams.includes(team) ||
+                    team === existingPick
+                );
 
-                    const teamGameStarted =
-                      gameHasStartedForTeam(team);
+                if (visibleTeams.length === 0) {
+                  return null;
+                }
 
-                    return (
-                      <button
-                        key={`${team}-${game.home_team}-${game.away_team}-${game.kickoff_at}`}
-                        type="button"
-                        disabled={
-                          entryPickLocked ||
-                          submitting ||
-                          teamGameStarted
-                        }
-                        onClick={() => {
-                          if (
+                return (
+                  <div
+                    key={`${game.home_team}-${game.away_team}-${game.kickoff_at}`}
+                    style={{
+                      display: "grid",
+                      gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
+                      gap: 10,
+                      alignItems: "stretch",
+                    }}
+                  >
+                    {visibleTeams.map((team) => {
+                      const selected = selectedTeam === team;
+                      const opponent =
+                        team === game.home_team
+                          ? game.away_team
+                          : game.home_team;
+                      const homeTeam = team === game.home_team;
+
+                      const spreadLabel =
+                        game.point_spread === null
+                          ? null
+                          : game.point_spread === 0 ||
+                              !game.favorite_team
+                            ? "Pick 'em"
+                            : game.favorite_team === team
+                              ? `${team} ${game.point_spread}`
+                              : `${team} +${Math.abs(
+                                  game.point_spread
+                                )}`;
+
+                      const teamGameStarted =
+                        gameHasStartedForTeam(team);
+
+                      return (
+                        <button
+                          key={`${team}-${game.home_team}-${game.away_team}-${game.kickoff_at}`}
+                          type="button"
+                          disabled={
                             entryPickLocked ||
                             submitting ||
                             teamGameStarted
-                          ) {
-                            return;
                           }
+                          onClick={() => {
+                            if (
+                              entryPickLocked ||
+                              submitting ||
+                              teamGameStarted
+                            ) {
+                              return;
+                            }
 
-                          setSelectedTeam(team);
-                          setStatusMsg("");
-                        }}
-                        style={{
-                          padding: 14,
-                          borderRadius: 12,
-                          border: selected
-                            ? "2px solid #f97316"
-                            : "1px solid rgba(255,255,255,0.18)",
-                          background: selected
-                            ? "#f97316"
-                            : "#111827",
-                          color: selected ? "#000" : "#fff",
-                          fontWeight: 800,
-                          cursor:
-                            isLocked || submitting
-                              ? "not-allowed"
-                              : "pointer",
-                          textAlign: "left",
-                          lineHeight: 1.4,
-                          opacity:
-                            isLocked && !selected ? 0.55 : 1,
-                          boxShadow: selected
-                            ? "0 0 0 2px #fb923c, 0 4px 14px rgba(0,0,0,0.35)"
-                            : "0 2px 6px rgba(0,0,0,0.35)",
-                          transform: selected
-                            ? "scale(1.02)"
-                            : "scale(1)",
-                          transition: "all .12s ease",
-                        }}
-                      >
-                        <div
+                            setSelectedTeam(team);
+                            setStatusMsg("");
+                          }}
                           style={{
-                            display: "flex",
-                            justifyContent: "space-between",
-                            alignItems: "center",
-                            gap: 8,
+                            padding: 14,
+                            borderRadius: 12,
+                            border: selected
+                              ? "2px solid #f97316"
+                              : "1px solid rgba(255,255,255,0.18)",
+                            background: selected
+                              ? "#f97316"
+                              : "#111827",
+                            color: selected ? "#000" : "#fff",
+                            fontWeight: 800,
+                            cursor:
+                              isLocked || submitting
+                                ? "not-allowed"
+                                : "pointer",
+                            textAlign: "left",
+                            lineHeight: 1.4,
+                            opacity:
+                              isLocked && !selected ? 0.55 : 1,
+                            boxShadow: selected
+                              ? "0 0 0 2px #fb923c, 0 4px 14px rgba(0,0,0,0.35)"
+                              : "0 2px 6px rgba(0,0,0,0.35)",
+                            transform: selected
+                              ? "scale(1.02)"
+                              : "scale(1)",
+                            transition: "all .12s ease",
                           }}
                         >
-                          <span style={{ fontSize: 18 }}>
-                            {team}
-                          </span>
-
-                          {selected ? (
-                            <span
-                              style={{
-                                padding: "3px 7px",
-                                borderRadius: 999,
-                                background:
-                                  "rgba(0,0,0,0.22)",
-                                fontSize: 10,
-                                fontWeight: 900,
-                                letterSpacing: 0.5,
-                              }}
-                            >
-                              {existingPick === team
-                                ? existingPickWasAutopick
-                                  ? "CURRENT · AUTO"
-                                  : "CURRENT PICK"
-                                : "SELECTED"}
-                            </span>
-                          ) : null}
-                        </div>
-
-                        <div style={{ opacity: 0.75 }}>
-                          {homeTeam ? "vs" : "@"} {opponent}
-                        </div>
-
-                        {spreadLabel ? (
                           <div
                             style={{
-                              marginTop: 3,
-                              fontSize: 12,
-                              fontWeight: 900,
-                              opacity: 0.85,
+                              display: "flex",
+                              justifyContent: "space-between",
+                              alignItems: "center",
+                              gap: 8,
                             }}
                           >
-                            Spread: {spreadLabel}
-                          </div>
-                        ) : null}
+                            <span style={{ fontSize: 18 }}>
+                              {team}
+                            </span>
 
-                        <div
-                          style={{
-                            fontSize: 12,
-                            opacity: 0.65,
-                          }}
-                        >
-                          {formatKickoffET(game.kickoff_at)}
-                        </div>
-                      </button>
-                    );
-                  });
+                            {selected ? (
+                              <span
+                                style={{
+                                  padding: "3px 7px",
+                                  borderRadius: 999,
+                                  background:
+                                    "rgba(0,0,0,0.22)",
+                                  fontSize: 10,
+                                  fontWeight: 900,
+                                  letterSpacing: 0.5,
+                                }}
+                              >
+                                {existingPick === team
+                                  ? existingPickWasAutopick
+                                    ? "CURRENT · AUTO"
+                                    : "CURRENT PICK"
+                                  : "SELECTED"}
+                              </span>
+                            ) : null}
+                          </div>
+
+                          <div style={{ opacity: 0.75 }}>
+                            {homeTeam ? "vs" : "@"} {opponent}
+                          </div>
+
+                          {spreadLabel ? (
+                            <div
+                              style={{
+                                marginTop: 3,
+                                fontSize: 12,
+                                fontWeight: 900,
+                                opacity: 0.85,
+                              }}
+                            >
+                              Spread: {spreadLabel}
+                            </div>
+                          ) : null}
+
+                          <div
+                            style={{
+                              fontSize: 12,
+                              opacity: 0.65,
+                            }}
+                          >
+                            {formatKickoffET(game.kickoff_at)}
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                );
               })}
             </div>
           </section>
@@ -934,7 +984,7 @@ export default function PoolPickPage() {
                   margin: 0,
                 }}
               >
-                {games.map((game, index) => (
+                {sortedGames.map((game, index) => (
                   <li
                     key={`${game.home_team}-${game.away_team}-${index}`}
                   >
