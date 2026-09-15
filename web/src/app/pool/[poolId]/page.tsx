@@ -1312,8 +1312,8 @@ export default function PoolStandingsGridPage() {
 
                     const weekRevealAt = sundayOnePmEtForWeek(
                       games,
-                      pick.week_number,
-                      pick.phase
+                      c.week,
+                      c.phase
                     );
                     const sundayDeadlinePassed =
                       weekRevealAt !== null && Date.now() >= weekRevealAt;
@@ -1571,8 +1571,8 @@ export default function PoolStandingsGridPage() {
 
                     const weekRevealAt = sundayOnePmEtForWeek(
                       games,
-                      p.week_number,
-                      p.phase
+                      c.week,
+                      c.phase
                     );
                     const sundayDeadlinePassed =
                       weekRevealAt !== null && Date.now() >= weekRevealAt;
