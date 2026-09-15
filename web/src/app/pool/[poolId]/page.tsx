@@ -47,6 +47,78 @@ function normalizePhase(p: string | null | undefined) {
   return "regular";
 }
 
+function sundayOnePmEtForWeek(
+  games: GameRow[],
+  weekNumber: number,
+  phase: string | null | undefined
+) {
+  const normalizedPhase = normalizePhase(phase);
+
+  const sundayGame = games.find((game) => {
+    if (
+      Number(game.week_number) !== Number(weekNumber) ||
+      normalizePhase(game.phase) !== normalizedPhase
+    ) {
+      return false;
+    }
+
+    const kickoff = new Date(game.kickoff_at);
+    if (Number.isNaN(kickoff.getTime())) return false;
+
+    const parts = new Intl.DateTimeFormat("en-US", {
+      timeZone: "America/New_York",
+      weekday: "short",
+      hour: "numeric",
+      hour12: false,
+    }).formatToParts(kickoff);
+
+    const weekday = parts.find((part) => part.type === "weekday")?.value;
+    const hour = Number(parts.find((part) => part.type === "hour")?.value ?? -1);
+
+    return weekday === "Sun" && hour >= 12;
+  });
+
+  if (!sundayGame) return null;
+
+  const kickoff = new Date(sundayGame.kickoff_at);
+  const dateParts = new Intl.DateTimeFormat("en-US", {
+    timeZone: "America/New_York",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(kickoff);
+
+  const get = (type: string) =>
+    dateParts.find((part) => part.type === type)?.value ?? "";
+
+  const year = Number(get("year"));
+  const month = Number(get("month"));
+  const day = Number(get("day"));
+
+  // 1:00 PM Eastern is 17:00 UTC during EDT and 18:00 UTC during EST.
+  for (const utcHour of [17, 18]) {
+    const candidate = new Date(
+      Date.UTC(year, month - 1, day, utcHour, 0, 0)
+    );
+
+    const easternParts = new Intl.DateTimeFormat("en-US", {
+      timeZone: "America/New_York",
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: false,
+    }).formatToParts(candidate);
+
+    const part = (type: string) =>
+      easternParts.find((item) => item.type === type)?.value ?? "";
+
+    if (Number(part("hour")) === 13 && Number(part("minute")) === 0) {
+      return candidate.getTime();
+    }
+  }
+
+  return null;
+}
+
 function nameInitialLine(fullName: string | null | undefined) {
   const s = String(fullName ?? "").trim();
   if (!s) return "";
@@ -76,7 +148,6 @@ export default function PoolStandingsGridPage() {
   const [currentSeasonYear, setCurrentSeasonYear] = useState<number | null>(null);
   const [currentWeek, setCurrentWeek] = useState<number | null>(null);
   const [currentPhase, setCurrentPhase] = useState<string | null>(null);
-  const [currentPicksLocked, setCurrentPicksLocked] = useState(false);
 
   const [addingEntry, setAddingEntry] = useState(false);
   const [isCommissioner, setIsCommissioner] = useState(false);
@@ -183,7 +254,7 @@ export default function PoolStandingsGridPage() {
 
         const { data: poolState, error: poolStateErr } = await supabase
           .from("pool_state")
-          .select("season_year, week_type, week_number, picks_locked")
+          .select("season_year, week_type, week_number")
           .eq("pool_id", poolId)
           .maybeSingle();
 
@@ -192,7 +263,6 @@ export default function PoolStandingsGridPage() {
         if (poolState) {
           setCurrentSeasonYear(Number(poolState.season_year));
           setCurrentWeek(Number(poolState.week_number));
-          setCurrentPicksLocked(Boolean(poolState.picks_locked));
           setCurrentPhase(
             String(poolState.week_type ?? "").toUpperCase() === "REG"
               ? "regular"
@@ -763,6 +833,26 @@ export default function PoolStandingsGridPage() {
               const latestTeamRaw =
                 String(latestPick?.picked_team ?? "").trim() || "—";
 
+              const latestGame = latestPick
+                ? games.find((g) => {
+                    const sameWeek =
+                      Number(g.week_number) === Number(latestPick.week_number);
+                    const samePhase =
+                      normalizePhase(g.phase) === normalizePhase(latestPick.phase);
+                    const team = latestTeamRaw;
+
+                    return (
+                      sameWeek &&
+                      samePhase &&
+                      (g.home_team === team || g.away_team === team)
+                    );
+                  })
+                : null;
+
+              const latestGameStarted =
+                latestGame?.kickoff_at &&
+                new Date(latestGame.kickoff_at).getTime() <= Date.now();
+
               const latestTeam = latestTeamRaw;
 
               const statusText = entry.eliminated
@@ -842,7 +932,7 @@ export default function PoolStandingsGridPage() {
                     className="dashboard-entry-action"
                     style={{ textAlign: "right" }}
                   >
-                    {currentPicksLocked ? (
+                    {latestGameStarted ? (
                       <span
                         style={{
                           display: "inline-block",
@@ -1220,7 +1310,13 @@ export default function PoolStandingsGridPage() {
                       Boolean(game?.kickoff_at) &&
                       new Date(game!.kickoff_at).getTime() <= Date.now();
 
-                    const sundayDeadlinePassed = Date.now() >= JOIN_DEADLINE;
+                    const weekRevealAt = sundayOnePmEtForWeek(
+                      games,
+                      pick.week_number,
+                      pick.phase
+                    );
+                    const sundayDeadlinePassed =
+                      weekRevealAt !== null && Date.now() >= weekRevealAt;
 
                     const team =
                       !teamRaw
@@ -1473,7 +1569,13 @@ export default function PoolStandingsGridPage() {
                       Boolean(game?.kickoff_at) &&
                       new Date(game!.kickoff_at).getTime() <= Date.now();
 
-                    const sundayDeadlinePassed = Date.now() >= JOIN_DEADLINE;
+                    const weekRevealAt = sundayOnePmEtForWeek(
+                      games,
+                      p.week_number,
+                      p.phase
+                    );
+                    const sundayDeadlinePassed =
+                      weekRevealAt !== null && Date.now() >= weekRevealAt;
 
                     const team =
                       !teamRaw
