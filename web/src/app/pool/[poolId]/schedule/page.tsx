@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import LiveRefresh from "./LiveRefresh";
+import MobileWeekSelector from "./MobileWeekSelector";
 
 type PageProps = {
   params: Promise<{
@@ -376,34 +377,10 @@ const popularityCanReveal =
       </div>
 
       <div className="mb-5">
-        <details className="relative md:hidden">
-          <summary className="cursor-pointer list-none rounded-xl border border-slate-300 bg-white px-4 py-3 font-bold text-slate-900">
-            Week {selectedWeek} ▾
-          </summary>
-
-          <div className="absolute left-0 right-0 z-20 mt-2 grid grid-cols-3 gap-2 rounded-xl border border-slate-300 bg-white p-3 shadow-xl">
-            {Array.from({ length: 18 }, (_, index) => {
-              const week = index + 1;
-              const isActive = week === selectedWeek;
-
-              return (
-                <Link
-                  key={week}
-                  href={`/pool/${poolId}/schedule?week=${week}`}
-                  className={[
-                    "rounded-lg border px-2 py-2 text-center text-sm font-semibold",
-                    isActive
-                      ? "border-[#c83803] bg-[#c83803] text-white"
-                      : "border-slate-300 bg-slate-50 text-slate-800",
-                  ].join(" ")}
-                >
-                  Week {week}
-                </Link>
-              );
-            })}
-          </div>
-        </details>
-
+        <MobileWeekSelector
+  poolId={poolId}
+  selectedWeek={selectedWeek}
+/>
         <div className="hidden flex-wrap gap-2 md:flex">
           {Array.from({ length: 18 }, (_, index) => {
             const week = index + 1;
