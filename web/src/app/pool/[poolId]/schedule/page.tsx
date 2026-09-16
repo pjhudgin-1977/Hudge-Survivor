@@ -431,9 +431,8 @@ const popularityCanReveal =
     </div>
   ))}
 </div>
-            ))}
-          </div>
         </div>
+
 <div className="border-b p-4">
   <div className="flex flex-wrap items-end justify-between gap-2">
     <div>
