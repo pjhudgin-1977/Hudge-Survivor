@@ -411,25 +411,26 @@ const popularityCanReveal =
             {safeGames.length} games
           </p>
 
-          <div className="mt-4 grid grid-cols-5 gap-2 overflow-x-auto">
-            {[
-              ["Wins", weekWins],
-              ["Losses", weekLosses],
-              ["Out", weekEliminated],
-              ["Pending", weekInProgress],
-              ["Missing", weekMissing],
-            ].map(([label, value]) => (
-              <div
-                key={String(label)}
-                className="min-w-[90px] rounded-lg bg-slate-100 px-3 py-2 text-center"
-              >
-                <div className="whitespace-nowrap text-[11px] font-bold uppercase tracking-wide text-slate-500">
-                  {label}
-                </div>
-                <div className="mt-1 text-xl font-black text-slate-900">
-                  {value}
-                </div>
-              </div>
+         <div className="mt-4 grid grid-cols-5 gap-1">
+  {[
+    ["Wins", weekWins],
+    ["Losses", weekLosses],
+    ["Out", weekEliminated],
+    ["Pending", weekInProgress],
+    ["Missing", weekMissing],
+  ].map(([label, value]) => (
+    <div
+      key={String(label)}
+      className="min-w-0 rounded-lg bg-slate-100 px-1 py-2 text-center"
+    >
+<div className="whitespace-nowrap text-[8px] font-bold uppercase tracking-normal text-slate-500 sm:text-[11px] sm:tracking-wide">        {label}
+      </div>
+      <div className="mt-1 text-lg font-black text-slate-900 sm:text-xl">
+        {value}
+      </div>
+    </div>
+  ))}
+</div>
             ))}
           </div>
         </div>
