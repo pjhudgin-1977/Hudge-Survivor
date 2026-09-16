@@ -154,6 +154,17 @@ export default function PoolStandingsGridPage() {
   const [seasonStarted, setSeasonStarted] = useState(false);
   const [entryRegistrationClosed, setEntryRegistrationClosed] = useState(false);
   const [showUnpaidReminder, setShowUnpaidReminder] = useState(false);
+  const [sortKey, setSortKey] = useState<string | null>(null);
+const [sortDirection, setSortDirection] = useState<"asc" | "desc">("asc");
+
+const handleSort = (key: string) => {
+  if (sortKey === key) {
+    setSortDirection((prev) => (prev === "asc" ? "desc" : "asc"));
+  } else {
+    setSortKey(key);
+    setSortDirection("asc");
+  }
+};
 
   useEffect(() => {
     try {
@@ -423,7 +434,42 @@ export default function PoolStandingsGridPage() {
 
     return list;
   }, [members, profilesById, picks]);
+const sortedRows = useMemo(() => {
+  if (!sortKey) return rows;
 
+  const sorted = [...rows];
+
+  sorted.sort((a, b) => {
+    let aValue: string | number | boolean = "";
+    let bValue: string | number | boolean = "";
+
+    if (sortKey === "players") {
+  aValue = a.screen_name.toLowerCase();
+  bValue = b.screen_name.toLowerCase();
+} else if (sortKey === "paid") {
+  aValue = a.entry_fee_paid ? 1 : 0;
+  bValue = b.entry_fee_paid ? 1 : 0;
+} else if (sortKey.startsWith("week:")) {
+  const [, phase, weekText] = sortKey.split(":");
+  const week = Number(weekText);
+
+  const aPick =
+    pickMap[`${a.user_id}|${a.entry_no}|${phase}|${week}`]?.picked_team ?? "";
+
+  const bPick =
+    pickMap[`${b.user_id}|${b.entry_no}|${phase}|${week}`]?.picked_team ?? "";
+
+  aValue = aPick.toLowerCase();
+  bValue = bPick.toLowerCase();
+}
+
+    if (aValue < bValue) return sortDirection === "asc" ? -1 : 1;
+    if (aValue > bValue) return sortDirection === "asc" ? 1 : -1;
+    return 0;
+  });
+
+  return sorted;
+}, [rows, sortKey, sortDirection, pickMap]);
   const totalEntries = rows.length;
   const aliveEntries = rows.filter((r) => !r.eliminated).length;
   const lastLifeEntries = rows.filter(
@@ -1165,8 +1211,7 @@ export default function PoolStandingsGridPage() {
       ) : null}
 
       <div className="dashboard-standings-mobile">
-        {rows.map((r) => {
-          const isMe = r.user_id === myUserId;
+{rows.map((r) => {           const isMe = r.user_id === myUserId;
 
           const mobileStatus = r.eliminated
             ? "Eliminated"
@@ -1404,55 +1449,69 @@ export default function PoolStandingsGridPage() {
           <thead>
             <tr>
               <th
-                style={{
-                  ...headerStyle,
-                  ...stickyNameStyle,
-                  textAlign: "left",
-                  padding: "12px 12px",
-                  borderBottom: "1px solid rgba(255,255,255,0.18)",
-                  fontWeight: 950,
-                }}
-              >
-                Players
-              </th>
+onClick={() => handleSort("players")}  style={{
+    ...headerStyle,
+    ...stickyNameStyle,
+    textAlign: "left",
+    padding: "12px 12px",
+    borderBottom: "1px solid rgba(255,255,255,0.18)",
+    fontWeight: 950,
+    cursor: "pointer",
+  }}
+>
+Players {sortKey === "players" ? (sortDirection === "asc" ? "▲" : "▼") : "↕"}</th>
 
-              <th
-                style={{
-                  ...headerStyle,
-                  textAlign: "center",
-                  padding: "12px 10px",
-                  minWidth: 110,
-                  borderBottom: "1px solid rgba(255,255,255,0.18)",
-                  fontWeight: 950,
-                  zIndex: 6,
-                }}
-              >
-                Paid
-              </th>
+             <th
+  onClick={() => handleSort("paid")}
+  title="Sort by paid status"
+  style={{
+    ...headerStyle,
+    textAlign: "center",
+    padding: "12px 10px",
+    minWidth: 110,
+    borderBottom: "1px solid rgba(255,255,255,0.18)",
+    fontWeight: 950,
+    zIndex: 6,
+    cursor: "pointer",
+  }}
+>
+Paid {sortKey === "paid" ? (sortDirection === "asc" ? "▲" : "▼") : "↕"}</th>
 
-              {columns.map((c) => (
-                <th
-                  key={c.key}
-                  style={{
-                    ...headerStyle,
-                    textAlign: "center",
-                    padding: "12px 10px",
-                    minWidth: 72,
-                    borderBottom: "1px solid rgba(255,255,255,0.18)",
-                    fontWeight: 950,
-                  }}
-                >
-                  {c.label}
-                </th>
-              ))}
+             {columns.map((c) => {
+  const weekSortKey = `week:${c.phase}:${c.week}`;
+
+  return (
+    <th
+      key={c.key}
+      onClick={() => handleSort(weekSortKey)}
+      title={`Sort by ${c.label} pick`}
+      style={{
+        ...headerStyle,
+        textAlign: "center",
+        padding: "12px 10px",
+        minWidth: 72,
+        borderBottom: "1px solid rgba(255,255,255,0.18)",
+        fontWeight: 950,
+        cursor: "pointer",
+      }}
+    >
+      {c.label}{" "}
+      {sortKey === weekSortKey
+        ? sortDirection === "asc"
+          ? "▲"
+          : "▼"
+        : "↕"}
+    </th>
+  );
+})}
             </tr>
           </thead>
 
-          <tbody>
-            {rows.map((r) => {
-              const isMe = r.user_id === myUserId;
+                    <tbody>
+                      {sortedRows.map((r) => {
+                        const isMe = r.user_id === myUserId;
 
-              const rowBg = r.eliminated
+                        const rowBg = r.eliminated
                 ? "rgba(255,255,255,0.04)"
                 : r.losses === 1
                 ? "rgba(255,165,0,0.06)"
