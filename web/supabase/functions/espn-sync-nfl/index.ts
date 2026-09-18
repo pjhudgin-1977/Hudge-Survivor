@@ -155,7 +155,7 @@ serve(async (req) => {
 
       const { data: existingRows, error: lookupError } = await sb
         .from("games")
-        .select("id, provider_event_id")
+        .select("id, provider_event_id, kickoff_at, status, home_score, away_score, winner_team, was_tie")
         .eq("season_year", body.season_year)
         .eq("week_number", body.week_number)
         .eq("phase", body.phase)
@@ -185,23 +185,40 @@ serve(async (req) => {
         away_score: awayScore,
         winner_team: winnerTeam,
         was_tie: wasTie,
-        score_updated_at: new Date().toISOString(),
       };
 
       if (existing) {
-        const { error: updateError } = await sb
-          .from("games")
-          .update(gameValues)
-          .eq("id", existing.id);
+        const existingKickoff = existing.kickoff_at
+          ? new Date(existing.kickoff_at).getTime()
+          : null;
+        const incomingKickoff = new Date(kickoffAt).getTime();
 
-        if (updateError) {
-          return new Response(
-            `Game update failed: ${updateError.message}`,
-            { status: 500 }
-          );
+        const hasChanged =
+          existingKickoff !== incomingKickoff ||
+          String(existing.status ?? "").toLowerCase() !== status ||
+          Number(existing.home_score ?? 0) !== homeScore ||
+          Number(existing.away_score ?? 0) !== awayScore ||
+          (existing.winner_team ?? null) !== winnerTeam ||
+          Boolean(existing.was_tie) !== wasTie;
+
+        if (hasChanged) {
+          const { error: updateError } = await sb
+            .from("games")
+            .update({
+              ...gameValues,
+              score_updated_at: new Date().toISOString(),
+            })
+            .eq("id", existing.id);
+
+          if (updateError) {
+            return new Response(
+              `Game update failed: ${updateError.message}`,
+              { status: 500 }
+            );
+          }
+
+          updated++;
         }
-
-        updated++;
       } else {
         const { error: insertError } = await sb
           .from("games")
@@ -213,6 +230,7 @@ serve(async (req) => {
             home_team: homeAbbr,
             away_team: awayAbbr,
             ...gameValues,
+            score_updated_at: new Date().toISOString(),
           });
 
         if (insertError) {
