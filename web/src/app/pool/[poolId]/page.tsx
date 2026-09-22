@@ -158,6 +158,9 @@ export default function PoolStandingsGridPage() {
   const [dashboardFilter, setDashboardFilter] = useState<
     "all" | "alive" | "lastLife" | "eliminated" | "unpaid"
   >("all");
+  const [weeklyFilter, setWeeklyFilter] = useState<
+    "wins" | "losses" | "eliminated" | "inProgress" | "missing" | null
+  >(null);
 const [sortDirection, setSortDirection] = useState<"asc" | "desc">("asc");
 
 const handleSort = (key: string) => {
@@ -475,6 +478,30 @@ const sortedRows = useMemo(() => {
 }, [rows, sortKey, sortDirection, pickMap]);
 
 const filteredRows = useMemo(() => {
+  if (weeklyFilter && currentWeek !== null && currentPhase) {
+    return sortedRows.filter((r) => {
+      const pick = pickMap[
+        `${r.user_id}|${r.entry_no}|${currentPhase}|${currentWeek}`
+      ];
+      const result = String(pick?.result ?? "").toLowerCase();
+
+      switch (weeklyFilter) {
+        case "wins":
+          return result === "win";
+        case "losses":
+          return result === "loss";
+        case "eliminated":
+          return r.eliminated && result === "loss";
+        case "inProgress":
+          return result === "pending";
+        case "missing":
+          return !r.eliminated && !pick?.picked_team;
+        default:
+          return true;
+      }
+    });
+  }
+
   switch (dashboardFilter) {
     case "alive":
       return sortedRows.filter((r) => !r.eliminated);
@@ -487,7 +514,14 @@ const filteredRows = useMemo(() => {
     default:
       return sortedRows;
   }
-}, [sortedRows, dashboardFilter]);
+}, [
+  sortedRows,
+  dashboardFilter,
+  weeklyFilter,
+  currentWeek,
+  currentPhase,
+  pickMap,
+]);
 
   const totalEntries = rows.length;
   const aliveEntries = rows.filter((r) => !r.eliminated).length;
@@ -1131,7 +1165,7 @@ const filteredRows = useMemo(() => {
       >
         <button
           type="button"
-          onClick={() => setDashboardFilter("alive")}
+          onClick={() => { setWeeklyFilter(null); setDashboardFilter("alive"); }}
           style={{
             ...snapshotCardStyle,
             cursor: "pointer",
@@ -1151,7 +1185,7 @@ const filteredRows = useMemo(() => {
 
         <button
           type="button"
-          onClick={() => setDashboardFilter("lastLife")}
+          onClick={() => { setWeeklyFilter(null); setDashboardFilter("lastLife"); }}
           style={{
             ...snapshotCardStyle,
             cursor: "pointer",
@@ -1171,7 +1205,7 @@ const filteredRows = useMemo(() => {
 
         <button
           type="button"
-          onClick={() => setDashboardFilter("eliminated")}
+          onClick={() => { setWeeklyFilter(null); setDashboardFilter("eliminated"); }}
           style={{
             ...snapshotCardStyle,
             cursor: "pointer",
@@ -1191,7 +1225,7 @@ const filteredRows = useMemo(() => {
 
         <button
           type="button"
-          onClick={() => setDashboardFilter("unpaid")}
+          onClick={() => { setWeeklyFilter(null); setDashboardFilter("unpaid"); }}
           style={{
             ...snapshotCardStyle,
             cursor: "pointer",
@@ -1216,7 +1250,7 @@ const filteredRows = useMemo(() => {
         <button
           type="button"
           className="dashboard-total-entries-card"
-          onClick={() => setDashboardFilter("all")}
+          onClick={() => { setWeeklyFilter(null); setDashboardFilter("all"); }}
           style={{
             ...snapshotCardStyle,
             cursor: "pointer",
@@ -1265,43 +1299,68 @@ const filteredRows = useMemo(() => {
             }}
           >
             {[
-              ["Wins", currentWeekWins],
-              ["Losses", currentWeekLosses],
-              ["Eliminated", currentWeekEliminated],
-              ["In Progress", currentWeekInProgress],
-              ["Missing Picks", currentWeekMissing],
-            ].map(([label, value]) => (
-              <div
-                key={String(label)}
-                style={{
-                  minWidth: 90,
-                  padding: "9px 10px",
-                  borderRadius: 10,
-                  background: "rgba(255,255,255,0.055)",
-                  textAlign: "center",
-                }}
-              >
-                <div
+              { label: "Wins", value: currentWeekWins, filter: "wins" },
+              { label: "Losses", value: currentWeekLosses, filter: "losses" },
+              { label: "Eliminated", value: currentWeekEliminated, filter: "eliminated" },
+              { label: "In Progress", value: currentWeekInProgress, filter: "inProgress" },
+              { label: "Missing Picks", value: currentWeekMissing, filter: "missing" },
+            ].map(({ label, value, filter }) => {
+              const isActive = weeklyFilter === filter;
+
+              return (
+                <button
+                  type="button"
+                  key={label}
+                  onClick={() => {
+                    setDashboardFilter("all");
+                    setWeeklyFilter(
+                      isActive
+                        ? null
+                        : (filter as
+                            | "wins"
+                            | "losses"
+                            | "eliminated"
+                            | "inProgress"
+                            | "missing")
+                    );
+                  }}
                   style={{
-                    fontSize: 11,
-                    fontWeight: 850,
-                    opacity: 0.68,
-                    whiteSpace: "nowrap",
+                    minWidth: 90,
+                    padding: "9px 10px",
+                    borderRadius: 10,
+                    border: isActive
+                      ? "2px solid #f97316"
+                      : "1px solid transparent",
+                    background: isActive
+                      ? "rgba(249,115,22,0.14)"
+                      : "rgba(255,255,255,0.055)",
+                    textAlign: "center",
+                    color: "inherit",
+                    cursor: "pointer",
                   }}
                 >
-                  {label}
-                </div>
-                <div
-                  style={{
-                    marginTop: 3,
-                    fontSize: 20,
-                    fontWeight: 950,
-                  }}
-                >
-                  {value}
-                </div>
-              </div>
-            ))}
+                  <div
+                    style={{
+                      fontSize: 11,
+                      fontWeight: 850,
+                      opacity: 0.68,
+                      whiteSpace: "nowrap",
+                    }}
+                  >
+                    {label}
+                  </div>
+                  <div
+                    style={{
+                      marginTop: 3,
+                      fontSize: 20,
+                      fontWeight: 950,
+                    }}
+                  >
+                    {value}
+                  </div>
+                </button>
+              );
+            })}
           </div>
         </div>
       ) : null}
