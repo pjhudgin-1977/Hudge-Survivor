@@ -155,6 +155,9 @@ export default function PoolStandingsGridPage() {
   const [entryRegistrationClosed, setEntryRegistrationClosed] = useState(false);
   const [showUnpaidReminder, setShowUnpaidReminder] = useState(false);
   const [sortKey, setSortKey] = useState<string | null>(null);
+  const [dashboardFilter, setDashboardFilter] = useState<
+    "all" | "alive" | "lastLife" | "eliminated" | "unpaid"
+  >("all");
 const [sortDirection, setSortDirection] = useState<"asc" | "desc">("asc");
 
 const handleSort = (key: string) => {
@@ -470,6 +473,22 @@ const sortedRows = useMemo(() => {
 
   return sorted;
 }, [rows, sortKey, sortDirection, pickMap]);
+
+const filteredRows = useMemo(() => {
+  switch (dashboardFilter) {
+    case "alive":
+      return sortedRows.filter((r) => !r.eliminated);
+    case "lastLife":
+      return sortedRows.filter((r) => !r.eliminated && r.losses === 1);
+    case "eliminated":
+      return sortedRows.filter((r) => r.eliminated);
+    case "unpaid":
+      return sortedRows.filter((r) => !r.entry_fee_paid);
+    default:
+      return sortedRows;
+  }
+}, [sortedRows, dashboardFilter]);
+
   const totalEntries = rows.length;
   const aliveEntries = rows.filter((r) => !r.eliminated).length;
   const lastLifeEntries = rows.filter(
@@ -1110,33 +1129,110 @@ const sortedRows = useMemo(() => {
           marginBottom: 14,
         }}
       >
-        <div style={snapshotCardStyle}>
+        <button
+          type="button"
+          onClick={() => setDashboardFilter("alive")}
+          style={{
+            ...snapshotCardStyle,
+            cursor: "pointer",
+            textAlign: "left",
+            color: "inherit",
+            ...(dashboardFilter === "alive"
+              ? {
+                  border: "2px solid #f97316",
+                  background: "rgba(249,115,22,0.14)",
+                }
+              : {}),
+          }}
+        >
           <div style={snapshotLabelStyle}>Alive</div>
           <div style={snapshotValueStyle}>🐻 {aliveEntries}</div>
-        </div>
+        </button>
 
-        <div style={snapshotCardStyle}>
+        <button
+          type="button"
+          onClick={() => setDashboardFilter("lastLife")}
+          style={{
+            ...snapshotCardStyle,
+            cursor: "pointer",
+            textAlign: "left",
+            color: "inherit",
+            ...(dashboardFilter === "lastLife"
+              ? {
+                  border: "2px solid #f97316",
+                  background: "rgba(249,115,22,0.14)",
+                }
+              : {}),
+          }}
+        >
           <div style={snapshotLabelStyle}>Last Life</div>
           <div style={snapshotValueStyle}>⚠️ {lastLifeEntries}</div>
-        </div>
+        </button>
 
-        <div style={snapshotCardStyle}>
+        <button
+          type="button"
+          onClick={() => setDashboardFilter("eliminated")}
+          style={{
+            ...snapshotCardStyle,
+            cursor: "pointer",
+            textAlign: "left",
+            color: "inherit",
+            ...(dashboardFilter === "eliminated"
+              ? {
+                  border: "2px solid #f97316",
+                  background: "rgba(249,115,22,0.14)",
+                }
+              : {}),
+          }}
+        >
           <div style={snapshotLabelStyle}>Eliminated</div>
           <div style={snapshotValueStyle}>❌ {eliminatedEntries}</div>
-        </div>
+        </button>
 
-        <div style={snapshotCardStyle}>
-          <div style={snapshotLabelStyle}>Paid</div>
-          <div style={snapshotValueStyle}>💵 {paidEntries}</div>
-        </div>
+        <button
+          type="button"
+          onClick={() => setDashboardFilter("unpaid")}
+          style={{
+            ...snapshotCardStyle,
+            cursor: "pointer",
+            textAlign: "left",
+            color: "inherit",
+            ...(dashboardFilter === "unpaid"
+              ? {
+                  border: "2px solid #f97316",
+                  background: "rgba(249,115,22,0.14)",
+                }
+              : {}),
+          }}
+        >
+          <div style={snapshotLabelStyle}>
+            {dashboardFilter === "unpaid" ? "Unpaid" : "Paid"}
+          </div>
+          <div style={snapshotValueStyle}>
+            💵 {dashboardFilter === "unpaid" ? totalEntries - paidEntries : paidEntries}
+          </div>
+        </button>
 
-        <div
+        <button
+          type="button"
           className="dashboard-total-entries-card"
-          style={snapshotCardStyle}
+          onClick={() => setDashboardFilter("all")}
+          style={{
+            ...snapshotCardStyle,
+            cursor: "pointer",
+            textAlign: "left",
+            color: "inherit",
+            ...(dashboardFilter === "all"
+              ? {
+                  border: "2px solid #f97316",
+                  background: "rgba(249,115,22,0.14)",
+                }
+              : {}),
+          }}
         >
           <div style={snapshotLabelStyle}>Total Entries</div>
           <div style={snapshotValueStyle}>{totalEntries}</div>
-        </div>
+        </button>
       </div>
 
       {currentWeek !== null ? (
@@ -1211,7 +1307,7 @@ const sortedRows = useMemo(() => {
       ) : null}
 
       <div className="dashboard-standings-mobile">
-{rows.map((r) => {           const isMe = r.user_id === myUserId;
+{filteredRows.map((r) => {           const isMe = r.user_id === myUserId;
 
           const mobileStatus = r.eliminated
             ? "Eliminated"
@@ -1508,7 +1604,7 @@ Paid {sortKey === "paid" ? (sortDirection === "asc" ? "▲" : "▼") : "↕"}</t
           </thead>
 
                     <tbody>
-                      {sortedRows.map((r) => {
+                      {filteredRows.map((r) => {
                         const isMe = r.user_id === myUserId;
 
                         const rowBg = r.eliminated
