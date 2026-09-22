@@ -923,7 +923,7 @@ export default function PoolPickPage() {
                                   ? existingPickWasAutopick
                                     ? "CURRENT · AUTO"
                                     : "CURRENT PICK"
-                                  : "SELECTED"}
+                                  : "SELECTED — NOT SAVED"}
                               </span>
                             ) : null}
                           </div>
