@@ -277,7 +277,7 @@ export async function PATCH(
 
   const { data: poolState, error: poolStateError } = await adminSupabase
     .from("pool_state")
-    .select("season_year, week_number, phase, week_type")
+    .select("season_year, week_number, week_type")
     .eq("pool_id", poolId)
     .maybeSingle();
 
@@ -288,12 +288,17 @@ export async function PATCH(
     );
   }
 
+  const currentPhase =
+    String(poolState.week_type ?? "").toUpperCase() === "REG"
+      ? "regular"
+      : "playoffs";
+
   const { data: game, error: gameError } = await adminSupabase
     .from("games")
     .select("home_team, away_team")
     .eq("season_year", poolState.season_year)
     .eq("week_number", poolState.week_number)
-    .eq("phase", poolState.phase)
+    .eq("phase", currentPhase)
     .or(`home_team.eq.${newTeam},away_team.eq.${newTeam}`)
     .maybeSingle();
 
@@ -314,7 +319,7 @@ export async function PATCH(
     .eq("user_id", targetUserId)
     .eq("entry_no", targetEntryNo)
     .eq("week_number", poolState.week_number)
-    .eq("phase", poolState.phase)
+    .eq("phase", currentPhase)
     .maybeSingle();
 
   if (existingPickError) {
@@ -361,7 +366,7 @@ export async function PATCH(
       .eq("user_id", targetUserId)
       .eq("entry_no", targetEntryNo)
       .eq("team_abbr", oldTeam)
-      .eq("phase", poolState.phase);
+      .eq("phase", currentPhase);
 
     if (deleteUsedTeamError) {
       return NextResponse.json(
@@ -379,7 +384,7 @@ export async function PATCH(
         user_id: targetUserId,
         entry_no: targetEntryNo,
         team_abbr: newTeam,
-        phase: poolState.phase,
+        phase: currentPhase,
         used_at: new Date().toISOString(),
       },
       {
@@ -421,7 +426,7 @@ export async function PATCH(
         user_id: targetUserId,
         entry_no: targetEntryNo,
         week_number: poolState.week_number,
-        phase: poolState.phase,
+        phase: currentPhase,
         week_type: poolState.week_type,
         picked_team: newTeam,
         submitted_at: new Date().toISOString(),
@@ -468,7 +473,7 @@ export async function PATCH(
       entry_no: targetEntryNo,
       season_year: poolState.season_year,
       week_number: poolState.week_number,
-      phase: String(poolState.phase),
+      phase: String(currentPhase),
       week_type: poolState.week_type,
       old_team: oldTeam,
       new_team: newTeam,
