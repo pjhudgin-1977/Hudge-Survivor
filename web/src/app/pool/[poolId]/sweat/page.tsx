@@ -867,7 +867,7 @@ popularity = raw
             </div>
           ) : (
             <div style={{ display: "grid", gap: 12 }}>
-              {popularity.slice(0, 10).map((r) => {
+              {popularity.map((r) => {
                 const pct = popularityTotal
                   ? Math.round((r.count / popularityTotal) * 100)
                   : 0;
