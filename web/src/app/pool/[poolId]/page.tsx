@@ -129,6 +129,24 @@ function nameInitialLine(fullName: string | null | undefined) {
   return `${first} ${lastInitial}.`;
 }
 
+function getEntryPickStatus(pick: PickRow | undefined, gameStarted: boolean) {
+  const result = String(pick?.result ?? "").trim().toLowerCase();
+  if (result === "win") {
+    return { key: "win", label: "✓ Win", color: "#bfdbfe", background: "rgba(37,99,235,0.25)" };
+  }
+  // A tied game counts as a loss under the pool rules.
+  if (result === "loss" || result === "tie") {
+    return { key: "loss", label: result === "tie" ? "✕ Loss (Tie)" : "✕ Loss", color: "#fed7aa", background: "rgba(234,88,12,0.25)" };
+  }
+  if (!String(pick?.picked_team ?? "").trim()) {
+    return { key: "missing", label: "— No Pick", color: "#cbd5e1", background: "rgba(100,116,139,0.20)" };
+  }
+  if (gameStarted) {
+    return { key: "inProgress", label: "◷ In Progress", color: "#fde68a", background: "rgba(161,98,7,0.25)" };
+  }
+  return { key: "pending", label: "◷ Pending", color: "#cbd5e1", background: "rgba(100,116,139,0.20)" };
+}
+
 export default function PoolStandingsGridPage() {
   const params = useParams();
   const poolId = params.poolId as string;
@@ -917,42 +935,28 @@ const filteredRows = useMemo(() => {
 
           <div style={{ display: "grid", gap: 10 }}>
             {myEntries.map((entry) => {
-              const entryPicks = picks
-                .filter(
-                  (p) =>
-                    p.user_id === entry.user_id &&
-                    Number(p.entry_no ?? 1) === entry.entry_no
-                )
-                .sort(
-                  (a, b) => Number(b.week_number ?? 0) - Number(a.week_number ?? 0)
-                );
-
-              const latestPick = entryPicks[0];
-
-              const latestTeamRaw =
-                String(latestPick?.picked_team ?? "").trim() || "—";
-
+              const latestPick = currentWeek !== null && currentPhase
+                ? pickMap[`${entry.user_id}|${entry.entry_no}|${currentPhase}|${currentWeek}`]
+                : undefined;
+              const latestTeam = String(latestPick?.picked_team ?? "").trim() || "—";
               const latestGame = latestPick
-                ? games.find((g) => {
-                    const sameWeek =
-                      Number(g.week_number) === Number(latestPick.week_number);
-                    const samePhase =
-                      normalizePhase(g.phase) === normalizePhase(latestPick.phase);
-                    const team = latestTeamRaw;
-
-                    return (
-                      sameWeek &&
-                      samePhase &&
-                      (g.home_team === team || g.away_team === team)
-                    );
-                  })
+                ? games.find((g) =>
+                    Number(g.week_number) === Number(latestPick.week_number) &&
+                    normalizePhase(g.phase) === normalizePhase(latestPick.phase) &&
+                    [g.home_team, g.away_team].some((team) =>
+                      String(team ?? "").trim().toUpperCase() === latestTeam.toUpperCase()
+                    )
+                  )
+                : undefined;
+              const latestGameStarted = Boolean(latestGame?.kickoff_at) &&
+                new Date(latestGame!.kickoff_at).getTime() <= Date.now();
+              const weekLockAt = currentWeek !== null && currentPhase
+                ? sundayOnePmEtForWeek(games, currentWeek, currentPhase)
                 : null;
-
-              const latestGameStarted =
-                latestGame?.kickoff_at &&
-                new Date(latestGame.kickoff_at).getTime() <= Date.now();
-
-              const latestTeam = latestTeamRaw;
+              const pickLocked = latestGameStarted ||
+                (weekLockAt !== null && Date.now() >= weekLockAt);
+              const pickStatus = getEntryPickStatus(latestPick, latestGameStarted);
+              const resultFinal = pickStatus.key === "win" || pickStatus.key === "loss";
 
               const statusText = entry.eliminated
                 ? "❌ Eliminated"
@@ -967,7 +971,7 @@ const filteredRows = useMemo(() => {
                   style={{
                     display: "grid",
                     gridTemplateColumns:
-                      "minmax(180px, 1fr) 140px 140px 120px 140px",
+                      "minmax(180px, 1fr) 140px 140px 120px 165px",
                     gap: 10,
                     alignItems: "center",
                     padding: "10px 12px",
@@ -1031,39 +1035,47 @@ const filteredRows = useMemo(() => {
                     className="dashboard-entry-action"
                     style={{ textAlign: "right" }}
                   >
-                    {latestGameStarted ? (
+                    <div style={{ display: "flex", flexDirection: "column", gap: 8, alignItems: "flex-start" }}>
                       <span
+                        title={pickStatus.key === "inProgress"
+                          ? "Kickoff has passed; awaiting the recorded result."
+                          : "This week's pick result"}
                         style={{
                           display: "inline-block",
                           padding: "8px 12px",
                           borderRadius: 10,
                           fontWeight: 900,
-                          border: "1px solid rgba(255,255,255,0.14)",
-                          background: "rgba(100,116,139,0.28)",
-                          color: "#cbd5e1",
+                          border: `1px solid ${pickStatus.color}`,
+                          background: pickStatus.background,
+                          color: pickStatus.color,
                           whiteSpace: "nowrap",
                         }}
                       >
-                        🔒 Pick Locked
+                        {pickStatus.label}
                       </span>
-                    ) : (
-                      <Link
-                        href={`/pool/${poolId}/pick?entry=${entry.entry_no}`}
-                        style={{
-                          display: "inline-block",
-                          padding: "8px 12px",
-                          borderRadius: 10,
-                          textDecoration: "none",
-                          fontWeight: 900,
-                          border: "1px solid rgba(255,255,255,0.18)",
-                          background: "rgba(255,128,0,0.18)",
-                          color: "white",
-                          whiteSpace: "nowrap",
-                        }}
-                      >
-                        Make Pick
-                      </Link>
-                    )}
+                      {!resultFinal && !entry.eliminated && (
+                        pickLocked ? (
+                          <span style={{ fontSize: 12, color: "#cbd5e1" }}>🔒 Pick Locked</span>
+                        ) : (
+                          <Link
+                            href={`/pool/${poolId}/pick?entry=${entry.entry_no}`}
+                            style={{
+                              display: "inline-block",
+                              padding: "8px 12px",
+                              borderRadius: 10,
+                              textDecoration: "none",
+                              fontWeight: 900,
+                              border: "1px solid rgba(255,255,255,0.18)",
+                              background: "rgba(255,128,0,0.18)",
+                              color: "white",
+                              whiteSpace: "nowrap",
+                            }}
+                          >
+                            {latestPick?.picked_team ? "Change Pick" : "Make Pick"}
+                          </Link>
+                        )
+                      )}
+                    </div>
                   </div>
                 </div>
               );
