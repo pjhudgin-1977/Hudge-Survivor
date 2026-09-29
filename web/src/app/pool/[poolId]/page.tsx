@@ -448,8 +448,10 @@ const handleSort = (key: string) => {
 
     list.sort((a, b) => {
       if (a.section !== b.section) return a.section - b.section;
-      if (a.lossSortWeek !== b.lossSortWeek) {
-        return a.lossSortWeek - b.lossSortWeek;
+          if (a.lossSortWeek !== b.lossSortWeek) {
+        return a.eliminated && b.eliminated
+          ? b.lossSortWeek - a.lossSortWeek
+          : a.lossSortWeek - b.lossSortWeek;
       }
       if (a.sortName < b.sortName) return -1;
       if (a.sortName > b.sortName) return 1;
