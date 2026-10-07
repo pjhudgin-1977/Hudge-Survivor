@@ -532,7 +532,9 @@ const popularityCanReveal =
                   </div>
                 ) : null}
 
-                {game.home_score !== null &&
+                {(game.status?.toLowerCase() === "live" ||
+                  game.status?.toLowerCase() === "final") &&
+                game.home_score !== null &&
                 game.away_score !== null ? (
                   <div className="mt-1 text-xl text-slate-900">
                     <span
