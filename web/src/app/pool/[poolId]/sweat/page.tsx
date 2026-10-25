@@ -48,6 +48,9 @@ type GameGroup = {
   favorite_team: string | null;
   point_spread: number | null;
   score_updated_at: string | null;
+  game_period: number | null;
+  game_clock: string | null;
+  clock_seconds: number | null;
 
   season_year: number | null;
   week_number: number | null;
@@ -208,34 +211,68 @@ function winnerTeam(g: GameGroup): string | null {
   return h > a ? (g.home_team ?? null) : (g.away_team ?? null);
 }
 
-function riskScoreForPick(g: GameGroup, pickTeam: string | null, stillAlive: boolean) {
-  if (!stillAlive) return 0;
-  if (isComplete(g)) return 0;
+function riskScoreForPick(
+  g: GameGroup,
+  pickTeam: string | null,
+  stillAlive: boolean
+) {
+  if (!stillAlive || isComplete(g)) return 0;
   if (!haveScores(g)) return 50;
 
+  const pick = String(pickTeam ?? "");
   const home = String(g.home_team ?? "");
   const away = String(g.away_team ?? "");
-  const pick = String(pickTeam ?? "");
 
-  let pickScore: number | null = null;
-  let oppScore: number | null = null;
+  let margin: number;
 
-  if (pick && home && pick === home) {
-    pickScore = g.home_score;
-    oppScore = g.away_score;
-  } else if (pick && away && pick === away) {
-    pickScore = g.away_score;
-    oppScore = g.home_score;
+  if (pick === home) {
+    margin = (g.home_score ?? 0) - (g.away_score ?? 0);
+  } else if (pick === away) {
+    margin = (g.away_score ?? 0) - (g.home_score ?? 0);
   } else {
-    const diff = Math.abs((g.home_score ?? 0) - (g.away_score ?? 0));
-    return diff <= 3 ? 85 : diff <= 10 ? 55 : 25;
+    return 50;
   }
 
-  const margin = (pickScore ?? 0) - (oppScore ?? 0);
+  const period = g.game_period;
+  const seconds = g.clock_seconds;
 
-  if (margin <= 0) return 95;
-  if (margin <= 7) return 65;
-  return 30;
+  // Fraction of regulation game elapsed, from 0 to 1.
+  // Overtime counts as maximum late-game pressure.
+  let progress = 0.5;
+
+  if (period !== null && period >= 5) {
+    progress = 1;
+  } else if (
+    period !== null &&
+    period >= 1 &&
+    period <= 4 &&
+    seconds !== null
+  ) {
+    const remaining = Math.max(0, Math.min(900, seconds));
+    progress = ((period - 1) * 900 + (900 - remaining)) / 3600;
+  }
+
+  let risk: number;
+
+  if (margin <= -8) {
+    risk = 80 + progress * 18;
+  } else if (margin < 0) {
+    risk = 72 + progress * 25;
+  } else if (margin === 0) {
+    risk = 62 + progress * 32;
+  } else if (margin <= 3) {
+    risk = 43 + progress * 47;
+  } else if (margin <= 7) {
+    risk = 30 + progress * 52;
+  } else if (margin <= 10) {
+    risk = 24 + progress * 37;
+  } else if (margin <= 14) {
+    risk = 15 + progress * 26;
+  } else {
+    risk = 10 + progress * 12;
+  }
+
+  return Math.max(0, Math.min(100, Math.round(risk)));
 }
 
 function pregameRiskForPick(
@@ -288,14 +325,14 @@ function gameRiskScore(
       ? activePicks.length / totalAliveEntries
       : 0;
 
-  // 60% danger of the picks, 40% percentage of pool exposed.
+  // 90% actual pick danger, 10% pool exposure.
   return Math.max(
     0,
     Math.min(
       100,
       Math.round(
-        averagePickRisk * 0.6 +
-          exposurePct * 100 * 0.4
+        averagePickRisk * 0.9 +
+          exposurePct * 100 * 0.1
       )
     )
   );
@@ -498,13 +535,16 @@ export default async function SweatPage({
       favorite_team: string | null;
       point_spread: number | null;
       score_updated_at: string | null;
+      game_period: number | null;
+      game_clock: string | null;
+      clock_seconds: number | null;
     }
   >();
 
   if (gameIds.length > 0) {
     const { data: spreadRows } = await supabase
       .from("games")
-      .select("id, favorite_team, point_spread, score_updated_at")
+      .select("id, favorite_team, point_spread, score_updated_at, game_period, game_clock, clock_seconds")
       .in("id", gameIds);
 
     for (const row of spreadRows ?? []) {
@@ -515,6 +555,9 @@ export default async function SweatPage({
             ? row.point_spread
             : null,
                 score_updated_at: row.score_updated_at ?? null,
+        game_period: row.game_period ?? null,
+        game_clock: row.game_clock ?? null,
+        clock_seconds: row.clock_seconds ?? null,
         });
     }
   }
@@ -543,6 +586,9 @@ export default async function SweatPage({
         favorite_team: spread?.favorite_team ?? null,
         point_spread: spread?.point_spread ?? null,
           score_updated_at: spread?.score_updated_at ?? null,
+        game_period: spread?.game_period ?? null,
+        game_clock: spread?.game_clock ?? null,
+        clock_seconds: spread?.clock_seconds ?? null,
 
         season_year: typeof r.season_year === "number" ? r.season_year : null,
         week_number: typeof r.week_number === "number" ? r.week_number : null,

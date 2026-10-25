@@ -99,6 +99,24 @@ serve(async (req) => {
         statusType?.name
       );
 
+      // ESPN live game period and clock.
+      const espnStatus = comp?.status ?? e?.status;
+
+      const gamePeriod =
+        typeof espnStatus?.period === "number"
+          ? espnStatus.period
+          : null;
+
+      const gameClock =
+        typeof espnStatus?.displayClock === "string"
+          ? espnStatus.displayClock
+          : null;
+
+      const clockSeconds =
+        typeof espnStatus?.clock === "number"
+          ? Math.round(espnStatus.clock)
+          : null;
+
       const competitors: any[] = Array.isArray(comp?.competitors)
         ? comp.competitors
         : [];
@@ -155,7 +173,7 @@ serve(async (req) => {
 
       const { data: existingRows, error: lookupError } = await sb
         .from("games")
-        .select("id, provider_event_id, kickoff_at, status, home_score, away_score, winner_team, was_tie")
+        .select("id, provider_event_id, kickoff_at, status, home_score, away_score, winner_team, was_tie, game_period, game_clock, clock_seconds")
         .eq("season_year", body.season_year)
         .eq("week_number", body.week_number)
         .eq("phase", body.phase)
@@ -185,6 +203,9 @@ serve(async (req) => {
         away_score: awayScore,
         winner_team: winnerTeam,
         was_tie: wasTie,
+        game_period: gamePeriod,
+        game_clock: gameClock,
+        clock_seconds: clockSeconds,
       };
 
       if (existing) {
@@ -199,7 +220,10 @@ serve(async (req) => {
           Number(existing.home_score ?? 0) !== homeScore ||
           Number(existing.away_score ?? 0) !== awayScore ||
           (existing.winner_team ?? null) !== winnerTeam ||
-          Boolean(existing.was_tie) !== wasTie;
+          Boolean(existing.was_tie) !== wasTie ||
+          (existing.game_period ?? null) !== gamePeriod ||
+          (existing.game_clock ?? null) !== gameClock ||
+          (existing.clock_seconds ?? null) !== clockSeconds;
 
         if (hasChanged) {
           const { error: updateError } = await sb
