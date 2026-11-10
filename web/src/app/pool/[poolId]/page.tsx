@@ -902,15 +902,17 @@ const filteredRows = useMemo(() => {
           </div>
 
           <div
-            style={{
-              fontSize: 19,
-              fontWeight: 850,
-              lineHeight: 1.5,
-              color: "white",
-            }}
-          >
-            {commissionerNote}
-          </div>
+  style={{
+    fontSize: 17,
+    fontWeight: 700,
+    lineHeight: 1.7,
+    color: "white",
+    whiteSpace: "pre-wrap",
+    overflowWrap: "anywhere",
+  }}
+>
+  {commissionerNote}
+</div>
         </div>
       )}
 
