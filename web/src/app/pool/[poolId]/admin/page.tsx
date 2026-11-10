@@ -2,7 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import CommissionerActions from "./CommissionerActions";
-
+import PrizePayouts from "./PrizePayouts";
 type SummaryCardProps = {
   label: string;
   value: string | number;
@@ -391,7 +391,10 @@ export default async function AdminHomePage({
       </section>
 
       <CommissionerActions poolId={poolId} />
-
+<PrizePayouts
+  entryCount={members.length}
+  seasonYear={seasonYear}
+/>
       <section className="rounded-xl border border-slate-200 bg-white p-5 text-slate-900 shadow-sm">
         <h2 className="text-xl font-bold">System Status</h2>
 
