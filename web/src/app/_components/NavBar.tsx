@@ -72,6 +72,7 @@ export default function NavBar({
   ];
 
   const moreItems = [
+  { label: "History", href: `${base}/history` },
   { label: "Rules", href: `${base}/rules` },
   { label: "Invite", href: `${base}/invite` },
   { label: "Profile", href: "/profile" },

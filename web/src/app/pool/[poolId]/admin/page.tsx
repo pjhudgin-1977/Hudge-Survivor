@@ -514,6 +514,12 @@ export default async function AdminHomePage({
           />
 
           <ToolCard
+            title="Season Archive"
+            desc="Review final standings, finishing positions, and winnings before archiving a completed season."
+            href={`/pool/${poolId}/admin/season-archive`}
+          />
+
+          <ToolCard
             title="Private Messages"
             desc="Read private messages sent to the commissioner."
             href={`/pool/${poolId}/admin/messages`}
