@@ -314,6 +314,8 @@ export default async function SeasonArchiveAdminPage({
       </section>
 
       <PayoutEditor
+        poolId={poolId}
+        seasonYear={year}
         entries={payoutEntries}
         prizePoolCents={prizePoolCents}
       />

@@ -188,3 +188,79 @@ export async function GET(
     );
   }
 }
+
+// Final archive requests use the signed-in user's session.
+// The database independently verifies commissioner permissions,
+// season completion, exact payouts, and duplicate protection.
+export async function POST(
+  request: Request,
+  { params }: { params: Promise<{ poolId: string }> }
+) {
+  try {
+    const { poolId } = await params;
+    const supabase = await createClient();
+
+    const { data: auth, error: authError } =
+      await supabase.auth.getUser();
+
+    if (authError || !auth.user) {
+      return NextResponse.json(
+        { error: "Not logged in" },
+        { status: 401 }
+      );
+    }
+
+    const raw = await request.text();
+
+    if (raw.length > 250000) {
+      return NextResponse.json(
+        { error: "Archive request too large" },
+        { status: 413 }
+      );
+    }
+
+    const body = JSON.parse(raw);
+    const seasonYear = Number(body?.seasonYear);
+    const payouts = body?.payouts;
+    const confirmation = body?.confirmation;
+
+    if (
+      !Number.isInteger(seasonYear) ||
+      seasonYear < 2026 ||
+      !Array.isArray(payouts) ||
+      payouts.length === 0 ||
+      confirmation !== `ARCHIVE ${seasonYear}`
+    ) {
+      return NextResponse.json(
+        { error: "Invalid archive request or confirmation" },
+        { status: 400 }
+      );
+    }
+
+    const { data, error } = await supabase.rpc(
+      "archive_pool_season",
+      {
+        p_pool_id: poolId,
+        p_season_year: seasonYear,
+        p_payouts: payouts,
+        p_confirmation: confirmation,
+      }
+    );
+
+    if (error) {
+      return NextResponse.json(
+        { error: error.message },
+        { status: 400 }
+      );
+    }
+
+    return NextResponse.json(data);
+  } catch (error) {
+    console.error("Season archive request failed:", error);
+
+    return NextResponse.json(
+      { error: "Unable to process archive request" },
+      { status: 500 }
+    );
+  }
+}

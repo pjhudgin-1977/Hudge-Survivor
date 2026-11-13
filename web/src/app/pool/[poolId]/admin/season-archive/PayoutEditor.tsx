@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 type Entry = {
   user_id: string;
@@ -17,6 +17,8 @@ type Draft = {
 };
 
 type Props = {
+  poolId: string;
+  seasonYear: number;
   entries: Entry[];
   prizePoolCents: number;
 };
@@ -47,6 +49,8 @@ function entryKey(entry: Entry) {
 }
 
 export default function PayoutEditor({
+  poolId,
+  seasonYear,
   entries,
   prizePoolCents,
 }: Props) {
@@ -63,6 +67,51 @@ export default function PayoutEditor({
       )
   );
 
+  const [archiveStatus, setArchiveStatus] = useState<{
+    seasonChecksPassed: boolean;
+    alreadyArchived: boolean;
+    blockers: string[];
+  } | null>(null);
+
+  const [statusError, setStatusError] = useState("");
+  const [reviewOpen, setReviewOpen] = useState(false);
+  const [confirmationText, setConfirmationText] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [archiveError, setArchiveError] = useState("");
+  const [archiveSuccess, setArchiveSuccess] = useState(false);
+
+  useEffect(() => {
+    const controller = new AbortController();
+
+    async function checkArchiveStatus() {
+      try {
+        const response = await fetch(
+          `/api/pool/${poolId}/admin/season-archive`,
+          { signal: controller.signal, cache: "no-store" }
+        );
+
+        const data = await response.json();
+
+        if (!response.ok) {
+          throw new Error(data.error || "Unable to check archive status");
+        }
+
+        if (!controller.signal.aborted) {
+          setArchiveStatus(data);
+        }
+      } catch (error) {
+        if (!controller.signal.aborted) {
+          setStatusError(
+            error instanceof Error ? error.message : "Status check failed"
+          );
+        }
+      }
+    }
+
+    checkArchiveStatus();
+    return () => controller.abort();
+  }, [poolId, seasonYear]);
+
   const summary = useMemo(() => {
     let total = 0;
     let invalid = 0;
@@ -75,8 +124,8 @@ export default function PayoutEditor({
 
       if (
         cents === null ||
-        (finish !== "" && !/^[1-9]\d*$/.test(finish)) ||
-        (cents !== null && cents > 0 && finish === "")
+        !/^[1-9]\d*$/.test(finish) ||
+        Number(finish) > entries.length
       ) {
         invalid++;
       }
@@ -94,6 +143,64 @@ export default function PayoutEditor({
       difference: prizePoolCents - total,
     };
   }, [drafts, entries, prizePoolCents]);
+
+  async function submitArchive() {
+    if (
+      submitting ||
+      !balanced ||
+      !archiveStatus?.seasonChecksPassed ||
+      archiveStatus.alreadyArchived ||
+      confirmationText !== `ARCHIVE ${seasonYear}`
+    ) {
+      setArchiveError("Archive requirements have not been met.");
+      return;
+    }
+
+    const payouts = entries.map((entry) => {
+      const draft = drafts[entryKey(entry)];
+      return {
+        user_id: entry.user_id,
+        entry_no: entry.entry_no,
+        finish_place: Number(draft.finish),
+        winnings_cents: parseCents(draft.winnings),
+      };
+    });
+
+    setSubmitting(true);
+    setArchiveError("");
+
+    try {
+      const response = await fetch(
+        `/api/pool/${poolId}/admin/season-archive`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            seasonYear,
+            payouts,
+            confirmation: confirmationText,
+          }),
+        }
+      );
+
+      const result = await response.json();
+
+      if (!response.ok || result?.ok !== true) {
+        throw new Error(result?.error || "Archive request failed.");
+      }
+
+      setArchiveSuccess(true);
+      setArchiveStatus((previous) =>
+        previous ? { ...previous, alreadyArchived: true } : previous
+      );
+    } catch (error) {
+      setArchiveError(
+        error instanceof Error ? error.message : "Archive failed."
+      );
+    } finally {
+      setSubmitting(false);
+    }
+  }
 
   function update(key: string, field: keyof Draft, value: string) {
     setDrafts((previous) => ({
@@ -113,6 +220,33 @@ export default function PayoutEditor({
   return (
     <section className="mt-6 overflow-hidden rounded-xl border border-slate-200 bg-white text-slate-900">
       <div className="p-5">
+        <div className="mb-5 rounded-lg border border-slate-300 bg-slate-50 p-4">
+          <h3 className="font-bold">Archive Eligibility</h3>
+
+          {statusError ? (
+            <p className="mt-2 text-amber-800">{statusError}</p>
+          ) : !archiveStatus ? (
+            <p className="mt-2">Checking season status...</p>
+          ) : archiveStatus.alreadyArchived ? (
+            <p className="mt-2">This season is already archived.</p>
+          ) : archiveStatus.seasonChecksPassed ? (
+            <p className="mt-2">
+              Preliminary season checks passed. Final approval is still required.
+            </p>
+          ) : (
+            <>
+              <p className="mt-2 font-semibold">
+                Archiving is currently blocked:
+              </p>
+              <ul className="mt-2 list-disc pl-5">
+                {archiveStatus.blockers.map((reason) => (
+                  <li key={reason}>{reason}</li>
+                ))}
+              </ul>
+            </>
+          )}
+        </div>
+
         <h2 className="text-xl font-bold">
           Final Placements & Winnings
         </h2>
@@ -227,10 +361,97 @@ export default function PayoutEditor({
         </table>
       </div>
 
-      <p className="p-5 text-sm text-slate-600">
-        Preview only. No payouts or placements are saved,
-        and archiving is not enabled.
-      </p>
+      <div className="border-t border-slate-200 p-5">
+        <button
+          type="button"
+          onClick={() => setReviewOpen(!reviewOpen)}
+          className="rounded-lg bg-orange-500 px-5 py-3 font-bold text-black hover:bg-orange-400"
+        >
+          {reviewOpen ? "Close Review" : "Review Final Archive"}
+        </button>
+
+        {reviewOpen && (
+          <div className="mt-5 rounded-lg border border-slate-300 bg-slate-50 p-5">
+            <h3 className="text-xl font-bold">
+              {seasonYear} Archive Review
+            </h3>
+
+            <p className="mt-3">Total entries: {entries.length}</p>
+            <p className="mt-2">
+              Prize pool: {money(prizePoolCents)}
+            </p>
+            <p className="mt-2">
+              Winnings assigned: {money(summary.total)}
+            </p>
+            <p className="mt-2">
+              Difference: {money(summary.difference)}
+            </p>
+            <p className="mt-2">
+              Entries requiring correction: {summary.invalid}
+            </p>
+
+            <h4 className="mt-5 font-bold">Entries with Winnings</h4>
+
+            {summary.winners === 0 ? (
+              <p className="mt-2 text-slate-600">
+                No winnings assigned yet.
+              </p>
+            ) : (
+              <ul className="mt-2 space-y-2">
+                {entries.filter((entry) => {
+                  const cents = parseCents(
+                    drafts[entryKey(entry)]?.winnings ?? ""
+                  );
+                  return cents !== null && cents > 0;
+                }).map((entry) => {
+                  const draft = drafts[entryKey(entry)];
+                  const cents = parseCents(draft.winnings) ?? 0;
+
+                  return (
+                    <li key={entryKey(entry)}>
+                      {entry.name} #{entry.entry_no}
+                      {" — "}Place {draft.finish}
+                      {" — "}{money(cents)}
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+
+            <p className="mt-5 font-semibold">
+              {archiveStatus?.seasonChecksPassed && balanced
+                ? "Financial and preliminary season checks passed. Final confirmation will be required."
+                : "Archiving is not available until all season and payout checks pass."}
+            </p>
+
+            <label className="mt-5 block font-bold">Final confirmation: type ARCHIVE {seasonYear}</label>
+            <input type="text" value={confirmationText} onChange={(e) => setConfirmationText(e.target.value)} placeholder={`ARCHIVE ${seasonYear}`} className="mt-2 rounded-lg border border-slate-300 p-3" />
+            <p className="mt-2 text-sm">{confirmationText === `ARCHIVE ${seasonYear}` ? "Confirmation matches." : "Final confirmation required."}</p>
+
+            <button
+              type="button"
+              onClick={submitArchive}
+              disabled={
+                submitting ||
+                archiveSuccess ||
+                !balanced ||
+                !archiveStatus?.seasonChecksPassed ||
+                archiveStatus.alreadyArchived ||
+                confirmationText !== `ARCHIVE ${seasonYear}`
+              }
+              className="mt-4 rounded-lg bg-orange-500 px-5 py-3 font-bold text-black disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              {submitting ? "Archiving..." : archiveSuccess ? "Season Archived" : `Archive ${seasonYear} Season`}
+            </button>
+            {archiveError && <p className="mt-3 font-semibold text-red-700">{archiveError}</p>}
+            {archiveSuccess && <p className="mt-3 font-semibold text-green-800">Season archived successfully.</p>}
+
+            <p className="mt-3 text-sm text-slate-600">
+              Placements and payouts are not saved until you successfully archive the completed season.
+            </p>
+          </div>
+        )}
+      </div>
     </section>
   );
 }
