@@ -49,6 +49,7 @@ type PickRow = {
   user_id: string;
   entry_no: number | null;
   picked_team: string | null;
+  result: string | null;
   phase: string | null;
   week_number: number | null;
 };
@@ -182,7 +183,7 @@ export default async function TeamsLeftPage({
       .eq("pool_id", poolId),
     supabase
       .from("picks")
-      .select("user_id, entry_no, picked_team, phase, week_number")
+      .select("user_id, entry_no, picked_team, result, phase, week_number")
       .eq("pool_id", poolId)
       .not("picked_team", "is", null),
     supabase
@@ -216,6 +217,7 @@ export default async function TeamsLeftPage({
     Date.now() >= currentWeekLock.getTime();
 
   const usedByEntry = new Map<string, Set<string>>();
+  const lostByEntry = new Map<string, Set<string>>();
 
   for (const pick of picks) {
     if (normalizePhase(pick.phase) !== phase) continue;
@@ -257,6 +259,13 @@ export default async function TeamsLeftPage({
     }
 
     usedByEntry.get(key)?.add(team);
+
+    if (String(pick.result ?? "").toLowerCase() === "loss") {
+      if (!lostByEntry.has(key)) {
+        lostByEntry.set(key, new Set<string>());
+      }
+      lostByEntry.get(key)?.add(team);
+    }
   }
 
   const rows = members
@@ -285,6 +294,7 @@ export default async function TeamsLeftPage({
         losses,
         eliminated,
         used: Array.from(used).sort(),
+        lost: Array.from(lostByEntry.get(key) ?? []),
         remaining,
       };
     })
@@ -560,8 +570,10 @@ export default async function TeamsLeftPage({
                         border:
                           "1px solid rgba(255,255,255,0.12)",
                         background: "rgba(255,255,255,0.045)",
-                        color: "rgba(255,255,255,0.6)",
-                        fontWeight: 850,
+                        color: entry.lost.includes(team)
+                          ? "#ffffff"
+                          : "rgba(255,255,255,0.6)",
+                        fontWeight: entry.lost.includes(team) ? 950 : 850,
                         textDecoration: "line-through",
                       }}
                     >
