@@ -2,18 +2,30 @@
 
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabaseClient";
+import {
+  formatTeamRecord,
+  loadTeamRecords,
+  type TeamRecords,
+} from "@/lib/teamRecords";
 
 const supabase = createClient();
 export default function SweatBoard() {
   const [status, setStatus] = useState("Loading...");
   const [rows, setRows] = useState<any[]>([]);
+  const [teamRecords, setTeamRecords] = useState<TeamRecords>({});
 
   useEffect(() => {
     (async () => {
-      const { data, error } = await supabase
-        .from("v_sweat_game_board")
-        .select("*")
-        .order("screen_name");
+      const [{ data, error }, { data: latestSeason }] = await Promise.all([
+        supabase.from("v_sweat_game_board").select("*").order("screen_name"),
+        supabase
+          .from("games")
+          .select("season_year")
+          .eq("phase", "regular")
+          .order("season_year", { ascending: false })
+          .limit(1)
+          .maybeSingle(),
+      ]);
 
       if (error) {
         setStatus("Error: " + error.message);
@@ -22,6 +34,7 @@ export default function SweatBoard() {
 
       setRows(data ?? []);
       setStatus(`Loaded ${data?.length ?? 0} rows ✅`);
+      setTeamRecords(await loadTeamRecords(supabase, latestSeason?.season_year));
     })();
   }, []);
 
@@ -45,8 +58,8 @@ export default function SweatBoard() {
           {rows.map((r, i) => (
             <tr key={i}>
               <td>{r.screen_name}</td>
-              <td>{r.picked_team}</td>
-              <td>{r.opponent_team ?? "—"}</td>
+              <td>{formatTeamRecord(r.picked_team, teamRecords)}</td>
+              <td>{formatTeamRecord(r.opponent_team, teamRecords) ?? "—"}</td>
               <td>
   {r.game_status === "IN_PROGRESS"
     ? "🔴 LIVE"

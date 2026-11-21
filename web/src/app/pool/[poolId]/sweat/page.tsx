@@ -1,3 +1,8 @@
+import {
+  formatTeamRecord,
+  loadTeamRecords,
+  type TeamRecords,
+} from "@/lib/teamRecords";
 import { redirect } from "next/navigation";
 import React from "react";
 import { createClient } from "@/lib/supabase/server";
@@ -105,14 +110,14 @@ function fmtScoreUpdated(d?: string | null) {
   }).format(dt);
 }
 
-function formatSpread(g: GameGroup) {
+function formatSpread(g: GameGroup, teamRecords: TeamRecords) {
   if (g.point_spread === null) return "Spread: TBD";
 
   if (g.point_spread === 0 || !g.favorite_team) {
     return "Spread: Pick'em";
   }
 
-  return `Spread: ${g.favorite_team} ${g.point_spread}`;
+  return `Spread: ${formatTeamRecord(g.favorite_team, teamRecords)} ${g.point_spread}`;
 }
 
 function hasGameStarted(kickoffAt?: string | null) {
@@ -385,6 +390,7 @@ export default async function SweatPage({
   }
 
   const currentSeasonYear = Number(poolState.season_year);
+  const teamRecordsPromise = loadTeamRecords(supabase, currentSeasonYear);
   const currentWeek = Number(poolState.week_number);
   const currentPhase =
     String(poolState.week_type ?? "").toUpperCase() === "REG"
@@ -826,6 +832,8 @@ popularity = raw
       .sort()
       .at(-1) ?? null;
 
+  const teamRecords = await teamRecordsPromise;
+
   return (
     <main
       style={{
@@ -928,7 +936,7 @@ gridTemplateColumns: "88px minmax(100px, 1fr) 78px",                      gap: 1
                     }}
                   >
 <div>
-  <div style={{ fontWeight: 900 }}>{r.team}</div>
+  <div style={{ fontWeight: 900 }}>{formatTeamRecord(r.team, teamRecords)}</div>
 
   <div
     style={{
@@ -1040,8 +1048,8 @@ gridTemplateColumns: "88px minmax(100px, 1fr) 78px",                      gap: 1
                 </div>
 
                 <div style={{ marginTop: 5, fontWeight: 850 }}>
-                  {highestRiskGame.away_team ?? "AWAY"} at{" "}
-                  {highestRiskGame.home_team ?? "HOME"}
+                  {formatTeamRecord(highestRiskGame.away_team, teamRecords) ?? "AWAY"} at{" "}
+                  {formatTeamRecord(highestRiskGame.home_team, teamRecords) ?? "HOME"}
                 </div>
 
                 {highestRiskStarted &&
@@ -1054,9 +1062,9 @@ gridTemplateColumns: "88px minmax(100px, 1fr) 78px",                      gap: 1
                       fontWeight: 950,
                     }}
                   >
-                    {highestRiskGame.away_team ?? "AWAY"}{" "}
+                    {formatTeamRecord(highestRiskGame.away_team, teamRecords) ?? "AWAY"}{" "}
                     {highestRiskGame.away_score} —{" "}
-                    {highestRiskGame.home_team ?? "HOME"}{" "}
+                    {formatTeamRecord(highestRiskGame.home_team, teamRecords) ?? "HOME"}{" "}
                     {highestRiskGame.home_score}
                   </div>
                 ) : null}
@@ -1066,7 +1074,7 @@ gridTemplateColumns: "88px minmax(100px, 1fr) 78px",                      gap: 1
                 </div>
 
                 <div style={{ marginTop: 3, fontSize: 13, opacity: 0.8 }}>
-                  {formatSpread(highestRiskGame)}
+                  {formatSpread(highestRiskGame, teamRecords)}
                 </div>
               </div>
 
@@ -1118,7 +1126,7 @@ gridTemplateColumns: "88px minmax(100px, 1fr) 78px",                      gap: 1
                           </strong>
                           <span style={{ opacity: 0.72 }}>
                             {" "}
-                            · Pick: {p.pick_team ?? "—"}
+                            · Pick: {formatTeamRecord(p.pick_team, teamRecords) ?? "—"}
                             {p.isAuto ? " · AUTO" : ""}
                           </span>
                         </div>
@@ -1175,15 +1183,13 @@ gridTemplateColumns: "88px minmax(100px, 1fr) 78px",                      gap: 1
               const gameRisk = gameRiskScore(g, totalAliveEntries);
               const gameMeta = riskLabel(gameRisk);
 
+              const awayLabel = formatTeamRecord(g.away_team, teamRecords) ?? "AWAY";
+              const homeLabel = formatTeamRecord(g.home_team, teamRecords) ?? "HOME";
               const scoreLine =
                 typeof g.home_score === "number" &&
                 typeof g.away_score === "number"
-                  ? `${g.away_team ?? "AWAY"} ${g.away_score} at ${
-                      g.home_team ?? "HOME"
-                    } ${g.home_score}`
-                  : `${g.away_team ?? "AWAY"} at ${
-                      g.home_team ?? "HOME"
-                    }`;
+                  ? `${awayLabel} ${g.away_score} at ${homeLabel} ${g.home_score}`
+                  : `${awayLabel} at ${homeLabel}`;
 
               const picksSorted = [...g.picks].sort((a, b) => {
                 const ra = riskScoreForPick(
@@ -1250,7 +1256,7 @@ gridTemplateColumns: "88px minmax(100px, 1fr) 78px",                      gap: 1
                           opacity: 0.8,
                         }}
                       >
-                        {formatSpread(g)}
+                        {formatSpread(g, teamRecords)}
                       </div>
                     </div>
 
@@ -1335,7 +1341,7 @@ gridTemplateColumns: "88px minmax(100px, 1fr) 78px",                      gap: 1
                             >
                               Pick:{" "}
                               <strong>
-                                {p.pick_team ?? "—"}
+                                {formatTeamRecord(p.pick_team, teamRecords) ?? "—"}
                                 {p.is_auto ? " · AUTO" : ""}
                               </strong>
 

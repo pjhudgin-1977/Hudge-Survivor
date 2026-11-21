@@ -1,5 +1,10 @@
 "use client";
 
+import {
+  formatTeamRecord,
+  loadTeamRecords,
+  type TeamRecords,
+} from "@/lib/teamRecords";
 import Link from "next/link";
 import {
   useEffect,
@@ -87,6 +92,7 @@ export default function PoolPickPage() {
   >(null);
   const [entryNumbers, setEntryNumbers] = useState<number[]>([1]);
 
+  const [teamRecords, setTeamRecords] = useState<TeamRecords>({});
   const [games, setGames] = useState<GameRow[]>([]);
   const [usedTeams, setUsedTeams] = useState<string[]>([]);
   const [existingPick, setExistingPick] = useState<string | null>(null);
@@ -281,15 +287,18 @@ export default function PoolPickPage() {
         setPoolMemberUserId(member.user_id);
         setScreenName(member.screen_name ?? null);
 
-        const { data: gameRows, error: gamesError } = await supabase
-          .from("games")
-          .select(
-            "season_year, phase, week_number, home_team, away_team, kickoff_at, favorite_team, point_spread"
-          )
-          .eq("season_year", poolState.season_year)
-          .eq("phase", currentPhase)
-          .eq("week_number", poolState.week_number)
-          .order("kickoff_at", { ascending: true });
+        const [{ data: gameRows, error: gamesError }, records] = await Promise.all([
+          supabase
+            .from("games")
+            .select(
+              "season_year, phase, week_number, home_team, away_team, kickoff_at, favorite_team, point_spread"
+            )
+            .eq("season_year", poolState.season_year)
+            .eq("phase", currentPhase)
+            .eq("week_number", poolState.week_number)
+            .order("kickoff_at", { ascending: true }),
+          loadTeamRecords(supabase, poolState.season_year),
+        ]);
 
         if (cancelled) {
           return;
@@ -302,6 +311,7 @@ export default function PoolPickPage() {
           return;
         }
 
+        setTeamRecords(records);
         setGames((gameRows ?? []) as GameRow[]);
 
         const { data: usedRows, error: usedError } = await supabase
@@ -476,8 +486,8 @@ export default function PoolPickPage() {
 
       showTemporaryMessage(
         previousPick && previousPick !== selectedTeam
-          ? `✅ Pick changed from ${previousPick} to ${selectedTeam}.`
-          : `✅ ${selectedTeam} pick saved.`
+          ? `✅ Pick changed from ${formatTeamRecord(previousPick, teamRecords)} to ${formatTeamRecord(selectedTeam, teamRecords)}.`
+          : `✅ ${formatTeamRecord(selectedTeam, teamRecords)} pick saved.`
       );
     } finally {
       setSubmitting(false);
@@ -643,7 +653,7 @@ export default function PoolPickPage() {
             <div>
               {pickChanged ? "Selected team" : "Current pick"}:{" "}
               <strong style={{ color: "#fdba74" }}>
-                {selectedTeam}
+                {formatTeamRecord(selectedTeam, teamRecords)}
               </strong>
 
               {pickChanged ? (
@@ -751,7 +761,7 @@ export default function PoolPickPage() {
                         fontSize: 14,
                       }}
                     >
-                      {team}
+                      {formatTeamRecord(team, teamRecords)}
                     </span>
                   ))}
               </div>
@@ -838,8 +848,8 @@ export default function PoolPickPage() {
                               !game.favorite_team
                             ? "Pick 'em"
                             : game.favorite_team === team
-                              ? `${team} ${game.point_spread}`
-                              : `${team} +${Math.abs(
+                              ? `${formatTeamRecord(team, teamRecords)} ${game.point_spread}`
+                              : `${formatTeamRecord(team, teamRecords)} +${Math.abs(
                                   game.point_spread
                                 )}`;
 
@@ -904,7 +914,7 @@ export default function PoolPickPage() {
                             }}
                           >
                             <span style={{ fontSize: 18 }}>
-                              {team}
+                              {formatTeamRecord(team, teamRecords)}
                             </span>
 
                             {selected ? (
@@ -929,7 +939,7 @@ export default function PoolPickPage() {
                           </div>
 
                           <div style={{ opacity: 0.75 }}>
-                            {homeTeam ? "vs" : "@"} {opponent}
+                            {homeTeam ? "vs" : "@"} {formatTeamRecord(opponent, teamRecords)}
                           </div>
 
                           {spreadLabel ? (
@@ -987,7 +997,7 @@ export default function PoolPickPage() {
                   <li
                     key={`${game.home_team}-${game.away_team}-${index}`}
                   >
-                    {game.away_team} @ {game.home_team} —{" "}
+                    {formatTeamRecord(game.away_team, teamRecords)} @ {formatTeamRecord(game.home_team, teamRecords)} —{" "}
                     {formatKickoffET(game.kickoff_at)}
                   </li>
                 ))}

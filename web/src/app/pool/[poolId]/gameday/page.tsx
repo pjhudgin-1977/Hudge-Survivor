@@ -1,3 +1,4 @@
+import { formatTeamRecord, loadPoolTeamRecords } from "@/lib/teamRecords";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 
@@ -73,6 +74,8 @@ export default async function GameDayPage({
   const displaySeasonYear = Number(
     (latestSeasonGame as any)?.season_year ?? new Date().getUTCFullYear()
   );
+
+  const teamRecordsPromise = loadPoolTeamRecords(supabase, poolId, displaySeasonYear);
 
   const { data: nextGame } = await supabase
     .from("games")
@@ -182,8 +185,12 @@ export default async function GameDayPage({
     };
   });
 
+  const teamRecords = await teamRecordsPromise;
   const sweatEntries = gameCards
     .flatMap((game) => {
+      const awayLabel = formatTeamRecord(game.away_team, teamRecords);
+      const homeLabel = formatTeamRecord(game.home_team, teamRecords);
+      const matchup = `${awayLabel} @ ${homeLabel}`;
       const awayScore = game.away_score ?? null;
       const homeScore = game.home_score ?? null;
       const winnerTeam = String(game.winner_team ?? "").trim();
@@ -205,7 +212,7 @@ export default async function GameDayPage({
               rows.push({
                 screen_name: p.screen_name,
                 picked_team: p.picked_team,
-                matchup: `${game.away_team} @ ${game.home_team}`,
+                matchup,
                 note: "Lost",
                 lastLife: p.lastLife,
                 dangerRank: p.lastLife ? 1 : 2,
@@ -218,7 +225,7 @@ export default async function GameDayPage({
               rows.push({
                 screen_name: p.screen_name,
                 picked_team: p.picked_team,
-                matchup: `${game.away_team} @ ${game.home_team}`,
+                matchup,
                 note: "Lost",
                 lastLife: p.lastLife,
                 dangerRank: p.lastLife ? 1 : 2,
@@ -231,7 +238,7 @@ export default async function GameDayPage({
               rows.push({
                 screen_name: p.screen_name,
                 picked_team: p.picked_team,
-                matchup: `${game.away_team} @ ${game.home_team}`,
+                matchup,
                 note: "Currently losing",
                 lastLife: p.lastLife,
                 dangerRank: p.lastLife ? 1 : 2,
@@ -242,7 +249,7 @@ export default async function GameDayPage({
               rows.push({
                 screen_name: p.screen_name,
                 picked_team: p.picked_team,
-                matchup: `${game.away_team} @ ${game.home_team}`,
+                matchup,
                 note: "Tied game",
                 lastLife: p.lastLife,
                 dangerRank: p.lastLife ? 3 : 4,
@@ -255,7 +262,7 @@ export default async function GameDayPage({
               rows.push({
                 screen_name: p.screen_name,
                 picked_team: p.picked_team,
-                matchup: `${game.away_team} @ ${game.home_team}`,
+                matchup,
                 note: "Currently losing",
                 lastLife: p.lastLife,
                 dangerRank: p.lastLife ? 1 : 2,
@@ -266,7 +273,7 @@ export default async function GameDayPage({
               rows.push({
                 screen_name: p.screen_name,
                 picked_team: p.picked_team,
-                matchup: `${game.away_team} @ ${game.home_team}`,
+                matchup,
                 note: "Tied game",
                 lastLife: p.lastLife,
                 dangerRank: p.lastLife ? 3 : 4,
@@ -372,8 +379,8 @@ export default async function GameDayPage({
                 }}
               >
                 <div style={{ fontWeight: 950 }}>
-                  {game.away_team} ({game.awayPickers.length}){" "}
-                  {game.away_score ?? "—"} @ {game.home_team} (
+                  {formatTeamRecord(game.away_team, teamRecords)} ({game.awayPickers.length}){" "}
+                  {game.away_score ?? "—"} @ {formatTeamRecord(game.home_team, teamRecords)} (
                   {game.homePickers.length}) {game.home_score ?? "—"}
                 </div>
                 <div style={{ opacity: 0.75, fontWeight: 800 }}>
@@ -390,11 +397,11 @@ export default async function GameDayPage({
               >
                 <div style={teamBoxStyle}>
                   <div style={{ fontWeight: 900, marginBottom: 8 }}>
-                    {game.away_team} picks ({game.awayPickers.length})
+                    {formatTeamRecord(game.away_team, teamRecords)} picks ({game.awayPickers.length})
                   </div>
 
                   <div style={{ fontSize: 12, opacity: 0.75, marginBottom: 8 }}>
-                    If {game.away_team} loses:{" "}
+                    If {formatTeamRecord(game.away_team, teamRecords)} loses:{" "}
                     {game.awayLastLife > 0
                       ? `${game.awayLastLife} eliminated, ${
                           game.awayPickers.length - game.awayLastLife
@@ -424,11 +431,11 @@ export default async function GameDayPage({
 
                 <div style={teamBoxStyle}>
                   <div style={{ fontWeight: 900, marginBottom: 8 }}>
-                    {game.home_team} picks ({game.homePickers.length})
+                    {formatTeamRecord(game.home_team, teamRecords)} picks ({game.homePickers.length})
                   </div>
 
                   <div style={{ fontSize: 12, opacity: 0.75, marginBottom: 8 }}>
-                    If {game.home_team} loses:{" "}
+                    If {formatTeamRecord(game.home_team, teamRecords)} loses:{" "}
                     {game.homeLastLife > 0
                       ? `${game.homeLastLife} eliminated, ${
                           game.homePickers.length - game.homeLastLife
@@ -492,7 +499,7 @@ export default async function GameDayPage({
                   {row.screen_name}
                   {row.lastLife ? " • ⚠️" : ""}
                 </div>
-                <div>{row.picked_team}</div>
+                <div>{formatTeamRecord(row.picked_team, teamRecords)}</div>
                 <div>{row.matchup}</div>
                 <div>
                   {row.note}
@@ -514,7 +521,7 @@ export default async function GameDayPage({
             dangerRows.map((row) => (
               <div key={`${row.user_id}|${row.entry_no}`} style={listRowStyle}>
                 <div style={{ fontWeight: 900 }}>{row.screen_name}</div>
-                <div>{row.picked_team || "No pick yet"}</div>
+                <div>{formatTeamRecord(row.picked_team, teamRecords) || "No pick yet"}</div>
                 <div>Losses: {row.losses}</div>
                 <div>⚠️ Last life</div>
               </div>

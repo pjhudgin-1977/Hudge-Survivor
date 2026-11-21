@@ -1,3 +1,4 @@
+import { formatTeamRecord, loadPoolTeamRecords } from "@/lib/teamRecords";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
@@ -176,6 +177,7 @@ export default async function TeamsLeftPage({
     { data: memberData, error: memberError },
     { data: pickData, error: pickError },
     { data: gameData, error: gameError },
+    teamRecords,
   ] = await Promise.all([
     supabase
       .from("pool_members")
@@ -189,6 +191,7 @@ export default async function TeamsLeftPage({
     supabase
       .from("games")
       .select("season_year, week_number, phase, kickoff_at, home_team, away_team"),
+    loadPoolTeamRecords(supabase, poolId, seasonYear),
   ]);
 
   const error =
@@ -533,7 +536,7 @@ export default async function TeamsLeftPage({
                       fontWeight: 950,
                     }}
                   >
-                    {team}
+                    {formatTeamRecord(team, teamRecords)}
                   </div>
                 ))}
               </div>
@@ -577,7 +580,7 @@ export default async function TeamsLeftPage({
                         textDecoration: "line-through",
                       }}
                     >
-                      {team}
+                      {formatTeamRecord(team, teamRecords)}
                     </span>
                   ))}
                 </div>

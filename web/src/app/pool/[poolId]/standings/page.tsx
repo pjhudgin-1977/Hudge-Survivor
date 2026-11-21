@@ -1,5 +1,10 @@
 "use client";
 
+import {
+  formatTeamRecord,
+  loadTeamRecords,
+  type TeamRecords,
+} from "@/lib/teamRecords";
 import { useEffect, useMemo, useState } from "react";
 import { useRouter, useParams } from "next/navigation";
 import { createClient } from "@/lib/supabaseClient";
@@ -53,6 +58,7 @@ export default function StandingsPage() {
   const params = useParams();
   const poolId = params.poolId as string;
 
+  const [teamRecords, setTeamRecords] = useState<TeamRecords>({});
   const [rows, setRows] = useState<Row[]>([]);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
@@ -95,12 +101,15 @@ export default function StandingsPage() {
           ? "regular"
           : "playoffs";
 
-      const { data: currentGames, error: gamesErr } = await supabase
-        .from("games")
-        .select("home_team, away_team, kickoff_at")
-        .eq("season_year", currentSeasonYear)
-        .eq("week_number", currentWeek)
-        .eq("phase", currentPhase);
+      const [{ data: currentGames, error: gamesErr }, records] = await Promise.all([
+        supabase
+          .from("games")
+          .select("home_team, away_team, kickoff_at")
+          .eq("season_year", currentSeasonYear)
+          .eq("week_number", currentWeek)
+          .eq("phase", currentPhase),
+        loadTeamRecords(supabase, currentSeasonYear),
+      ]);
 
       if (gamesErr) {
         setErr(gamesErr.message);
@@ -211,6 +220,7 @@ const full_name =
       });
 
       setRows(mapped);
+      setTeamRecords(records);
       setLoading(false);
     })();
   }, [router, poolId]);
@@ -246,7 +256,7 @@ const full_name =
     const wkLabel =
       wk == null ? "" : phase === "playoffs" ? ` (P${wk})` : ` (W${wk})`;
 
-    return `${r.latest_pick_team}${wkLabel}`;
+    return `${formatTeamRecord(r.latest_pick_team, teamRecords)}${wkLabel}`;
   }
 
   function resultBadge(r: Row) {

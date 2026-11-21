@@ -1,5 +1,6 @@
 "use client";
 
+import { formatTeamRecord, type TeamRecords } from "@/lib/teamRecords";
 import Link from "next/link";
 import React, { useMemo, useState } from "react";
 import { createClient } from "@/lib/supabaseClient";
@@ -68,8 +69,9 @@ export default function Standings2Client(props: {
   poolId: string;
   isCommissioner: boolean;
   rows: MemberRow[];
+  teamRecords: TeamRecords;
 }) {
-  const { poolId, isCommissioner, rows } = props;
+  const { poolId, isCommissioner, rows, teamRecords } = props;
 
   const [forceOpen, setForceOpen] = useState(false);
   const [forceUserId, setForceUserId] = useState<string | null>(null);
@@ -428,7 +430,7 @@ export default function Standings2Client(props: {
                     >
                       {latestTeam ? (
                         <>
-                          {latestTeam}
+                          {formatTeamRecord(latestTeam, teamRecords)}
                           {r.latest_pick_was_autopick ? <AutoBadge /> : null}
                         </>
                       ) : (
@@ -624,7 +626,7 @@ export default function Standings2Client(props: {
                 <option value="">Select…</option>
                 {forceTeams.map((t) => (
                   <option key={t} value={t}>
-                    {t}
+                    {formatTeamRecord(t, teamRecords)}
                   </option>
                 ))}
               </select>
