@@ -87,9 +87,14 @@ export default function PoolPickPage() {
   const [statusMsg, setStatusMsg] = useState("");
 
   const [screenName, setScreenName] = useState<string | null>(null);
-  const [poolMemberUserId, setPoolMemberUserId] = useState<
-    string | null
-  >(null);
+  const entryKey = `${poolId}:${entryNo}`;
+  const [loadedEntry, setLoadedEntry] = useState<{
+    key: string;
+    userId: string;
+    eliminated: boolean;
+  } | null>(null);
+  const currentEntry = loadedEntry?.key === entryKey ? loadedEntry : null;
+  const entryEliminated = currentEntry?.eliminated === true;
   const [entryNumbers, setEntryNumbers] = useState<number[]>([1]);
 
   const [teamRecords, setTeamRecords] = useState<TeamRecords>({});
@@ -125,6 +130,8 @@ export default function PoolPickPage() {
 
   const entryPickLocked =
     isLocked || existingPickGameStarted;
+  const entryPickingDisabled =
+    loading || submitting || !currentEntry || entryEliminated || entryPickLocked;
 
   const weeklyTeams = useMemo(() => {
     const teams = new Set<string>();
@@ -195,6 +202,7 @@ export default function PoolPickPage() {
     async function load() {
       try {
         setLoading(true);
+        setLoadedEntry(null);
         setStatusMsg("");
 
         if (!poolId) {
@@ -251,7 +259,7 @@ export default function PoolPickPage() {
 
         const { data: memberRows, error: memberError } = await supabase
           .from("pool_members")
-          .select("user_id, entry_no, screen_name")
+          .select("user_id, entry_no, screen_name, losses, is_eliminated")
           .eq("pool_id", poolId)
           .eq("user_id", user.id)
           .order("entry_no", { ascending: true });
@@ -284,7 +292,6 @@ export default function PoolPickPage() {
           return;
         }
 
-        setPoolMemberUserId(member.user_id);
         setScreenName(member.screen_name ?? null);
 
         const [{ data: gameRows, error: gamesError }, records] = await Promise.all([
@@ -368,6 +375,12 @@ export default function PoolPickPage() {
           );
           setSelectedTeam(pickedTeam ?? "");
         }
+
+        setLoadedEntry({
+          key: entryKey,
+          userId: member.user_id,
+          eliminated: member.is_eliminated === true || Number(member.losses ?? 0) >= 2,
+        });
       } catch (error: unknown) {
         const message =
           error instanceof Error
@@ -387,10 +400,12 @@ export default function PoolPickPage() {
     return () => {
       cancelled = true;
     };
-  }, [router, poolId, entryNo]);
+  }, [router, poolId, entryNo, entryKey]);
 
   async function handleSubmit() {
     setStatusMsg("");
+
+    if (loading || submitting || entryEliminated) return;
 
     if (isLocked) {
       setStatusMsg("🔒 Picks are locked for this week.");
@@ -407,7 +422,7 @@ export default function PoolPickPage() {
       return;
     }
 
-    if (!poolMemberUserId) {
+    if (!currentEntry) {
       setStatusMsg("Missing pool member. Try refreshing.");
       return;
     }
@@ -447,7 +462,7 @@ export default function PoolPickPage() {
         [
           {
             pool_id: poolId,
-            user_id: poolMemberUserId,
+            user_id: currentEntry.userId,
             entry_no: entryNo,
             phase,
             week_number: weekNumber,
@@ -500,9 +515,7 @@ export default function PoolPickPage() {
     existingPick !== selectedTeam;
 
   const submitDisabled =
-    loading ||
-    submitting ||
-    entryPickLocked ||
+    entryPickingDisabled ||
     selectedTeamGameStarted ||
     !selectedTeam ||
     (Boolean(existingPick) && selectedTeam === existingPick);
@@ -649,7 +662,7 @@ export default function PoolPickPage() {
         </div>
 
         <div style={{ marginTop: 12 }}>
-          {selectedTeam ? (
+          {currentEntry && selectedTeam ? (
             <div>
               {pickChanged ? "Selected team" : "Current pick"}:{" "}
               <strong style={{ color: "#fdba74" }}>
@@ -668,6 +681,12 @@ export default function PoolPickPage() {
             </div>
           ) : null}
         </div>
+
+        {entryEliminated ? (
+          <p role="status" style={{ marginTop: 10, color: "#fca5a5", fontWeight: 800 }}>
+            Entry eliminated — no more picks allowed.
+          </p>
+        ) : null}
 
         <div
           style={{
@@ -855,22 +874,15 @@ export default function PoolPickPage() {
 
                       const teamGameStarted =
                         gameHasStartedForTeam(team);
+                      const teamPickingDisabled = entryPickingDisabled || teamGameStarted;
 
                       return (
                         <button
                           key={`${team}-${game.home_team}-${game.away_team}-${game.kickoff_at}`}
                           type="button"
-                          disabled={
-                            entryPickLocked ||
-                            submitting ||
-                            teamGameStarted
-                          }
+                          disabled={teamPickingDisabled}
                           onClick={() => {
-                            if (
-                              entryPickLocked ||
-                              submitting ||
-                              teamGameStarted
-                            ) {
+                            if (teamPickingDisabled) {
                               return;
                             }
 
@@ -889,13 +901,13 @@ export default function PoolPickPage() {
                             color: selected ? "#000" : "#fff",
                             fontWeight: 800,
                             cursor:
-                              isLocked || submitting
+                              teamPickingDisabled
                                 ? "not-allowed"
                                 : "pointer",
                             textAlign: "left",
                             lineHeight: 1.4,
                             opacity:
-                              isLocked && !selected ? 0.55 : 1,
+                              (isLocked || entryEliminated) && !selected ? 0.55 : 1,
                             boxShadow: selected
                               ? "0 0 0 2px #fb923c, 0 4px 14px rgba(0,0,0,0.35)"
                               : "0 2px 6px rgba(0,0,0,0.35)",
