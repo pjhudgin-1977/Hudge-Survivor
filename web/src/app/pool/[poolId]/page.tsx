@@ -1,5 +1,10 @@
 "use client";
 
+import {
+  formatTeamRecord,
+  loadTeamRecords,
+  type TeamRecords,
+} from "@/lib/teamRecords";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { useParams } from "next/navigation";
@@ -162,6 +167,7 @@ export default function PoolStandingsGridPage() {
     {}
   );
   const [picks, setPicks] = useState<PickRow[]>([]);
+  const [teamRecords, setTeamRecords] = useState<TeamRecords>({});
   const [games, setGames] = useState<GameRow[]>([]);
   const [currentSeasonYear, setCurrentSeasonYear] = useState<number | null>(null);
   const [currentWeek, setCurrentWeek] = useState<number | null>(null);
@@ -314,13 +320,17 @@ const handleSort = (key: string) => {
 
         if (pkErr) throw pkErr;
 
-        const { data: gameRows, error: gameErr } = await supabase
-          .from("games")
-          .select("week_number, phase, kickoff_at, home_team, away_team")
-          .eq("season_year", Number(poolState?.season_year ?? 2026));
+        const [{ data: gameRows, error: gameErr }, records] = await Promise.all([
+          supabase
+            .from("games")
+            .select("week_number, phase, kickoff_at, home_team, away_team")
+            .eq("season_year", Number(poolState?.season_year ?? 2026)),
+          loadTeamRecords(supabase, poolState?.season_year ?? 2026),
+        ]);
 
         if (gameErr) throw gameErr;
 
+        setTeamRecords(records);
         setGames((gameRows ?? []) as GameRow[]);
         setMembers(mem);
         setProfilesById(profMap);
@@ -996,7 +1006,7 @@ const filteredRows = useMemo(() => {
                   <div style={{ fontWeight: 900, opacity: 0.92 }}>{statusText}</div>
 
                   <div style={{ fontWeight: 900, opacity: 0.92 }}>
-                    Pick: {latestTeam}
+                    Pick: {formatTeamRecord(latestTeam, teamRecords)}
                   </div>
 
                   <div>
@@ -1584,7 +1594,7 @@ const filteredRows = useMemo(() => {
                           }}
                         >
                           {team
-                            ? `${team}${auto ? " a" : ""}`
+                            ? `${formatTeamRecord(team, teamRecords)}${auto ? " a" : ""}`
                             : "—"}
                         </div>
                       </div>
@@ -1817,7 +1827,7 @@ Paid {sortKey === "paid" ? (sortDirection === "asc" ? "▲" : "▼") : "↕"}</t
                     const auto = Boolean(p?.was_autopick);
                     const strike = p?.counted_in_losses === true;
                     const win = String(p?.result ?? "").toLowerCase() === "win";
-                    const text = team ? `${team}${auto ? " a" : ""}` : "";
+                    const text = team ? `${formatTeamRecord(team, teamRecords)}${auto ? " a" : ""}` : "";
 
                     return (
                       <td

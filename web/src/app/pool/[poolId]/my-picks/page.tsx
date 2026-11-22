@@ -1,3 +1,4 @@
+import { formatTeamRecord, loadPoolTeamRecords } from "@/lib/teamRecords";
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import React from "react";
@@ -120,6 +121,7 @@ export default async function MyPicksPage({
     .order("entry_no", { ascending: true })
     .order("submitted_at", { ascending: false });
 
+  const teamRecords = await loadPoolTeamRecords(supabase, poolId);
   const picks = (picksInPool ?? []) as PickRow[];
 
   return (
@@ -270,7 +272,7 @@ export default async function MyPicksPage({
                     <div>Entry {row.entry_no ?? 1}</div>
 
                     <div style={{ fontWeight: 950 }}>
-                      {row.picked_team ?? "—"}
+                      {formatTeamRecord(row.picked_team, teamRecords) ?? "—"}
                       {row.was_autopick ? <AutoPill /> : null}
                     </div>
 
@@ -332,7 +334,7 @@ export default async function MyPicksPage({
                         <div style={{ marginTop: 7 }}>
                           Pick:{" "}
                           <strong style={{ color: "#fdba74" }}>
-                            {row.picked_team ?? "—"}
+                            {formatTeamRecord(row.picked_team, teamRecords) ?? "—"}
                           </strong>
 
                           {row.was_autopick ? <AutoPill /> : null}

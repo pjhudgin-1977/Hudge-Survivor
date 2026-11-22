@@ -1,3 +1,4 @@
+import { loadPoolTeamRecords } from "@/lib/teamRecords";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import Standings2Client from "./Standings2Client";
@@ -187,11 +188,14 @@ export default async function Standings2Page({
     };
   });
 
+  const teamRecords = await loadPoolTeamRecords(supabase, poolId);
+
   return (
     <Standings2Client
       poolId={poolId}
       isCommissioner={isCommissioner}
       rows={rows}
+      teamRecords={teamRecords}
     />
   );
 }

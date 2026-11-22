@@ -1,3 +1,8 @@
+import {
+  formatTeamRecord,
+  loadTeamRecords,
+  type TeamRecords,
+} from "@/lib/teamRecords";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import LiveRefresh from "./LiveRefresh";
@@ -71,7 +76,7 @@ function formatScoreUpdated(value: string | null) {
   }).format(date);
 }
 
-function formatSpread(game: Game) {
+function formatSpread(game: Game, teamRecords: TeamRecords) {
   if (game.point_spread === null) {
     return "Spread: TBD";
   }
@@ -80,16 +85,16 @@ function formatSpread(game: Game) {
     return "Spread: Pick'em";
   }
 
-  return `Spread: ${game.favorite_team} ${game.point_spread}`;
+  return `Spread: ${formatTeamRecord(game.favorite_team, teamRecords)} ${game.point_spread}`;
 }
 
-function formatResult(game: Game) {
+function formatResult(game: Game, teamRecords: TeamRecords) {
   if (game.was_tie) {
     return "Tie";
   }
 
   if (game.winner_team) {
-    return `Winner: ${game.winner_team}`;
+    return `Winner: ${formatTeamRecord(game.winner_team, teamRecords)}`;
   }
 
   return null;
@@ -159,7 +164,7 @@ export default async function SchedulePage({
 
   const { data: poolState } = await supabase
     .from("pool_state")
-    .select("week_number")
+    .select("season_year, week_number")
     .eq("pool_id", poolId)
     .maybeSingle();
 
@@ -179,6 +184,7 @@ export default async function SchedulePage({
   const [
     { data: allPicks, error: picksError },
     { data: poolMembers, error: membersError },
+    teamRecords,
   ] = await Promise.all([
     supabase
       .from("picks")
@@ -188,6 +194,7 @@ export default async function SchedulePage({
       .from("pool_members")
       .select("user_id, entry_no")
       .eq("pool_id", poolId),
+    loadTeamRecords(supabase, poolState?.season_year ?? 2026),
   ]);
 
   const { data: games, error } = await supabase
@@ -470,7 +477,7 @@ const popularityCanReveal =
           <div key={row.team}>
             <div className="mb-1 flex items-center justify-between gap-3 text-sm">
               <div className="flex items-center gap-2">
-                <span className="font-bold text-slate-900">{row.team}</span>
+                <span className="font-bold text-slate-900">{formatTeamRecord(row.team, teamRecords)}</span>
                 <span className="text-xs font-bold text-slate-600">
                   {status}
                 </span>
@@ -500,7 +507,7 @@ const popularityCanReveal =
         ) : (
           <div className="divide-y">
             {safeGames.map((game) => {
-              const result = formatResult(game);
+              const result = formatResult(game, teamRecords);
 
               return (
                 <div
@@ -509,7 +516,7 @@ const popularityCanReveal =
                 >
                   <div>
                     <div className="text-lg font-semibold">
-                      {game.away_team} at {game.home_team}
+                      {formatTeamRecord(game.away_team, teamRecords)} at {formatTeamRecord(game.home_team, teamRecords)}
                     </div>
 
                     <div className="mt-1 text-sm text-gray-600">
@@ -517,7 +524,7 @@ const popularityCanReveal =
                     </div>
 
                     <div className="mt-1 text-sm font-medium text-slate-700">
-                      {formatSpread(game)}
+                      {formatSpread(game, teamRecords)}
                     </div>
                   </div>
 
@@ -547,7 +554,7 @@ const popularityCanReveal =
                             : "font-extrabold"
                       }
                     >
-                      {game.away_team} {game.away_score}
+                      {formatTeamRecord(game.away_team, teamRecords)} {game.away_score}
                     </span>
 
                     <span className="mx-2 text-slate-400">—</span>
@@ -562,7 +569,7 @@ const popularityCanReveal =
                             : "font-extrabold"
                       }
                     >
-                      {game.home_team} {game.home_score}
+                      {formatTeamRecord(game.home_team, teamRecords)} {game.home_score}
                     </span>
                   </div>
                 ) : null}
