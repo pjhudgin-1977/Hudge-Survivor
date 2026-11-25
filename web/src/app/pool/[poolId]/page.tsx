@@ -1,5 +1,6 @@
 "use client";
 
+import GameScorePopup from "@/app/_components/GameScorePopup";
 import {
   formatTeamRecord,
   loadTeamRecords,
@@ -124,6 +125,28 @@ function sundayOnePmEtForWeek(
   return null;
 }
 
+function visibleStandingsTeam(
+  pick: PickRow | undefined,
+  games: GameRow[],
+  isMe: boolean
+) {
+  const team = pick?.picked_team?.trim();
+  if (!pick || !team || isMe) return team ?? "";
+
+  const phase = normalizePhase(pick.phase);
+  const week = Number(pick.week_number);
+  const revealAt = sundayOnePmEtForWeek(games, week, phase);
+  const game = games.find((g) =>
+    Number(g.week_number) === week &&
+    normalizePhase(g.phase) === phase &&
+    [g.home_team, g.away_team].some((code) => code?.trim().toUpperCase() === team.toUpperCase())
+  );
+  const now = Date.now();
+
+  return (revealAt !== null && now >= revealAt) ||
+    (game && now >= Date.parse(game.kickoff_at)) ? team : "IN";
+}
+
 function nameInitialLine(fullName: string | null | undefined) {
   const s = String(fullName ?? "").trim();
   if (!s) return "";
@@ -171,7 +194,7 @@ export default function PoolStandingsGridPage() {
   const [games, setGames] = useState<GameRow[]>([]);
   const [currentSeasonYear, setCurrentSeasonYear] = useState<number | null>(null);
   const [currentWeek, setCurrentWeek] = useState<number | null>(null);
-  const [currentPhase, setCurrentPhase] = useState<string | null>(null);
+  const [currentPhase, setCurrentPhase] = useState<"regular" | "playoffs" | null>(null);
 
   const [addingEntry, setAddingEntry] = useState(false);
   const [isCommissioner, setIsCommissioner] = useState(false);
@@ -490,10 +513,10 @@ const sortedRows = useMemo(() => {
   const week = Number(weekText);
 
   const aPick =
-    pickMap[`${a.user_id}|${a.entry_no}|${phase}|${week}`]?.picked_team ?? "";
+    visibleStandingsTeam(pickMap[`${a.user_id}|${a.entry_no}|${phase}|${week}`], games, a.user_id === myUserId);
 
   const bPick =
-    pickMap[`${b.user_id}|${b.entry_no}|${phase}|${week}`]?.picked_team ?? "";
+    visibleStandingsTeam(pickMap[`${b.user_id}|${b.entry_no}|${phase}|${week}`], games, b.user_id === myUserId);
 
   aValue = aPick.toLowerCase();
   bValue = bPick.toLowerCase();
@@ -505,7 +528,7 @@ const sortedRows = useMemo(() => {
   });
 
   return sorted;
-}, [rows, sortKey, sortDirection, pickMap]);
+}, [rows, sortKey, sortDirection, pickMap, games, myUserId]);
 
 const filteredRows = useMemo(() => {
   if (weeklyFilter && currentWeek !== null && currentPhase) {
@@ -1006,7 +1029,11 @@ const filteredRows = useMemo(() => {
                   <div style={{ fontWeight: 900, opacity: 0.92 }}>{statusText}</div>
 
                   <div style={{ fontWeight: 900, opacity: 0.92 }}>
-                    Pick: {formatTeamRecord(latestTeam, teamRecords)}
+                    Pick: {latestPick && latestTeam !== "—" && currentPhase && currentWeek !== null ? (
+                      <GameScorePopup team={latestTeam} season={currentSeasonYear} pick={{ week: currentWeek, phase: currentPhase, result: latestPick.result }} records={teamRecords}>
+                        {formatTeamRecord(latestTeam, teamRecords)}
+                      </GameScorePopup>
+                    ) : latestTeam}
                   </div>
 
                   <div>
@@ -1513,49 +1540,11 @@ const filteredRows = useMemo(() => {
                       `${r.user_id}|${r.entry_no}|${c.phase}|${c.week}`;
                     const pick = pickMap[key];
 
-                    const teamRaw = String(
-                      pick?.picked_team ?? ""
-                    ).trim();
-
-                    const game = pick
-                      ? games.find((g) => {
-                          const sameWeek =
-                            Number(g.week_number) === Number(pick.week_number);
-                          const samePhase =
-                            normalizePhase(g.phase) === normalizePhase(pick.phase);
-
-                          return (
-                            sameWeek &&
-                            samePhase &&
-                            (g.home_team === teamRaw || g.away_team === teamRaw)
-                          );
-                        })
-                      : null;
-
-                    const gameStarted =
-                      Boolean(game?.kickoff_at) &&
-                      new Date(game!.kickoff_at).getTime() <= Date.now();
-
-                    const weekRevealAt = sundayOnePmEtForWeek(
-                      games,
-                      c.week,
-                      c.phase
-                    );
-                    const sundayDeadlinePassed =
-                      weekRevealAt !== null && Date.now() >= weekRevealAt;
-
-                    const team =
-                      !teamRaw
-                        ? ""
-                        : isMe || sundayDeadlinePassed || gameStarted
-                        ? teamRaw
-                        : "IN";
+                    const team = visibleStandingsTeam(pick, games, isMe);
 
                     const auto = Boolean(pick?.was_autopick);
-                    const strike =
-                      pick?.counted_in_losses === true;
-                    const win =
-                      String(pick?.result ?? "").toLowerCase() === "win";
+                    const strike = team !== "IN" && pick?.counted_in_losses === true;
+                    const win = team !== "IN" && pick?.result?.toLowerCase() === "win";
 
                     return (
                       <div
@@ -1593,9 +1582,11 @@ const filteredRows = useMemo(() => {
                             color: win ? "#22c55e" : undefined,
                           }}
                         >
-                          {team
-                            ? `${formatTeamRecord(team, teamRecords)}${auto ? " a" : ""}`
-                            : "—"}
+                          {pick && team && team !== "IN" ? (
+                            <GameScorePopup team={team} season={currentSeasonYear} pick={{ week: c.week, phase: c.phase, result: pick.result }} records={teamRecords}>
+                              {formatTeamRecord(team, teamRecords)}{auto ? " a" : ""}
+                            </GameScorePopup>
+                          ) : team || "—"}
                         </div>
                       </div>
                     );
@@ -1788,53 +1779,16 @@ Paid {sortKey === "paid" ? (sortDirection === "asc" ? "▲" : "▼") : "↕"}</t
                     const k = `${r.user_id}|${r.entry_no}|${c.phase}|${c.week}`;
                     const p = pickMap[k];
 
-                    const teamRaw = String(p?.picked_team ?? "").trim();
-
-                    const game = p
-                      ? games.find((g) => {
-                          const sameWeek =
-                            Number(g.week_number) === Number(p.week_number);
-                          const samePhase =
-                            normalizePhase(g.phase) === normalizePhase(p.phase);
-
-                          return (
-                            sameWeek &&
-                            samePhase &&
-                            (g.home_team === teamRaw || g.away_team === teamRaw)
-                          );
-                        })
-                      : null;
-
-                    const gameStarted =
-                      Boolean(game?.kickoff_at) &&
-                      new Date(game!.kickoff_at).getTime() <= Date.now();
-
-                    const weekRevealAt = sundayOnePmEtForWeek(
-                      games,
-                      c.week,
-                      c.phase
-                    );
-                    const sundayDeadlinePassed =
-                      weekRevealAt !== null && Date.now() >= weekRevealAt;
-
-                    const team =
-                      !teamRaw
-                        ? ""
-                        : isMe || sundayDeadlinePassed || gameStarted
-                        ? teamRaw
-                        : "IN";
+                    const team = visibleStandingsTeam(p, games, isMe);
 
                     const auto = Boolean(p?.was_autopick);
-                    const strike = p?.counted_in_losses === true;
-                    const win = String(p?.result ?? "").toLowerCase() === "win";
+                    const strike = team !== "IN" && p?.counted_in_losses === true;
+                    const win = team !== "IN" && p?.result?.toLowerCase() === "win";
                     const text = team ? `${formatTeamRecord(team, teamRecords)}${auto ? " a" : ""}` : "";
 
                     return (
                       <td
                         key={c.key}
-                        title={`result=${String(p?.result ?? "")} counted=${String(
-                          p?.counted_in_losses
-                        )}`}
                         style={{
                           textAlign: "center",
                           padding: "10px 8px",
@@ -1846,7 +1800,11 @@ Paid {sortKey === "paid" ? (sortDirection === "asc" ? "▲" : "▼") : "↕"}</t
                           color: win ? "#22c55e" : undefined,
                         }}
                       >
-                        {text || "—"}
+                        {p && team && team !== "IN" ? (
+                          <GameScorePopup team={team} season={currentSeasonYear} pick={{ week: c.week, phase: c.phase, result: p.result }} records={teamRecords}>
+                            {text}
+                          </GameScorePopup>
+                        ) : team || "—"}
                       </td>
                     );
                   })}

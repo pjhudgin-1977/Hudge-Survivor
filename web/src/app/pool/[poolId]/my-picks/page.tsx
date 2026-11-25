@@ -1,4 +1,5 @@
-import { formatTeamRecord, loadPoolTeamRecords } from "@/lib/teamRecords";
+import GameScorePopup from "@/app/_components/GameScorePopup";
+import { formatTeamRecord, loadTeamRecords } from "@/lib/teamRecords";
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import React from "react";
@@ -121,7 +122,33 @@ export default async function MyPicksPage({
     .order("entry_no", { ascending: true })
     .order("submitted_at", { ascending: false });
 
-  const teamRecords = await loadPoolTeamRecords(supabase, poolId);
+  const { data: poolState } = await supabase
+    .from("pool_state")
+    .select("season_year")
+    .eq("pool_id", poolId)
+    .maybeSingle();
+  const season = poolState?.season_year;
+  const teamRecords = await loadTeamRecords(supabase, season);
+
+  function savedPickTeam(row: PickRow) {
+    if (!row.picked_team) return "—";
+    const label = formatTeamRecord(row.picked_team, teamRecords);
+    const weekType = row.week_type?.trim().toUpperCase();
+    const phase = row.phase?.trim().toLowerCase() ||
+      (weekType === "PLAYOFF" ? "playoffs" : weekType === "REG" ? "regular" : null);
+    if (row.week_number == null || (phase !== "regular" && phase !== "playoffs")) return label;
+
+    return (
+      <GameScorePopup
+        team={row.picked_team}
+        season={season}
+        pick={{ week: row.week_number, phase, result: row.result }}
+        records={teamRecords}
+      >
+        {label}
+      </GameScorePopup>
+    );
+  }
   const picks = (picksInPool ?? []) as PickRow[];
 
   return (
@@ -272,7 +299,7 @@ export default async function MyPicksPage({
                     <div>Entry {row.entry_no ?? 1}</div>
 
                     <div style={{ fontWeight: 950 }}>
-                      {formatTeamRecord(row.picked_team, teamRecords) ?? "—"}
+                      {savedPickTeam(row)}
                       {row.was_autopick ? <AutoPill /> : null}
                     </div>
 
@@ -334,7 +361,7 @@ export default async function MyPicksPage({
                         <div style={{ marginTop: 7 }}>
                           Pick:{" "}
                           <strong style={{ color: "#fdba74" }}>
-                            {formatTeamRecord(row.picked_team, teamRecords) ?? "—"}
+                            {savedPickTeam(row)}
                           </strong>
 
                           {row.was_autopick ? <AutoPill /> : null}

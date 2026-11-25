@@ -1,0 +1,112 @@
+.trigger {
+  appearance: none;
+  background: transparent;
+  border: 0;
+  color: inherit;
+  cursor: pointer;
+  font: inherit;
+  min-height: 24px;
+  padding: 0;
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 3px;
+}
+
+.trigger:focus-visible,
+.content button:focus-visible {
+  outline: 2px solid #fdba74;
+  outline-offset: 3px;
+}
+
+.dialog {
+  margin: auto;
+  width: min(28rem, calc(100% - 2rem));
+  max-height: calc(100dvh - 2rem);
+  overflow: auto;
+  padding: 0;
+  border: 1px solid var(--bears-orange);
+  border-radius: 1rem;
+  background: var(--bears-navy);
+  color: #fff;
+  box-shadow: 0 20px 60px #0008;
+}
+
+.dialog::backdrop {
+  background: #000a;
+}
+
+.content {
+  padding: clamp(1rem, 5vw, 1.5rem);
+  text-align: left;
+  font-weight: 500;
+}
+
+.content header,
+.score > div {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.content h2 {
+  font-size: 1.25rem;
+  font-weight: 850;
+}
+
+.content button {
+  min-height: 44px;
+  padding: 0 0.85rem;
+  border-radius: 0.5rem;
+  border: 1px solid #fdba74;
+  background: var(--bears-orange);
+  color: #fff;
+  cursor: pointer;
+  font-weight: 750;
+}
+
+.game {
+  border-top: 1px solid #ffffff30;
+  margin-top: 1rem;
+  padding-top: 1rem;
+}
+
+.game h3 {
+  font-weight: 750;
+}
+
+.game p {
+  margin-top: 0.5rem;
+}
+
+.status {
+  color: #fdba74;
+  font-weight: 750;
+  text-transform: capitalize;
+}
+
+.score {
+  display: grid;
+  gap: 0.4rem;
+  margin-top: 0.75rem;
+}
+
+.score > div {
+  padding: 0.55rem 0.75rem;
+  border-radius: 0.5rem;
+  background: #ffffff10;
+}
+
+.score small {
+  color: #cbd5e1;
+}
+
+.score dd {
+  font-size: 1.25rem;
+  font-variant-numeric: tabular-nums;
+  font-weight: 850;
+}
+
+.result {
+  text-transform: capitalize;
+}

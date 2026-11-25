@@ -1,5 +1,6 @@
 "use client";
 
+import GameScorePopup from "@/app/_components/GameScorePopup";
 import {
   formatTeamRecord,
   loadTeamRecords,
@@ -100,6 +101,7 @@ export default function PoolPickPage() {
   const [teamRecords, setTeamRecords] = useState<TeamRecords>({});
   const [games, setGames] = useState<GameRow[]>([]);
   const [usedTeams, setUsedTeams] = useState<string[]>([]);
+  const [existingPickResult, setExistingPickResult] = useState<string | null>(null);
   const [existingPick, setExistingPick] = useState<string | null>(null);
   const [existingPickWasAutopick, setExistingPickWasAutopick] =
     useState(false);
@@ -347,7 +349,7 @@ export default function PoolPickPage() {
 
         const { data: pickRow, error: pickError } = await supabase
           .from("picks")
-          .select("picked_team, was_autopick")
+          .select("picked_team, was_autopick, result")
           .eq("pool_id", poolId)
           .eq("user_id", member.user_id)
           .eq("entry_no", entryNo)
@@ -358,6 +360,8 @@ export default function PoolPickPage() {
         if (cancelled) {
           return;
         }
+
+        setExistingPickResult(pickRow?.result ?? null);
 
         if (pickError) {
           setStatusMsg(
@@ -497,6 +501,7 @@ export default function PoolPickPage() {
       });
 
       setExistingPick(selectedTeam);
+      setExistingPickResult(null);
       setExistingPickWasAutopick(false);
 
       showTemporaryMessage(
@@ -508,6 +513,17 @@ export default function PoolPickPage() {
       setSubmitting(false);
     }
   }
+
+  const savedPickScore = existingPick && weekNumber !== null && phase ? (
+    <GameScorePopup
+      team={existingPick}
+      season={seasonYear}
+      pick={{ week: weekNumber, phase: normalizePhase(phase), result: existingPickResult }}
+      records={teamRecords}
+    >
+      {formatTeamRecord(existingPick, teamRecords)}
+    </GameScorePopup>
+  ) : existingPick;
 
   const pickChanged =
     Boolean(existingPick) &&
@@ -666,12 +682,12 @@ export default function PoolPickPage() {
             <div>
               {pickChanged ? "Selected team" : "Current pick"}:{" "}
               <strong style={{ color: "#fdba74" }}>
-                {formatTeamRecord(selectedTeam, teamRecords)}
+                {pickChanged ? formatTeamRecord(selectedTeam, teamRecords) : savedPickScore}
               </strong>
 
               {pickChanged ? (
                 <span style={{ marginLeft: 8, opacity: 0.8 }}>
-                  Previously saved: {existingPick}
+                  Previously saved: {savedPickScore}
                 </span>
               ) : existingPickWasAutopick ? (
                 <span style={{ marginLeft: 8, opacity: 0.8 }}>
