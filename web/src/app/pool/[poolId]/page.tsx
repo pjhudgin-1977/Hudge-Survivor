@@ -147,6 +147,13 @@ function visibleStandingsTeam(
     (game && now >= Date.parse(game.kickoff_at)) ? team : "IN";
 }
 
+function standingsPickOutcome(pick: PickRow | undefined) {
+  const result = pick?.result?.trim().toLowerCase();
+  if (result === "win") return "Win";
+  if (result === "loss" || pick?.counted_in_losses) return "Loss";
+  return null;
+}
+
 function nameInitialLine(fullName: string | null | undefined) {
   const s = String(fullName ?? "").trim();
   if (!s) return "";
@@ -1543,10 +1550,8 @@ const filteredRows = useMemo(() => {
                     const team = visibleStandingsTeam(pick, games, isMe);
 
                     const visiblePick = team && team !== "IN" ? pick : undefined;
-                    const result = visiblePick?.result?.trim().toLowerCase();
-                    const outcome = result === "win" ? "Win"
-                      : result === "loss" || visiblePick?.counted_in_losses ? "Loss"
-                      : null;
+                    const outcome = standingsPickOutcome(visiblePick);
+                    const loss = outcome === "Loss";
 
                     return (
                       <div
@@ -1555,10 +1560,11 @@ const filteredRows = useMemo(() => {
                           width: 78,
                           flex: "0 0 78px",
                           borderRadius: 10,
-                          border:
-                            "1px solid rgba(255,255,255,0.12)",
-                          background:
-                            "rgba(255,255,255,0.04)",
+                          border: loss
+                            ? "1px solid var(--pick-loss-border)"
+                            : "1px solid rgba(255,255,255,0.12)",
+                          background: loss ? "var(--pick-loss-background)" : "rgba(255,255,255,0.04)",
+                          color: loss ? "var(--pick-loss-text)" : undefined,
                           padding: "8px 6px",
                           textAlign: "center",
                         }}
@@ -1604,7 +1610,7 @@ const filteredRows = useMemo(() => {
                                 padding: "2px 4px",
                                 border: "1px solid currentColor",
                                 borderRadius: 4,
-                                color: outcome === "Win" ? "#bbf7d0" : "#fecaca",
+                                color: outcome === "Win" ? "#bbf7d0" : "var(--pick-loss-text)",
                               }}
                             >
                               <span aria-hidden="true">{outcome[0]}</span>
@@ -1808,9 +1814,11 @@ Paid {sortKey === "paid" ? (sortDirection === "asc" ? "▲" : "▼") : "↕"}</t
 
                     const team = visibleStandingsTeam(p, games, isMe);
 
-                    const auto = Boolean(p?.was_autopick);
-                    const strike = team !== "IN" && p?.counted_in_losses === true;
-                    const win = team !== "IN" && p?.result?.toLowerCase() === "win";
+                    const visiblePick = team && team !== "IN" ? p : undefined;
+                    const auto = Boolean(visiblePick?.was_autopick);
+                    const strike = visiblePick?.counted_in_losses === true;
+                    const outcome = standingsPickOutcome(visiblePick);
+                    const loss = outcome === "Loss";
                     const text = team ? `${formatTeamRecord(team, teamRecords)}${auto ? " a" : ""}` : "";
 
                     return (
@@ -1824,11 +1832,13 @@ Paid {sortKey === "paid" ? (sortDirection === "asc" ? "▲" : "▼") : "↕"}</t
                           fontWeight: 950,
                           opacity: team ? 0.95 : 0.35,
                           textDecoration: strike ? "line-through" : "none",
-                          color: win ? "#22c55e" : undefined,
+                          background: loss ? "var(--pick-loss-background)" : undefined,
+                          boxShadow: loss ? "inset 0 0 0 1px var(--pick-loss-border)" : undefined,
+                          color: loss ? "var(--pick-loss-text)" : outcome === "Win" ? "#22c55e" : undefined,
                         }}
                       >
-                        {p && team && team !== "IN" ? (
-                          <GameScorePopup team={team} season={currentSeasonYear} pick={{ week: c.week, phase: c.phase, result: p.result }} records={teamRecords}>
+                        {visiblePick ? (
+                          <GameScorePopup team={team} season={currentSeasonYear} pick={{ week: c.week, phase: c.phase, result: visiblePick.result }} records={teamRecords}>
                             {text}
                           </GameScorePopup>
                         ) : team || "—"}
