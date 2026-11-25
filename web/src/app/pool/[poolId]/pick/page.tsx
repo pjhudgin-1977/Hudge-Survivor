@@ -1,5 +1,6 @@
 "use client";
 
+import GameScorePopup, { type GameScorePick } from "@/app/_components/GameScorePopup";
 import {
   formatTeamRecord,
   loadTeamRecords,
@@ -100,6 +101,8 @@ export default function PoolPickPage() {
   const [teamRecords, setTeamRecords] = useState<TeamRecords>({});
   const [games, setGames] = useState<GameRow[]>([]);
   const [usedTeams, setUsedTeams] = useState<string[]>([]);
+  const [usedTeamPicks, setUsedTeamPicks] = useState<Map<string, GameScorePick[]>>(new Map());
+  const [existingPickResult, setExistingPickResult] = useState<string | null>(null);
   const [existingPick, setExistingPick] = useState<string | null>(null);
   const [existingPickWasAutopick, setExistingPickWasAutopick] =
     useState(false);
@@ -321,12 +324,22 @@ export default function PoolPickPage() {
         setTeamRecords(records);
         setGames((gameRows ?? []) as GameRow[]);
 
-        const { data: usedRows, error: usedError } = await supabase
-          .from("used_teams")
-          .select("team_abbr")
-          .eq("pool_id", poolId)
-          .eq("user_id", member.user_id)
-          .eq("entry_no", entryNo);
+        const [{ data: usedRows, error: usedError }, { data: savedPicks }] = await Promise.all([
+          supabase
+            .from("used_teams")
+            .select("team_abbr")
+            .eq("pool_id", poolId)
+            .eq("user_id", member.user_id)
+            .eq("entry_no", entryNo),
+          supabase
+            .from("picks")
+            .select("picked_team, phase, week_number, result")
+            .eq("pool_id", poolId)
+            .eq("user_id", member.user_id)
+            .eq("entry_no", entryNo)
+            .not("picked_team", "is", null)
+            .order("week_number", { ascending: true }),
+        ]);
 
         if (cancelled) {
           return;
@@ -345,9 +358,21 @@ export default function PoolPickPage() {
           );
         }
 
+        const picksByTeam = new Map<string, GameScorePick[]>();
+        for (const row of savedPicks ?? []) {
+          const team = row.picked_team?.trim().toUpperCase();
+          const phase = row.phase?.trim().toLowerCase();
+          if (!team || !row.week_number || (phase !== "regular" && phase !== "playoffs")) continue;
+
+          const picks = picksByTeam.get(team) ?? [];
+          picks.push({ week: row.week_number, phase, result: row.result });
+          picksByTeam.set(team, picks);
+        }
+        setUsedTeamPicks(picksByTeam);
+
         const { data: pickRow, error: pickError } = await supabase
           .from("picks")
-          .select("picked_team, was_autopick")
+          .select("picked_team, was_autopick, result")
           .eq("pool_id", poolId)
           .eq("user_id", member.user_id)
           .eq("entry_no", entryNo)
@@ -358,6 +383,8 @@ export default function PoolPickPage() {
         if (cancelled) {
           return;
         }
+
+        setExistingPickResult(pickRow?.result ?? null);
 
         if (pickError) {
           setStatusMsg(
@@ -497,6 +524,7 @@ export default function PoolPickPage() {
       });
 
       setExistingPick(selectedTeam);
+      setExistingPickResult(null);
       setExistingPickWasAutopick(false);
 
       showTemporaryMessage(
@@ -509,6 +537,17 @@ export default function PoolPickPage() {
     }
   }
 
+  const savedPickScore = existingPick && weekNumber !== null && phase ? (
+    <GameScorePopup
+      team={existingPick}
+      season={seasonYear}
+      pick={{ week: weekNumber, phase: normalizePhase(phase), result: existingPickResult }}
+      records={teamRecords}
+    >
+      {formatTeamRecord(existingPick, teamRecords)}
+    </GameScorePopup>
+  ) : existingPick;
+
   const pickChanged =
     Boolean(existingPick) &&
     Boolean(selectedTeam) &&
@@ -520,9 +559,9 @@ export default function PoolPickPage() {
     !selectedTeam ||
     (Boolean(existingPick) && selectedTeam === existingPick);
 
-  const priorUsedTeams = usedTeams.filter(
-    (team) => team !== existingPick
-  );
+  const priorUsedTeams = currentEntry
+    ? [...new Set(usedTeams.filter((team) => team !== existingPick))].sort()
+    : [];
 
   return (
     <main
@@ -666,12 +705,12 @@ export default function PoolPickPage() {
             <div>
               {pickChanged ? "Selected team" : "Current pick"}:{" "}
               <strong style={{ color: "#fdba74" }}>
-                {formatTeamRecord(selectedTeam, teamRecords)}
+                {pickChanged ? formatTeamRecord(selectedTeam, teamRecords) : savedPickScore}
               </strong>
 
               {pickChanged ? (
                 <span style={{ marginLeft: 8, opacity: 0.8 }}>
-                  Previously saved: {existingPick}
+                  Previously saved: {savedPickScore}
                 </span>
               ) : existingPickWasAutopick ? (
                 <span style={{ marginLeft: 8, opacity: 0.8 }}>
@@ -763,26 +802,18 @@ export default function PoolPickPage() {
                   marginBottom: 14,
                 }}
               >
-                {priorUsedTeams
-                  .slice()
-                  .sort()
-                  .map((team) => (
-                    <span
-                      key={team}
-                      style={{
-                        padding: "6px 10px",
-                        borderRadius: 999,
-                        border:
-                          "1px solid rgba(255,255,255,0.18)",
-                        background:
-                          "rgba(255,255,255,0.06)",
-                        fontWeight: 700,
-                        fontSize: 14,
-                      }}
-                    >
-                      {formatTeamRecord(team, teamRecords)}
-                    </span>
-                  ))}
+                {priorUsedTeams.map((team) => (
+                  <GameScorePopup
+                    key={team}
+                    team={team}
+                    season={seasonYear}
+                    pick={usedTeamPicks.get(team.trim().toUpperCase()) ?? []}
+                    records={teamRecords}
+                    variant="chip"
+                  >
+                    {formatTeamRecord(team, teamRecords)}
+                  </GameScorePopup>
+                ))}
               </div>
             )}
 

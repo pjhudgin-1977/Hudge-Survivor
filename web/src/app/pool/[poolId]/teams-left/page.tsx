@@ -1,3 +1,4 @@
+import GameScorePopup, { type GameScorePick } from "@/app/_components/GameScorePopup";
 import { formatTeamRecord, loadPoolTeamRecords } from "@/lib/teamRecords";
 import Link from "next/link";
 import { redirect } from "next/navigation";
@@ -148,9 +149,18 @@ export default async function TeamsLeftPage({
 
   if (!membership) redirect("/");
 
-  const { data: nextGame } = await supabase
-    .from("games")
-    .select("season_year, phase, week_number, kickoff_at")
+  const { data: poolState } = await supabase
+    .from("pool_state")
+    .select("season_year")
+    .eq("pool_id", poolId)
+    .maybeSingle();
+
+  const seasonGames = () => {
+    const query = supabase.from("games").select("season_year, phase, week_number, kickoff_at");
+    return poolState?.season_year ? query.eq("season_year", poolState.season_year) : query;
+  };
+
+  const { data: nextGame } = await seasonGames()
     .gte("kickoff_at", nowIso)
     .order("kickoff_at", { ascending: true })
     .limit(1)
@@ -161,9 +171,7 @@ export default async function TeamsLeftPage({
   let currentWeek = Number(nextGame?.week_number ?? 0);
 
   if (!nextGame) {
-    const { data: lastGame } = await supabase
-      .from("games")
-      .select("season_year, phase, week_number, kickoff_at")
+    const { data: lastGame } = await seasonGames()
       .order("kickoff_at", { ascending: false })
       .limit(1)
       .maybeSingle();
@@ -190,7 +198,8 @@ export default async function TeamsLeftPage({
       .not("picked_team", "is", null),
     supabase
       .from("games")
-      .select("season_year, week_number, phase, kickoff_at, home_team, away_team"),
+      .select("season_year, week_number, phase, kickoff_at, home_team, away_team")
+      .eq("season_year", seasonYear),
     loadPoolTeamRecords(supabase, poolId, seasonYear),
   ]);
 
@@ -219,7 +228,7 @@ export default async function TeamsLeftPage({
     currentWeekLock !== null &&
     Date.now() >= currentWeekLock.getTime();
 
-  const usedByEntry = new Map<string, Set<string>>();
+  const usedByEntry = new Map<string, Map<string, GameScorePick[]>>();
   const lostByEntry = new Map<string, Set<string>>();
 
   for (const pick of picks) {
@@ -227,7 +236,8 @@ export default async function TeamsLeftPage({
 
     const team = String(pick.picked_team ?? "").trim().toUpperCase();
 
-    if (Number(pick.week_number ?? 0) === currentWeek) {
+    const week = Number(pick.week_number ?? 0);
+    if (week >= currentWeek) {
       const selectedGame = (gameData ?? []).find((game) => {
         const sameSeason =
           Number(game.season_year ?? 0) === seasonYear;
@@ -249,7 +259,7 @@ export default async function TeamsLeftPage({
         Boolean(selectedGame?.kickoff_at) &&
         new Date(selectedGame!.kickoff_at).getTime() <= Date.now();
 
-      if (!currentWeekIsPublic && !selectedGameStarted) {
+      if (!(week === currentWeek && currentWeekIsPublic) && !selectedGameStarted) {
         continue;
       }
     }
@@ -258,10 +268,13 @@ export default async function TeamsLeftPage({
     const key = `${pick.user_id}|${Number(pick.entry_no ?? 1)}`;
 
     if (!usedByEntry.has(key)) {
-      usedByEntry.set(key, new Set<string>());
+      usedByEntry.set(key, new Map());
     }
 
-    usedByEntry.get(key)?.add(team);
+    const used = usedByEntry.get(key)!;
+    const teamPicks = used.get(team) ?? [];
+    teamPicks.push({ week, phase, result: pick.result });
+    used.set(team, teamPicks);
 
     if (String(pick.result ?? "").toLowerCase() === "loss") {
       if (!lostByEntry.has(key)) {
@@ -287,7 +300,7 @@ export default async function TeamsLeftPage({
         Boolean(member.is_eliminated) || losses >= 2;
 
       const key = `${member.user_id}|${entryNo}`;
-      const used = usedByEntry.get(key) ?? new Set<string>();
+      const used = usedByEntry.get(key) ?? new Map<string, GameScorePick[]>();
       const remaining = NFL_TEAMS.filter((team) => !used.has(team));
 
       return {
@@ -296,7 +309,7 @@ export default async function TeamsLeftPage({
         entryNo,
         losses,
         eliminated,
-        used: Array.from(used).sort(),
+        used: Array.from(used).sort(([a], [b]) => a.localeCompare(b)),
         lost: Array.from(lostByEntry.get(key) ?? []),
         remaining,
       };
@@ -564,7 +577,7 @@ export default async function TeamsLeftPage({
                     gap: 8,
                   }}
                 >
-                  {entry.used.map((team) => (
+                  {entry.used.map(([team, teamPicks]) => (
                     <span
                       key={`${entry.key}-used-${team}`}
                       style={{
@@ -580,7 +593,9 @@ export default async function TeamsLeftPage({
                         textDecoration: "line-through",
                       }}
                     >
-                      {formatTeamRecord(team, teamRecords)}
+                      <GameScorePopup team={team} season={poolState?.season_year} pick={teamPicks} records={teamRecords}>
+                        {formatTeamRecord(team, teamRecords)}
+                      </GameScorePopup>
                     </span>
                   ))}
                 </div>
