@@ -1542,16 +1542,18 @@ const filteredRows = useMemo(() => {
 
                     const team = visibleStandingsTeam(pick, games, isMe);
 
-                    const auto = Boolean(pick?.was_autopick);
-                    const strike = team !== "IN" && pick?.counted_in_losses === true;
-                    const win = team !== "IN" && pick?.result?.toLowerCase() === "win";
+                    const visiblePick = team && team !== "IN" ? pick : undefined;
+                    const result = visiblePick?.result?.trim().toLowerCase();
+                    const outcome = result === "win" ? "Win"
+                      : result === "loss" || visiblePick?.counted_in_losses ? "Loss"
+                      : null;
 
                     return (
                       <div
                         key={`mobile-${r.row_key}-${c.key}`}
                         style={{
-                          width: 64,
-                          flex: "0 0 64px",
+                          width: 78,
+                          flex: "0 0 78px",
                           borderRadius: 10,
                           border:
                             "1px solid rgba(255,255,255,0.12)",
@@ -1571,22 +1573,47 @@ const filteredRows = useMemo(() => {
                           {c.label}
                         </div>
 
+                        <div style={{ marginTop: 5, fontWeight: 950, opacity: team ? 1 : 0.35 }}>
+                          {visiblePick ? (
+                            <GameScorePopup
+                              team={team}
+                              season={currentSeasonYear}
+                              pick={{ week: c.week, phase: c.phase, result: visiblePick.result }}
+                              records={teamRecords}
+                              stacked
+                            />
+                          ) : team || "—"}
+                        </div>
+
                         <div
                           style={{
-                            marginTop: 5,
-                            fontWeight: 950,
-                            opacity: team ? 1 : 0.35,
-                            textDecoration: strike
-                              ? "line-through"
-                              : "none",
-                            color: win ? "#22c55e" : undefined,
+                            display: "flex",
+                            minHeight: 16,
+                            justifyContent: "center",
+                            alignItems: "center",
+                            gap: 4,
+                            fontSize: 10,
+                            fontWeight: 900,
+                            lineHeight: 1,
                           }}
                         >
-                          {pick && team && team !== "IN" ? (
-                            <GameScorePopup team={team} season={currentSeasonYear} pick={{ week: c.week, phase: c.phase, result: pick.result }} records={teamRecords}>
-                              {formatTeamRecord(team, teamRecords)}{auto ? " a" : ""}
-                            </GameScorePopup>
-                          ) : team || "—"}
+                          {outcome && (
+                            <span
+                              title={outcome}
+                              style={{
+                                padding: "2px 4px",
+                                border: "1px solid currentColor",
+                                borderRadius: 4,
+                                color: outcome === "Win" ? "#bbf7d0" : "#fecaca",
+                              }}
+                            >
+                              <span aria-hidden="true">{outcome[0]}</span>
+                              <span className="sr-only">{outcome}</span>
+                            </span>
+                          )}
+                          {visiblePick?.was_autopick && (
+                            <abbr title="Autopick" style={{ textDecoration: "none" }}>a</abbr>
+                          )}
                         </div>
                       </div>
                     );

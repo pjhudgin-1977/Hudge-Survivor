@@ -740,18 +740,12 @@ export default function PoolPickPage() {
           <p role="status" style={{ marginTop: 10, color: "#fca5a5", fontWeight: 800 }}>
             Entry eliminated — no more picks allowed.
           </p>
-        ) : null}
-
-        <div
-          style={{
-            marginTop: 8,
-            fontSize: 13,
-            opacity: 0.75,
-          }}
-        >
-          You can change your pick until it locks. Your most recently
-          saved pick counts.
-        </div>
+        ) : (
+          <div style={{ marginTop: 8, fontSize: 13, opacity: 0.75 }}>
+            You can change your pick until it locks. Your most recently
+            saved pick counts.
+          </div>
+        )}
 
         {statusMsg ? (
           <div

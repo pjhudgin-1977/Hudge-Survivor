@@ -1,5 +1,6 @@
 import GameScorePopup, { type GameScorePick } from "@/app/_components/GameScorePopup";
-import { formatTeamRecord, loadPoolTeamRecords } from "@/lib/teamRecords";
+import TeamRecordLabel from "@/app/_components/TeamRecordLabel";
+import { loadPoolTeamRecords } from "@/lib/teamRecords";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
@@ -229,7 +230,6 @@ export default async function TeamsLeftPage({
     Date.now() >= currentWeekLock.getTime();
 
   const usedByEntry = new Map<string, Map<string, GameScorePick[]>>();
-  const lostByEntry = new Map<string, Set<string>>();
 
   for (const pick of picks) {
     if (normalizePhase(pick.phase) !== phase) continue;
@@ -275,13 +275,6 @@ export default async function TeamsLeftPage({
     const teamPicks = used.get(team) ?? [];
     teamPicks.push({ week, phase, result: pick.result });
     used.set(team, teamPicks);
-
-    if (String(pick.result ?? "").toLowerCase() === "loss") {
-      if (!lostByEntry.has(key)) {
-        lostByEntry.set(key, new Set<string>());
-      }
-      lostByEntry.get(key)?.add(team);
-    }
   }
 
   const rows = members
@@ -309,8 +302,10 @@ export default async function TeamsLeftPage({
         entryNo,
         losses,
         eliminated,
-        used: Array.from(used).sort(([a], [b]) => a.localeCompare(b)),
-        lost: Array.from(lostByEntry.get(key) ?? []),
+        used: Array.from(used, ([team, picks]) => picks.map((pick) => ({ team, pick })))
+          .flat()
+          .sort((a, b) => (a.pick.week || Infinity) - (b.pick.week || Infinity) ||
+            a.team.localeCompare(b.team)),
         remaining,
       };
     })
@@ -531,15 +526,18 @@ export default async function TeamsLeftPage({
                 style={{
                   display: "grid",
                   gridTemplateColumns:
-                    "repeat(auto-fit, minmax(58px, 1fr))",
-                  gap: 8,
+                    "repeat(auto-fill, minmax(min(100%, 78px), 1fr))",
+                  gap: "clamp(6px, 1.5vw, 10px)",
                 }}
               >
                 {entry.remaining.map((team) => (
                   <div
                     key={`${entry.key}-remaining-${team}`}
                     style={{
-                      padding: "9px 6px",
+                      display: "grid",
+                      placeItems: "center",
+                      minHeight: 72,
+                      padding: "6px",
                       borderRadius: 10,
                       border:
                         "1px solid rgba(251,146,60,0.36)",
@@ -549,7 +547,7 @@ export default async function TeamsLeftPage({
                       fontWeight: 950,
                     }}
                   >
-                    {formatTeamRecord(team, teamRecords)}
+                    <TeamRecordLabel team={team} records={teamRecords} />
                   </div>
                 ))}
               </div>
@@ -572,31 +570,21 @@ export default async function TeamsLeftPage({
               {entry.used.length ? (
                 <div
                   style={{
-                    display: "flex",
-                    flexWrap: "wrap",
-                    gap: 8,
+                    display: "grid",
+                    gridTemplateColumns: "repeat(auto-fill, minmax(min(100%, 86px), 1fr))",
+                    gap: "clamp(6px, 1.5vw, 10px)",
                   }}
                 >
-                  {entry.used.map(([team, teamPicks]) => (
-                    <span
-                      key={`${entry.key}-used-${team}`}
-                      style={{
-                        padding: "7px 10px",
-                        borderRadius: 9,
-                        border:
-                          "1px solid rgba(255,255,255,0.12)",
-                        background: "rgba(255,255,255,0.045)",
-                        color: entry.lost.includes(team)
-                          ? "#ffffff"
-                          : "rgba(255,255,255,0.6)",
-                        fontWeight: entry.lost.includes(team) ? 950 : 850,
-                        textDecoration: "line-through",
-                      }}
-                    >
-                      <GameScorePopup team={team} season={poolState?.season_year} pick={teamPicks} records={teamRecords}>
-                        {formatTeamRecord(team, teamRecords)}
-                      </GameScorePopup>
-                    </span>
+                  {entry.used.map(({ team, pick }) => (
+                    <GameScorePopup
+                      key={`${pick.phase}-${pick.week}-${team}`}
+                      team={team}
+                      season={poolState?.season_year}
+                      pick={pick}
+                      records={teamRecords}
+                      variant="chip"
+                      stacked
+                    />
                   ))}
                 </div>
               ) : (
