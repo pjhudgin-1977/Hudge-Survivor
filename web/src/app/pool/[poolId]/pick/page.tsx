@@ -560,7 +560,22 @@ export default function PoolPickPage() {
     (Boolean(existingPick) && selectedTeam === existingPick);
 
   const priorUsedTeams = currentEntry
-    ? [...new Set(usedTeams.filter((team) => team !== existingPick))].sort()
+    ? [...new Set(usedTeams)]
+        .flatMap<{ team: string; pick?: GameScorePick }>((team) => {
+          const picks = usedTeamPicks.get(team.trim().toUpperCase());
+          if (!picks) return team === existingPick ? [] : [{ team }];
+
+          return picks
+            .filter((pick) => pick.phase !== phase || pick.week !== weekNumber)
+            .map((pick) => ({ team, pick }));
+        })
+        .sort((a, b) => {
+          if (!a.pick || !b.pick) {
+            return Number(!a.pick) - Number(!b.pick) || a.team.localeCompare(b.team);
+          }
+          return Number(a.pick.phase === "playoffs") - Number(b.pick.phase === "playoffs") ||
+            a.pick.week - b.pick.week || a.team.localeCompare(b.team);
+        })
     : [];
 
   return (
@@ -802,12 +817,12 @@ export default function PoolPickPage() {
                   marginBottom: 14,
                 }}
               >
-                {priorUsedTeams.map((team) => (
+                {priorUsedTeams.map(({ team, pick }) => (
                   <GameScorePopup
-                    key={team}
+                    key={pick ? `${pick.phase}-${pick.week}-${team}` : team}
                     team={team}
                     season={seasonYear}
-                    pick={usedTeamPicks.get(team.trim().toUpperCase()) ?? []}
+                    pick={pick ?? []}
                     records={teamRecords}
                     variant="chip"
                   >

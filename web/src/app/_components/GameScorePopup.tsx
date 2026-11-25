@@ -134,6 +134,10 @@ export default function GameScorePopup({
   if (!season || !team.trim()) return children;
   const picks = Array.isArray(pick) ? pick : [pick];
   const isChip = variant === "chip";
+  const chipPick = isChip && picks.length === 1 ? picks[0] : undefined;
+  const weekPrefix = chipPick
+    ? `${chipPick.phase === "playoffs" ? "P" : "W"}${chipPick.week} `
+    : "";
   const hasLoss = isChip && picks.some(({ result }) => result?.trim().toLowerCase() === "loss");
 
   return (
@@ -142,13 +146,13 @@ export default function GameScorePopup({
         type="button"
         className={[styles.trigger, isChip && styles.chip, hasLoss && styles.lossChip].filter(Boolean).join(" ")}
         aria-haspopup="dialog"
-        aria-label={`View game score for ${team}${hasLoss ? ", loss" : ""}`}
+        aria-label={`View game score for ${weekPrefix}${team}${hasLoss ? ", loss" : ""}`}
         onClick={(event) => {
           event.currentTarget.focus();
           setOpen(true);
         }}
       >
-        {children}
+        {weekPrefix}{children}
         {hasLoss && <span className={styles.lossLabel}>Loss</span>}
       </button>
       {open && createPortal(

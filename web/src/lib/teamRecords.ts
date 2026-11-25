@@ -96,5 +96,6 @@ export function formatTeamRecord(
   if (!key || !Object.hasOwn(records, key)) return team;
 
   const { wins, losses, ties } = records[key];
-  return `${team} (${wins}-${losses}-${ties})`;
+  const record = ties > 0 ? `${wins}-${losses}-${ties}` : `${wins}-${losses}`;
+  return `${team} (${record})`;
 }
