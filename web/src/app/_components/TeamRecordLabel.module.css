@@ -1,0 +1,13 @@
+.label {
+  display: inline-grid;
+  justify-items: center;
+  gap: 0.15rem;
+  line-height: 1.15;
+}
+
+.record {
+  font-size: 0.75em;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}

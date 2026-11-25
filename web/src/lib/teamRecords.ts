@@ -83,6 +83,17 @@ export async function loadPoolTeamRecords(
   return loadTeamRecords(supabase, data?.season_year ?? fallbackSeason);
 }
 
+export function formatSeasonRecord(
+  team: string | null | undefined,
+  records: TeamRecords
+): string | null {
+  const key = team?.trim().toUpperCase();
+  if (!key || !Object.hasOwn(records, key)) return null;
+
+  const { wins, losses, ties } = records[key];
+  return ties > 0 ? `${wins}-${losses}-${ties}` : `${wins}-${losses}`;
+}
+
 export function formatTeamRecord(team: string, records: TeamRecords): string;
 export function formatTeamRecord<T extends string | null | undefined>(
   team: T,
@@ -92,9 +103,6 @@ export function formatTeamRecord(
   team: string | null | undefined,
   records: TeamRecords
 ): string | null | undefined {
-  const key = team?.trim().toUpperCase();
-  if (!key || !Object.hasOwn(records, key)) return team;
-
-  const { wins, losses, ties } = records[key];
-  return `${team} (${wins}-${losses}-${ties})`;
+  const record = formatSeasonRecord(team, records);
+  return record ? `${team} (${record})` : team;
 }

@@ -4,6 +4,7 @@ import { useEffect, useId, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { createClient } from "@/lib/supabase/client";
 import { formatTeamRecord, type TeamRecords } from "@/lib/teamRecords";
+import TeamRecordLabel from "./TeamRecordLabel";
 import styles from "./GameScorePopup.module.css";
 
 export type GameScorePick = {
@@ -115,13 +116,14 @@ function GameScore({
 }
 
 export default function GameScorePopup({
-  team, season, pick, records, children, variant,
+  team, season, pick, records, children, variant, stacked,
 }: {
   team: string;
   season: number | null | undefined;
   pick: GameScorePick | GameScorePick[];
   records: TeamRecords;
-  children: ReactNode;
+  children?: ReactNode;
+  stacked?: boolean;
   variant?: "chip";
 }) {
   const dialog = useRef<HTMLDialogElement>(null);
@@ -131,22 +133,39 @@ export default function GameScorePopup({
     if (open && !dialog.current?.open) dialog.current?.showModal();
   }, [open]);
 
-  if (!season || !team.trim()) return children;
   const picks = Array.isArray(pick) ? pick : [pick];
+  const isChip = variant === "chip";
+  const chipPick = isChip && picks.length === 1 ? picks[0] : undefined;
+  const weekPrefix = chipPick?.week
+    ? `${chipPick.phase === "playoffs" ? "P" : "W"}${chipPick.week} `
+    : "";
+  const hasLoss = isChip && picks.some(({ result }) => result?.trim().toLowerCase() === "loss");
+
+  const label = stacked
+    ? <TeamRecordLabel team={team} records={records} prefix={weekPrefix} />
+    : <>{weekPrefix}{children}</>;
+
+  if (!season || !team.trim()) return label;
 
   return (
     <>
       <button
         type="button"
-        className={variant === "chip" ? `${styles.trigger} ${styles.chip}` : styles.trigger}
+        className={[
+          styles.trigger,
+          isChip && styles.chip,
+          isChip && stacked && styles.stackedChip,
+          hasLoss && styles.lossChip,
+        ].filter(Boolean).join(" ")}
         aria-haspopup="dialog"
-        aria-label={`View game score for ${team}`}
+        aria-label={`View game score for ${weekPrefix}${team}${hasLoss ? ", loss" : ""}`}
         onClick={(event) => {
           event.currentTarget.focus();
           setOpen(true);
         }}
       >
-        {children}
+        {label}
+        {hasLoss && <span className={styles.lossLabel}>Loss</span>}
       </button>
       {open && createPortal(
         <dialog

@@ -560,7 +560,22 @@ export default function PoolPickPage() {
     (Boolean(existingPick) && selectedTeam === existingPick);
 
   const priorUsedTeams = currentEntry
-    ? [...new Set(usedTeams.filter((team) => team !== existingPick))].sort()
+    ? [...new Set(usedTeams)]
+        .flatMap<{ team: string; pick?: GameScorePick }>((team) => {
+          const picks = usedTeamPicks.get(team.trim().toUpperCase());
+          if (!picks) return team === existingPick ? [] : [{ team }];
+
+          return picks
+            .filter((pick) => pick.phase !== phase || pick.week !== weekNumber)
+            .map((pick) => ({ team, pick }));
+        })
+        .sort((a, b) => {
+          if (!a.pick || !b.pick) {
+            return Number(!a.pick) - Number(!b.pick) || a.team.localeCompare(b.team);
+          }
+          return Number(a.pick.phase === "playoffs") - Number(b.pick.phase === "playoffs") ||
+            a.pick.week - b.pick.week || a.team.localeCompare(b.team);
+        })
     : [];
 
   return (
@@ -725,18 +740,12 @@ export default function PoolPickPage() {
           <p role="status" style={{ marginTop: 10, color: "#fca5a5", fontWeight: 800 }}>
             Entry eliminated — no more picks allowed.
           </p>
-        ) : null}
-
-        <div
-          style={{
-            marginTop: 8,
-            fontSize: 13,
-            opacity: 0.75,
-          }}
-        >
-          You can change your pick until it locks. Your most recently
-          saved pick counts.
-        </div>
+        ) : (
+          <div style={{ marginTop: 8, fontSize: 13, opacity: 0.75 }}>
+            You can change your pick until it locks. Your most recently
+            saved pick counts.
+          </div>
+        )}
 
         {statusMsg ? (
           <div
@@ -802,12 +811,12 @@ export default function PoolPickPage() {
                   marginBottom: 14,
                 }}
               >
-                {priorUsedTeams.map((team) => (
+                {priorUsedTeams.map(({ team, pick }) => (
                   <GameScorePopup
-                    key={team}
+                    key={pick ? `${pick.phase}-${pick.week}-${team}` : team}
                     team={team}
                     season={seasonYear}
-                    pick={usedTeamPicks.get(team.trim().toUpperCase()) ?? []}
+                    pick={pick ?? []}
                     records={teamRecords}
                     variant="chip"
                   >
