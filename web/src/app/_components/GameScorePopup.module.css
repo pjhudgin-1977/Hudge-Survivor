@@ -39,9 +39,9 @@
 }
 
 .lossChip {
-  border-color: rgba(248, 113, 113, 0.45);
-  background: rgba(127, 29, 29, 0.28);
-  color: #fecaca;
+  border-color: var(--pick-loss-border);
+  background: var(--pick-loss-background);
+  color: var(--pick-loss-text);
 }
 
 .lossLabel {

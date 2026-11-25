@@ -4,6 +4,9 @@
   --bears-navy: #0b162a;
   --bears-orange: #c83803;
   --bears-gray: #a5acaf;
+  --pick-loss-background: rgba(127, 29, 29, 0.28);
+  --pick-loss-border: rgba(248, 113, 113, 0.45);
+  --pick-loss-text: #fecaca;
 }
 
 @theme inline {
