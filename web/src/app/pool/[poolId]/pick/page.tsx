@@ -6,6 +6,7 @@ import {
   loadTeamRecords,
   type TeamRecords,
 } from "@/lib/teamRecords";
+import { formatSignedSpread, getTeamPointSpread } from "@/lib/teamSpreads";
 import Link from "next/link";
 import {
   useEffect,
@@ -900,17 +901,10 @@ export default function PoolPickPage() {
                           : game.home_team;
                       const homeTeam = team === game.home_team;
 
-                      const spreadLabel =
-                        game.point_spread === null
-                          ? null
-                          : game.point_spread === 0 ||
-                              !game.favorite_team
-                            ? "Pick 'em"
-                            : game.favorite_team === team
-                              ? `${formatTeamRecord(team, teamRecords)} ${game.point_spread}`
-                              : `${formatTeamRecord(team, teamRecords)} +${Math.abs(
-                                  game.point_spread
-                                )}`;
+                      const spread = getTeamPointSpread(team, game);
+                      const spreadLabel = spread === null ? null
+                        : spread === 0 ? "Pick 'em"
+                        : `${formatTeamRecord(team, teamRecords)} ${formatSignedSpread(spread)}`;
 
                       const teamGameStarted =
                         gameHasStartedForTeam(team);

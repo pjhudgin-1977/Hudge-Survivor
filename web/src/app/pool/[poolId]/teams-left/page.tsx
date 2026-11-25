@@ -1,6 +1,7 @@
 import GameScorePopup, { type GameScorePick } from "@/app/_components/GameScorePopup";
 import TeamRecordLabel from "@/app/_components/TeamRecordLabel";
 import { loadPoolTeamRecords } from "@/lib/teamRecords";
+import { formatSignedSpread, getTeamPointSpread } from "@/lib/teamSpreads";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
@@ -152,7 +153,7 @@ export default async function TeamsLeftPage({
 
   const { data: poolState } = await supabase
     .from("pool_state")
-    .select("season_year")
+    .select("season_year, week_type, week_number")
     .eq("pool_id", poolId)
     .maybeSingle();
 
@@ -199,7 +200,7 @@ export default async function TeamsLeftPage({
       .not("picked_team", "is", null),
     supabase
       .from("games")
-      .select("season_year, week_number, phase, kickoff_at, home_team, away_team")
+      .select("season_year, week_number, phase, kickoff_at, home_team, away_team, favorite_team, point_spread")
       .eq("season_year", seasonYear),
     loadPoolTeamRecords(supabase, poolId, seasonYear),
   ]);
@@ -208,6 +209,22 @@ export default async function TeamsLeftPage({
     memberError?.message || pickError?.message || gameError?.message || "";
   const members = (memberData ?? []) as MemberRow[];
   const picks = (pickData ?? []) as PickRow[];
+
+  const spreadsByTeam = new Map<string, number | null>();
+  if (poolState) {
+    const poolPhase = normalizePhase(poolState.week_type);
+    for (const game of gameData ?? []) {
+      if (
+        game.season_year !== poolState.season_year ||
+        normalizePhase(game.phase) !== poolPhase ||
+        game.week_number !== poolState.week_number
+      ) continue;
+
+      for (const team of [game.home_team, game.away_team]) {
+        if (team) spreadsByTeam.set(team, getTeamPointSpread(team, game));
+      }
+    }
+  }
 
   const entryCounts = new Map<string, number>();
 
@@ -530,26 +547,47 @@ export default async function TeamsLeftPage({
                   gap: "clamp(6px, 1.5vw, 10px)",
                 }}
               >
-                {entry.remaining.map((team) => (
-                  <div
-                    key={`${entry.key}-remaining-${team}`}
-                    style={{
-                      display: "grid",
-                      placeItems: "center",
-                      minHeight: 72,
-                      padding: "6px",
-                      borderRadius: 10,
-                      border:
-                        "1px solid rgba(251,146,60,0.36)",
-                      background: "rgba(154,52,18,0.18)",
-                      color: "#ffedd5",
-                      textAlign: "center",
-                      fontWeight: 950,
-                    }}
-                  >
-                    <TeamRecordLabel team={team} records={teamRecords} />
-                  </div>
-                ))}
+                {entry.remaining.map((team) => {
+                  const spread = spreadsByTeam.get(team);
+                  const spreadLabel = spread === undefined && spreadsByTeam.size > 0 ? "BYE"
+                    : spread == null ? "TBD"
+                    : spread === 0 ? "Pick'em"
+                    : formatSignedSpread(spread);
+
+                  return (
+                    <div
+                      key={`${entry.key}-remaining-${team}`}
+                      style={{
+                        display: "grid",
+                        gridTemplateRows: "1fr auto",
+                        placeItems: "center",
+                        minHeight: 94,
+                        padding: "6px",
+                        borderRadius: 10,
+                        border: "1px solid rgba(251,146,60,0.36)",
+                        background: "rgba(154,52,18,0.18)",
+                        color: "#ffedd5",
+                        textAlign: "center",
+                        fontWeight: 950,
+                      }}
+                    >
+                      <TeamRecordLabel team={team} records={teamRecords} />
+                      <span
+                        style={{
+                          width: "100%",
+                          borderTop: "1px solid rgba(255,237,213,0.2)",
+                          paddingTop: 4,
+                          fontSize: 12,
+                          lineHeight: 1.25,
+                          color: spread != null && spread < 0 ? "#fdba74" : "#e5e7eb",
+                          whiteSpace: "nowrap",
+                        }}
+                      >
+                        {spreadLabel}
+                      </span>
+                    </div>
+                  );
+                })}
               </div>
             </div>
 
