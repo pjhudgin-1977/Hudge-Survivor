@@ -115,13 +115,14 @@ function GameScore({
 }
 
 export default function GameScorePopup({
-  team, season, pick, records, children,
+  team, season, pick, records, children, variant,
 }: {
   team: string;
   season: number | null | undefined;
   pick: GameScorePick | GameScorePick[];
   records: TeamRecords;
   children: ReactNode;
+  variant?: "chip";
 }) {
   const dialog = useRef<HTMLDialogElement>(null);
   const titleId = useId();
@@ -137,7 +138,7 @@ export default function GameScorePopup({
     <>
       <button
         type="button"
-        className={styles.trigger}
+        className={variant === "chip" ? `${styles.trigger} ${styles.chip}` : styles.trigger}
         aria-haspopup="dialog"
         aria-label={`View game score for ${team}`}
         onClick={(event) => {
@@ -164,6 +165,7 @@ export default function GameScorePopup({
                 <button type="submit">Close</button>
               </form>
             </header>
+            {picks.length === 0 && <p className={styles.game}>Game details unavailable.</p>}
             {picks.map((gamePick) => (
               <GameScore
                 key={`${season}-${gamePick.phase}-${gamePick.week}-${team}`}
