@@ -133,20 +133,23 @@ export default function GameScorePopup({
 
   if (!season || !team.trim()) return children;
   const picks = Array.isArray(pick) ? pick : [pick];
+  const isChip = variant === "chip";
+  const hasLoss = isChip && picks.some(({ result }) => result?.trim().toLowerCase() === "loss");
 
   return (
     <>
       <button
         type="button"
-        className={variant === "chip" ? `${styles.trigger} ${styles.chip}` : styles.trigger}
+        className={[styles.trigger, isChip && styles.chip, hasLoss && styles.lossChip].filter(Boolean).join(" ")}
         aria-haspopup="dialog"
-        aria-label={`View game score for ${team}`}
+        aria-label={`View game score for ${team}${hasLoss ? ", loss" : ""}`}
         onClick={(event) => {
           event.currentTarget.focus();
           setOpen(true);
         }}
       >
         {children}
+        {hasLoss && <span className={styles.lossLabel}>Loss</span>}
       </button>
       {open && createPortal(
         <dialog
