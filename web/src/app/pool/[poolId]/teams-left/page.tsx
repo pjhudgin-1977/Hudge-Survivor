@@ -539,6 +539,10 @@ export default async function TeamsLeftPage({
                 Teams remaining
               </div>
 
+              <p style={{ margin: "0 0 10px", fontSize: 12, lineHeight: 1.5, opacity: 0.7 }}>
+                Numbers below team records represent this week's point spread. Negative (−) indicates a favorite; positive (+) indicates an underdog.
+              </p>
+
               <div
                 style={{
                   display: "grid",
